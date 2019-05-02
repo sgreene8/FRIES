@@ -60,14 +60,13 @@ stack_s *setup_stack(size_t buf_size) {
 hash_table *setup_ht(size_t table_size, mt_struct *rn_gen, unsigned int rn_len) {
     hash_table *table = malloc(sizeof(hash_table));
     table->length = table_size;
-    table->bucket_sizes = malloc(sizeof(unsigned int) * table_size);
-    table->bucket_vals = malloc(sizeof(size_t *) * table_size);
-    table->bucket_dets = malloc(sizeof(long long *) * table_size);
+    table->buckets = malloc(sizeof(hash_entry *) * table_size);
     table->scrambler = malloc(sizeof(unsigned int) * rn_len);
+    table->recycle_list = NULL;
     
     size_t j;
     for (j = 0; j < table_size; j++) {
-        table->bucket_dets[j] = NULL;
+        table->buckets[j] = NULL;
     }
     for (j = 0; j < rn_len; j++) {
         table->scrambler[j] = genrand_mt(rn_gen);
@@ -79,56 +78,59 @@ hash_table *setup_ht(size_t table_size, mt_struct *rn_gen, unsigned int rn_len) 
 ssize_t *read_ht(hash_table *table, long long det, unsigned long long hash_val,
                  int create) {
     size_t table_idx = hash_val % table->length;
-    
-    if (table->bucket_dets[table_idx] == NULL) {
-        table->bucket_dets[table_idx] = malloc(sizeof(long long) * MaxBuckets);
-        table->bucket_vals[table_idx] = malloc(sizeof(ssize_t) * MaxBuckets);
-        table->bucket_sizes[table_idx] = 0;
-    }
-    
-    long long *det_array = table->bucket_dets[table_idx];
-    unsigned int *num_ptr = &table->bucket_sizes[table_idx];
-    unsigned int search_idx = 0;
-    ssize_t *ret_ptr = NULL;
-    
-    for (search_idx = 0; search_idx < *num_ptr; search_idx++) {
-        if (det_array[search_idx] == det) {
-            ret_ptr = &(table->bucket_vals[table_idx][search_idx]);
+    // address of location storing address of next entry
+    hash_entry **prev_ptr = &(table->buckets[table_idx]);
+    // address of next entry
+    hash_entry *next_ptr = *prev_ptr;
+    unsigned int collisions = 0;
+    while (next_ptr) {
+        if (next_ptr->det == det) {
             break;
         }
+        collisions++;
+        prev_ptr = &(next_ptr->next);
+        next_ptr = *prev_ptr;
     }
-    if (search_idx == *num_ptr && create) { // not found, so add it
-        if (*num_ptr == MaxBuckets) {
-            fprintf(stderr, "out of space in a row of the hash table; too many hash collisions\n");
-            FILE *bucket_f = fopen("buckets.txt", "w");
-            for (table_idx = 0; table_idx < table->length; table_idx++) {
-                fprintf(bucket_f, "%u\n", table->bucket_sizes[table_idx]);
-            }
-            fclose(bucket_f);
+    if (collisions > 20) {
+        fprintf(stderr, "There is a line in the hash table with >20 hash collisions.\n");
+    }
+    if (next_ptr) {
+        return &(next_ptr->val);
+    }
+    else if (create) {
+        if (table->recycle_list) {
+            next_ptr = table->recycle_list;
+            table->recycle_list = next_ptr->next;
         }
         else {
-            det_array[search_idx] = det;
-            (*num_ptr)++;
-            ret_ptr = &(table->bucket_vals[table_idx][search_idx]);
-            *ret_ptr = -1;
+            next_ptr = malloc(sizeof(hash_entry));
         }
+        *prev_ptr = next_ptr;
+        next_ptr->det = det;
+        next_ptr->next = NULL;
+        next_ptr->val = -1;
+        return &(next_ptr->val);
     }
-    return ret_ptr;
+    else
+        return NULL;
 }
 
 void del_ht(hash_table *table, long long det, unsigned long long hash_val) {
-    size_t row_idx = hash_val % table->length;
-    long long *det_array = table->bucket_dets[row_idx];
-    ssize_t *val_array = table->bucket_vals[row_idx];
-    unsigned int *num_ptr = &table->bucket_sizes[row_idx];
-    unsigned int search_idx = 0;
-    
-    for (search_idx = 0; search_idx < (*num_ptr); search_idx++) {
-        if (det_array[search_idx] == det) {
-            det_array[search_idx] = det_array[(*num_ptr) - 1];
-            val_array[search_idx] = val_array[(*num_ptr) - 1];
-            (*num_ptr)--;
+    size_t table_idx = hash_val % table->length;
+    // address of location storing address of next entry
+    hash_entry **prev_ptr = &(table->buckets[table_idx]);
+    // address of next entry
+    hash_entry *next_ptr = *prev_ptr;
+    while (next_ptr) {
+        if (next_ptr->det == det) {
             break;
         }
+        prev_ptr = &(next_ptr->next);
+        next_ptr = *prev_ptr;
+    }
+    if (next_ptr) {
+        *prev_ptr = next_ptr->next;
+        next_ptr->next = table->recycle_list;
+        table->recycle_list = next_ptr;
     }
 }

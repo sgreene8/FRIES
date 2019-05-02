@@ -120,7 +120,7 @@ int main(int argc, const char * argv[]) {
     
     // Setup hash table for determinants
     hash_table *det_hash = setup_ht(target_walkers, rngen_ptrs[0], 2 * n_orb);
-    stack_s *det_stack = setup_stack(100000);
+    stack_s *det_stack = setup_stack(1000);
     unsigned long long hash_val;
     unsigned long long hf_hashes[n_hf_doub];
     size_t det_idx;

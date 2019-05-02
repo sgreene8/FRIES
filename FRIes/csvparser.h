@@ -1,3 +1,8 @@
+/*
+ Downloaded from https://sourceforge.net/projects/cccsvparser/
+ MIT License
+ */
+
 #ifndef CSVPARSER_H
 #define CSVPARSER_H
 

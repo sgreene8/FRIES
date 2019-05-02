@@ -13,8 +13,6 @@
 #include <stdlib.h>
 #include "dc.h"
 
-#define MaxBuckets 5
-
 struct stack {
     size_t *storage;
     size_t buf_size;
@@ -22,12 +20,18 @@ struct stack {
 };
 typedef struct stack stack_s;
 
+struct hash_entry {
+    long long det; // key for the hash table in bit-string form
+    ssize_t val; // index in main determinant array, or -1 if uninitialized
+    struct hash_entry *next; // pointer to next entry in linked list
+};
+typedef struct hash_entry hash_entry;
+
 
 struct hash_table {
+    hash_entry *recycle_list;
     size_t length;
-    ssize_t **bucket_vals; // indices in main determinant array, or -1 if uninitialized
-    long long **bucket_dets; // keys for the hash table in bit-string form
-    unsigned int *bucket_sizes;
+    hash_entry **buckets;
     unsigned int *scrambler; // array of random integers to use for hashing
 };
 typedef struct hash_table hash_table;
