@@ -277,7 +277,6 @@ unsigned int sing_multin(long long det, unsigned char *occ_orbs, unsigned int nu
                          mt_struct *rn_ptr, unsigned char (* chosen_orbs)[2], double *prob_vec) {
     unsigned int j, delta_s, num_allowed, occ_orb, occ_symm, occ_spin;
     unsigned int elec_idx, virt_orb;
-    unsigned int num_nonnull = 0;
     unsigned int m_allow[num_elec];
     
     delta_s = 0; // number of electrons with no symmetry-allowed excitations
@@ -306,5 +305,5 @@ unsigned int sing_multin(long long det, unsigned char *occ_orbs, unsigned int nu
         chosen_orbs[j][0] = occ_orb;
         chosen_orbs[j][1] = virt_orb;
     }
-    return num_nonnull;
+    return num_sampl;
 }
