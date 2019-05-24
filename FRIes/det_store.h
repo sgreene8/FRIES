@@ -59,7 +59,7 @@ hash_table *setup_ht(size_t table_size, mt_struct *rn_gen, unsigned int rn_len);
  table: pointer to hash table struct
  det: bit-string representation of determinant
  hash_val: hash value for the determinant, calculated using hash_fxn
- create: if 1, create a new entry in the hash table
+ create: if nonzero, create a new entry in the hash table
  
  Returns
  -------
