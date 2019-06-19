@@ -21,8 +21,7 @@ int round_binomially(double p, unsigned int n, mt_struct *mt_ptr) {
 }
 
 double find_preserve(double *values, size_t *srt_idx, int *keep_idx,
-                     size_t count, unsigned int *n_samp, double *global_norm,
-                     double *fmax) {
+                     size_t count, unsigned int *n_samp, double *global_norm) {
     double loc_one_norm = 0;
     double glob_one_norm = 0;
     size_t det_idx;
@@ -75,7 +74,7 @@ double find_preserve(double *values, size_t *srt_idx, int *keep_idx,
         keep_going = 1;
     }
     loc_one_norm = 0;
-    if (fabs(glob_one_norm) < 1e-9) {
+    if (glob_one_norm < 1e-9) {
         *n_samp = 0;
     }
     else {
@@ -85,7 +84,6 @@ double find_preserve(double *values, size_t *srt_idx, int *keep_idx,
             }
         }
     }
-    *fmax = el_magn;
     return loc_one_norm;
 }
 
@@ -141,3 +139,138 @@ double seed_sys(double *norms, double *rn, unsigned int n_samp) {
     }
     return lbound;
 }
+
+
+double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
+                     double (*sub_weights)[n_sub], int (*keep_idx)[n_sub],
+                     size_t count, unsigned int *n_samp, double *wt_remain) {
+    double loc_one_norm = 0;
+    double glob_one_norm = 0;
+    size_t det_idx, sub_idx;
+    for (det_idx = 0; det_idx < count; det_idx++) {
+        loc_one_norm += values[det_idx];
+        wt_remain[det_idx] = values[det_idx];
+    }
+    int proc_rank = 0;
+    int n_procs = 1;
+#ifdef USE_MPI
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+#endif
+    
+    int loc_sampled, glob_sampled = 1;
+    double el_magn, sub_magn, keep_thresh, sub_remain;
+    while (glob_sampled > 0) {
+        sum_mpi_d(loc_one_norm, &glob_one_norm, proc_rank, n_procs);
+        loc_sampled = 0;
+        for (det_idx = 0; det_idx < count; det_idx++) {
+            el_magn = wt_remain[det_idx];
+            keep_thresh = glob_one_norm / (*n_samp - loc_sampled);
+            if (el_magn >= keep_thresh) {
+                if (n_div[det_idx] > 0) {
+                    if (el_magn / n_div[det_idx] >= keep_thresh) {
+                        keep_idx[det_idx][0] = 1;
+                        wt_remain[det_idx] = 0;
+                        loc_sampled += n_div[det_idx];
+                        loc_one_norm -= el_magn;
+                        glob_one_norm -= el_magn;
+                    }
+                }
+                else {
+                    sub_remain = 0;
+                    for (sub_idx = 0; sub_idx < n_sub; sub_idx++) {
+                        if (!keep_idx[det_idx][sub_idx]) {
+                            sub_magn = el_magn * sub_weights[det_idx][sub_idx];
+                            if (sub_magn >= keep_thresh) {
+                                keep_idx[det_idx][sub_idx] = 1;
+                                loc_sampled++;
+                                loc_one_norm -= sub_magn;
+                                glob_one_norm -= sub_magn;
+                                keep_thresh = glob_one_norm / (*n_samp - loc_sampled);
+                            }
+                            else {
+                                sub_remain += sub_magn;
+                            }
+                        }
+                    }
+                    wt_remain[det_idx] = sub_remain;
+                }
+            }
+        }
+        sum_mpi_i(loc_sampled, &glob_sampled, proc_rank, n_procs);
+        (*n_samp) -= glob_sampled;
+    }
+    loc_one_norm = 0;
+    if (fabs(glob_one_norm) < 1e-9) {
+        *n_samp = 0;
+    }
+    else {
+        for (det_idx = 0; det_idx < count; det_idx++) {
+            loc_one_norm += wt_remain[det_idx];
+        }
+    }
+    return loc_one_norm;
+}
+
+void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
+              unsigned int n_samp, int *keep_exact, double rand_num) {
+    int n_procs = 1;
+    int proc_rank = 0;
+    unsigned int proc_idx;
+#ifdef USE_MPI
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+#endif
+    double tmp_glob_norm = 0;
+    for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        tmp_glob_norm += loc_norms[proc_idx];
+    }
+    
+    double lbound, rn_sys = rand_num;
+    if (n_samp > 0) {
+        lbound = seed_sys(loc_norms, &rn_sys, n_samp);
+    }
+    else {
+        lbound = 0;
+        rn_sys = INFINITY;
+    }
+    
+    loc_norms[proc_rank] = 0;
+    size_t det_idx;
+    double tmp_val;
+    for (det_idx = 0; det_idx < vec_len; det_idx++) {
+        tmp_val = vec_vals[det_idx];
+        if (keep_exact[det_idx]) {
+            loc_norms[proc_rank] += fabs(tmp_val);
+            keep_exact[det_idx] = 0;
+        }
+        else if (tmp_val != 0) {
+            lbound += fabs(tmp_val);
+            if (rn_sys < lbound) {
+                vec_vals[det_idx] = tmp_glob_norm / n_samp * ((tmp_val > 0) - (tmp_val < 0));
+                loc_norms[proc_rank] += tmp_glob_norm / n_samp;
+                rn_sys += tmp_glob_norm / n_samp;
+            }
+            else {
+                vec_vals[det_idx] = 0;
+                keep_exact[det_idx] = 1;
+            }
+        }
+    }
+#ifdef USE_MPI
+    MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+#endif
+}
+
+
+void adjust_shift(double *shift, double one_norm, double *last_norm,
+                  double target_norm, double damp_factor) {
+    if (*last_norm) {
+        *shift -= damp_factor * log(one_norm / *last_norm);
+        *last_norm = one_norm;
+    }
+    if (*last_norm == 0 && one_norm > target_norm) {
+        *last_norm = one_norm;
+    }
+}
+

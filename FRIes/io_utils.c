@@ -150,3 +150,68 @@ int parse_input(const char *hf_dir, hf_input *in_struct) {
     
     return 0;
 }
+
+void save_vec(const char *path, long long *dets, void *vals, size_t n_dets, size_t el_size) {
+    int my_rank = 0;
+#ifdef USE_MPI
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+#endif
+    
+    char buffer[100];
+    sprintf(buffer, "%sdets%d.dat", path, my_rank);
+    FILE *file_p = fopen(buffer, "wb");
+    fwrite(dets, sizeof(long long), n_dets, file_p);
+    fclose(file_p);
+    
+    sprintf(buffer, "%svals%d.dat", path, my_rank);
+    file_p = fopen(buffer, "wb");
+    fwrite(vals, el_size, n_dets, file_p);
+    fclose(file_p);
+}
+
+
+size_t load_vec(const char *path, long long *dets, void *vals, size_t el_size) {
+    int my_rank = 0;
+#ifdef USE_MPI
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+#endif
+    
+    size_t n_dets;
+    char buffer[100];
+    sprintf(buffer, "%sdets%d.dat", path, my_rank);
+    FILE *file_p = fopen(buffer, "rb");
+    n_dets = fread(dets, sizeof(long long), 10000000, file_p);
+    fclose(file_p);
+    
+    sprintf(buffer, "%svals%d.dat", path, my_rank);
+    file_p = fopen(buffer, "rb");
+    fread(vals, el_size, n_dets, file_p);
+    fclose(file_p);
+    
+    return n_dets;
+}
+
+
+void save_proc_hash(const char *path, unsigned int *proc_hash, size_t n_hash) {
+    int my_rank = 0;
+#ifdef USE_MPI
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+#endif
+    
+    char buffer[100];
+    if (my_rank == 0) {
+        sprintf(buffer, "%shash.dat", path);
+        FILE *file_p = fopen(buffer, "wb");
+        fwrite(proc_hash, sizeof(unsigned int), n_hash, file_p);
+        fclose(file_p);
+    }
+}
+
+
+void load_proc_hash(const char *path, unsigned int *proc_hash) {
+    char buffer[100];
+    sprintf(buffer, "%shash.dat", path);
+    FILE *file_p = fopen(buffer, "rrb");
+    fread(proc_hash, sizeof(unsigned int), 1000, file_p);
+    fclose(file_p);
+}

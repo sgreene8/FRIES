@@ -13,11 +13,8 @@
 #include "dc.h"
 #include <math.h>
 #include "heap.h"
-
-//#define USE_MPI
-#ifdef USE_MPI
-#include "mpi.h"
-#endif
+#include "mpi_switch.h"
+#include "det_store.h"
 
 /* Round p to integer b such that
  b ~ binomial(n, p - floor(p)) + floor(p) * n
@@ -57,8 +54,7 @@ int round_binomially(double p, unsigned int n, mt_struct *mt_ptr);
  sum of magnitudes of elements that are not preserved exactly
  */
 double find_preserve(double *values, size_t *srt_idx, int *keep_idx,
-                     size_t count, unsigned int *n_samp, double *global_norm,
-                     double *fmax);
+                     size_t count, unsigned int *n_samp, double *global_norm);
 
 /* Sum a variable across all processors and store the sum in the global ptr
  
@@ -93,9 +89,60 @@ double seed_sys(double *norms, double *rn, unsigned int n_samp);
  
  Parameters
  ----------
- values: vector on which to perform compression. Elements can be negative
+ values: vector on which to perform compression. Elements must be positive.
+ n_div: number of uniform intervals into which vector elements are divided. If =0,
+    vector is divided nonuniformly at this position
+ n_sub: length of 2nd dimension of sub_wts and keep_idx arrays
+ sub_wts: 2-d array of sub-weights for vector elements divided nonuniformly;
+            each nonzero row must sum to 1
+ keep_idx: 2-d array that, upon return, contains 1's at all positions to be
+            preserved exactly. Relevant indices should be zeroed before calling.
+ count: length of values array
+ n_samp: pointer to desired number of nonzero elements after compression;
+    upon return, points to remaining number available for systematic resampling
+ wt_remain: array that, upon return, contains the remaining weight to be sampled
+    at each position
  
+ Returns
+ -------
+ sum of magnitudes of elements that are not preserved exactly
  */
+double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
+                     double (*sub_weights)[n_sub], int (*keep_idx)[n_sub],
+                     size_t count, unsigned int *n_samp, double *wt_remain);
 
+
+/*
+ Systematically compress a vector
+ 
+ Parameters
+ ----------
+ vec_vals: values of elements in the vector
+ vec_len: number of elements in the vector
+ loc_norms: one-norm of the segments of the solution vector on each processor
+            updated upon return
+ n_samp: number of samples to sample using systematic sampling
+ keep_exact: array indicating which elements should be preserved exactly; upon
+             return, 1's indicate elements that should be removed from solution
+             vector
+ rand_num: random number on [0,1)
+ */
+void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
+                unsigned int n_samp, int *keep_exact, double rand_num);
+
+
+/*
+ Adjust energy shift according to eq 17 in Booth et al. (2009)
+ 
+ Parameters
+ ----------
+ shift: pointer to current energy shift; updated upon return
+ one_norm: current one-norm of solution vector
+ last_norm: ptr to previous one-norm of solution vector; updated upon return
+ target_norm: one-norm above which the energy shift should be adjusted
+ damp_factor: prefactor for log in eq 17 (\zeta / A \delta \tau)
+ */
+void adjust_shift(double *shift, double one_norm, double *last_norm,
+                  double target_norm, double damp_factor);
 
 #endif /* compress_utils_h */
