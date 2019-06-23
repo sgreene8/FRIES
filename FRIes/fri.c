@@ -199,7 +199,7 @@ int main(int argc, const char * argv[]) {
             gen_orb_list(sol_dets[loc_n_nonz], n_elec_unf, byte_nums, byte_idx, occ_orbs[loc_n_nonz]);
             sol_mel[loc_n_nonz] = diag_matrel(occ_orbs[loc_n_nonz], tot_orb, eris, h_core, n_frz, n_elec) - hf_en;
             hash_val = hash_fxn(occ_orbs[loc_n_nonz], n_elec_unf, det_hash->scrambler);
-            idx_ptr = read_ht(det_hash, sol_dets[loc_n_nonz], hash_val, 1);
+            idx_ptr = read_ht(det_hash, sol_dets[loc_n_nonz] & ini_mask, hash_val, 1);
             *idx_ptr = loc_n_nonz;
             loc_norms[proc_rank] += fabs(sol_vals[det_idx]);
             keep_exact[loc_n_nonz] = 0;
@@ -235,6 +235,15 @@ int main(int argc, const char * argv[]) {
         strcpy(file_path, result_dir);
         strcat(file_path, "norm.txt");
         norm_file = fopen(file_path, "a");
+        
+        strcpy(file_path, result_dir);
+        strcat(file_path, "params.txt");
+        FILE *param_f = fopen(file_path, "w");
+        fprintf(param_f, "FRI calculation\nHF path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nInitiator threshold: %lf\nMatrix nonzero: %u\nVector nonzero: %u\n", hf_path, eps, target_norm, init_thresh, matr_samp, target_nonz);
+        if (load_dir) {
+            fprintf(param_f, "Restarting calculation from %s\n", load_dir);
+        }
+        fclose(param_f);
     }
     
     // Setup arrays to hold spawned walkers
@@ -276,9 +285,7 @@ int main(int argc, const char * argv[]) {
         for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
             n_spawn[proc_idx] = 0;
         }
-        //        printf("loc_n_nonz from proc %d/%u: %d\n", proc_rank, n_procs, loc_n_nonz);
         sum_mpi_i(loc_n_nonz, &glob_n_nonz, proc_rank, n_procs);
-        //        printf("glob_n_nonz: %d\n", glob_n_nonz);
         
         // Systematic sampling to determine number of samples for each column
         if (proc_rank == 0) {
@@ -421,8 +428,8 @@ int main(int argc, const char * argv[]) {
         if ((iterat + 1) % shift_interval == 0) {
             adjust_shift(&en_shift, glob_norm, &last_one_norm, target_norm, shift_damping / shift_interval / eps);
             if (proc_rank == hf_proc) {
-                fprintf(shift_file, "%lf\n", en_shift);
-                fprintf(norm_file, "%lf\n", glob_norm);
+                //                fprintf(shift_file, "%lf\n", en_shift);
+                //                fprintf(norm_file, "%lf\n", glob_norm);
             }
         }
         matr_el = calc_est_num(sol_dets, sol_vals, hf_dets, hf_mel, n_hf_doub, det_hash, hf_hashes);
@@ -436,9 +443,9 @@ int main(int argc, const char * argv[]) {
             for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
                 matr_el += recv_nums[proc_idx];
             }
-            fprintf(num_file, "%lf\n", matr_el);
-            fprintf(den_file, "%lf\n", sol_vals[0]);
-//            printf("%6u, en est: %lf, shift: %lf, norm: %lf\n", iterat, matr_el / sol_vals[0], en_shift, glob_norm);
+            //            fprintf(num_file, "%lf\n", matr_el);
+            //            fprintf(den_file, "%lf\n", sol_vals[0]);
+            printf("%6u, en est: %lf, shift: %lf, norm: %lf\n", iterat, matr_el / sol_vals[0], en_shift, glob_norm);
         }
         
         if (proc_rank == 0) {
@@ -448,12 +455,12 @@ int main(int argc, const char * argv[]) {
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
         MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
-        sys_solvec(sol_vals, loc_n_dets, loc_norms, n_samp, keep_exact, rn_sys);
+        sys_comp(sol_vals, loc_n_dets, loc_norms, n_samp, keep_exact, rn_sys);
         for (det_idx = 0; det_idx < loc_n_dets; det_idx++) {
             if (keep_exact[det_idx]) {
                 push(det_stack, det_idx);
                 hash_val = hash_fxn(occ_orbs[det_idx], n_elec_unf, det_hash->scrambler);
-                del_ht(det_hash, sol_dets[det_idx], hash_val);
+                del_ht(det_hash, sol_dets[det_idx] & ini_mask, hash_val);
                 keep_exact[det_idx] = 0;
                 loc_n_nonz--;
             }

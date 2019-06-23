@@ -9,17 +9,18 @@
 #include "dc.h"
 #include "compress_utils.h"
 #include "det_store.h"
+#include "heap.h"
 #include "argparse.h"
 #include "mpi_switch.h"
-#define max_iter 1000000
+#define max_iter 10
 
 static const char *const usage[] = {
-    "fciqmc [options] [[--] args]",
-    "fciqmc [options]",
+    "fri [options] [[--] args]",
+    "fri [options]",
     NULL,
 };
 
-double calc_est_num(long long *vec_dets, int *vec_vals, long long *hf_dets,
+double calc_est_num(long long *vec_dets, double *vec_vals, long long *hf_dets,
                     double *hf_mel, size_t num_hf, hash_table *vec_hash,
                     unsigned long long *hf_hashes) {
     size_t hf_idx;
@@ -34,20 +35,25 @@ double calc_est_num(long long *vec_dets, int *vec_vals, long long *hf_dets,
     return numer;
 }
 
+
 int main(int argc, const char * argv[]) {
     const char *hf_path = NULL;
     const char *result_dir = "./";
     const char *load_dir = NULL;
-    unsigned int target_walkers = 0;
+    double target_norm = 0;
+    unsigned int target_nonz = 0;
+    unsigned int matr_samp = 0;
     unsigned int max_n_dets = 0;
-    unsigned int init_thresh = 0;
+    double init_thresh = 0;
     struct argparse_option options[] = {
         OPT_HELP(),
         OPT_STRING('d', "hf_path", &hf_path, "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt"),
-        OPT_INTEGER('t', "target", &target_walkers, "Target number of walkers, must be greater than the plateau value for this system"),
+        OPT_FLOAT('t', "target", &target_norm, "Target one-norm of solution vector"),
+        OPT_INTEGER('m', "vec_nonz", &target_nonz, "Target number of nonzero vector elements to keep after each iteration"),
+        OPT_INTEGER('M', "mat_nonz", &matr_samp, "Target number of nonzero matrix elements to keep after each iteration"),
         OPT_STRING('y', "result_dir", &result_dir, "Directory in which to save output files"),
         OPT_INTEGER('n', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
-        OPT_INTEGER('i', "initiator", &init_thresh, "Number of walkers on a determinant required to make it an initiator."),
+        OPT_FLOAT('i', "initiator", &init_thresh, "Magnitude of vector element required to make the corresponding determinant an initiator."),
         OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load the vector to initialize the calculation."),
         OPT_END(),
     };
@@ -61,15 +67,19 @@ int main(int argc, const char * argv[]) {
         fprintf(stderr, "Error: HF directory not specified.\n");
         return 0;
     }
-    if (target_walkers == 0) {
-        fprintf(stderr, "Error: target number of walkers not specified\n");
+    if (target_nonz == 0) {
+        fprintf(stderr, "Error: target number of nonzero vector elements not specified\n");
         return 0;
     }
-    double target_norm = target_walkers;
+    if (matr_samp == 0) {
+        fprintf(stderr, "Error: target number of nonzero matrix elements not specified\n");
+        return 0;
+    }
     if (max_n_dets == 0) {
         fprintf(stderr, "Error: maximum number of determinants expected on each processor not specified.\n");
         return 0;
     }
+    init_thresh = fabs(init_thresh);
     
     int n_procs = 1;
     int proc_rank = 0;
@@ -106,10 +116,13 @@ int main(int argc, const char * argv[]) {
     
     // Setup arrays for determinants, lookup tables, and rn generators
     long long *sol_dets = malloc(sizeof(long long) * max_n_dets);
-    int *sol_vals = malloc(sizeof(int) * max_n_dets);
+    double *sol_vals = malloc(sizeof(int) * max_n_dets);
     double *sol_mel = malloc(sizeof(double) * max_n_dets);
+    int *keep_exact = malloc(sizeof(int) * max_n_dets);
+    size_t *srt_arr = malloc(sizeof(size_t) * max_n_dets);
     unsigned char (*occ_orbs)[n_elec_unf] = malloc(sizeof(unsigned char) * max_n_dets * n_elec_unf);
-    size_t n_dets = 0; // number of nonzero vector elements on this processor
+    size_t loc_n_dets = 0; // number of vector elements on this processor
+    int loc_n_nonz = 0;
     ssize_t *idx_ptr;
     unsigned char byte_nums[256];
     unsigned char byte_idx[256][8];
@@ -117,11 +130,11 @@ int main(int argc, const char * argv[]) {
     unsigned char symm_lookup[n_irreps][n_orb + 1];
     gen_symm_lookup(symm, n_orb, n_irreps, symm_lookup);
     unsigned int unocc_symm_cts[n_irreps][2];
-    mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, proc_rank, (unsigned int) time(NULL));
+    mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 607, proc_rank, (unsigned int) time(NULL));
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
     
     // Setup hash table for determinants
-    hash_table *det_hash = setup_ht(max_n_dets, rngen_ptr, 2 * n_orb);
+    hash_table *det_hash = setup_ht(max_n_dets / n_procs, rngen_ptr, 2 * n_orb);
     stack_s *det_stack = setup_stack(1000);
     unsigned long long hash_val;
     
@@ -129,8 +142,8 @@ int main(int argc, const char * argv[]) {
     size_t det_idx;
     unsigned int proc_scrambler[2 * n_orb];
     long long hf_det = gen_hf_bitstring(n_orb, n_elec - n_frz);
-    int loc_norm, glob_norm;
-    double last_norm = 0;
+    double loc_norms[n_procs];
+    double glob_norm;
     
     if (load_dir) {
         load_proc_hash(load_dir, proc_scrambler);
@@ -160,47 +173,54 @@ int main(int argc, const char * argv[]) {
     
     unsigned long long hf_hashes[n_hf_doub];
     for (det_idx = 0; det_idx < n_hf_doub; det_idx++) {
-        gen_orb_list(hf_dets[det_idx], n_elec_unf, byte_nums, byte_idx, occ_orbs[n_dets]);
-        hf_hashes[det_idx] = hash_fxn(occ_orbs[n_dets], n_elec_unf, det_hash->scrambler);
+        gen_orb_list(hf_dets[det_idx], n_elec_unf, byte_nums, byte_idx, occ_orbs[loc_n_dets]);
+        hf_hashes[det_idx] = hash_fxn(occ_orbs[loc_n_dets], n_elec_unf, det_hash->scrambler);
     }
     
     // Initialize solution vector
     if (load_dir) {
-        n_dets = load_vec(load_dir, sol_dets, sol_vals, sizeof(int));
+        loc_n_dets = load_vec(load_dir, sol_dets, sol_vals, sizeof(double));
     }
     else {
         if (hf_proc == proc_rank) {
             sol_dets[0] = hf_det | ini_bit;
             sol_vals[0] = 100;
-            n_dets = 1;
+            loc_n_dets = 1;
         }
         else {
-            n_dets = 0;
+            loc_n_dets = 0;
         }
     }
-    loc_norm = 0;
-    size_t n_nonz = 0;
-    for (det_idx = 0; det_idx < n_dets; det_idx++) {
+    loc_norms[proc_rank] = 0;
+    for (det_idx = 0; det_idx < loc_n_dets; det_idx++) {
         if (sol_vals[det_idx] != 0) {
-            sol_dets[n_nonz] = sol_dets[det_idx];
-            sol_vals[n_nonz] = sol_vals[det_idx];
-            gen_orb_list(sol_dets[det_idx], n_elec_unf, byte_nums, byte_idx, occ_orbs[n_nonz]);
-            sol_mel[n_nonz] = diag_matrel(occ_orbs[n_nonz], tot_orb, eris, h_core, n_frz, n_elec) - hf_en;
-            hash_val = hash_fxn(occ_orbs[n_nonz], n_elec_unf, det_hash->scrambler);
-            idx_ptr = read_ht(det_hash, sol_dets[det_idx] & ini_mask, hash_val, 1);
-            *idx_ptr = n_nonz;
-            loc_norm += abs(sol_vals[det_idx]);
-            n_nonz++;
+            sol_dets[loc_n_nonz] = sol_dets[det_idx];
+            sol_vals[loc_n_nonz] = sol_vals[det_idx];
+            gen_orb_list(sol_dets[loc_n_nonz], n_elec_unf, byte_nums, byte_idx, occ_orbs[loc_n_nonz]);
+            sol_mel[loc_n_nonz] = diag_matrel(occ_orbs[loc_n_nonz], tot_orb, eris, h_core, n_frz, n_elec) - hf_en;
+            hash_val = hash_fxn(occ_orbs[loc_n_nonz], n_elec_unf, det_hash->scrambler);
+            idx_ptr = read_ht(det_hash, sol_dets[loc_n_nonz] & ini_mask, hash_val, 1);
+            *idx_ptr = loc_n_nonz;
+            loc_norms[proc_rank] += fabs(sol_vals[det_idx]);
+            keep_exact[loc_n_nonz] = 0;
+            srt_arr[loc_n_nonz] = loc_n_nonz;
+            loc_n_nonz++;
         }
     }
-    n_dets = n_nonz;
-    sum_mpi_i(loc_norm, &glob_norm, proc_rank, n_procs);
+    loc_n_dets = loc_n_nonz;
+#ifdef USE_MPI
+    MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+#endif
+    glob_norm = 0;
+    for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        glob_norm += loc_norms[proc_idx];
+    }
     
     char file_path[100];
-    FILE *walk_file = NULL;
     FILE *num_file = NULL;
     FILE *den_file = NULL;
     FILE *shift_file = NULL;
+    FILE *norm_file = NULL;
     if (proc_rank == hf_proc) {
         // Setup output files
         strcpy(file_path, result_dir);
@@ -213,13 +233,13 @@ int main(int argc, const char * argv[]) {
         strcat(file_path, "S.txt");
         shift_file = fopen(file_path, "a");
         strcpy(file_path, result_dir);
-        strcat(file_path, "N.txt");
-        walk_file = fopen(file_path, "a");
+        strcat(file_path, "norm.txt");
+        norm_file = fopen(file_path, "a");
         
         strcpy(file_path, result_dir);
         strcat(file_path, "params.txt");
         FILE *param_f = fopen(file_path, "w");
-        fprintf(param_f, "FCIQMC calculation\nHF path: %s\nepsilon (imaginary time step): %lf\nTarget number of walkers %u\nInitiator threshold: %u\n", hf_path, eps, target_walkers, init_thresh);
+        fprintf(param_f, "FRI calculation\nHF path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nInitiator threshold: %lf\nMatrix nonzero: %u\nVector nonzero: %u\n", hf_path, eps, target_norm, init_thresh, matr_samp, target_nonz);
         if (load_dir) {
             fprintf(param_f, "Restarting calculation from %s\n", load_dir);
         }
@@ -227,11 +247,11 @@ int main(int argc, const char * argv[]) {
     }
     
     // Setup arrays to hold spawned walkers
-    unsigned int spawn_length = target_walkers / 10 / n_procs / n_procs;
+    unsigned int spawn_length = matr_samp * 2 / n_procs;
     long long (*send_dets)[spawn_length] = malloc(sizeof(long long) * spawn_length * n_procs);
-    int (*send_vals)[spawn_length] = malloc(sizeof(int) * spawn_length * n_procs);
+    double (*send_vals)[spawn_length] = malloc(sizeof(double) * spawn_length * n_procs);
     long long (*recv_dets)[spawn_length] = malloc(sizeof(long long) * spawn_length * n_procs);
-    int (*recv_vals)[spawn_length] = malloc(sizeof(int) * spawn_length * n_procs);
+    double (*recv_vals)[spawn_length] = malloc(sizeof(double) * spawn_length * n_procs);
     int n_spawn[n_procs];
     int recv_cts[n_procs];
     int displacements[n_procs];
@@ -239,111 +259,69 @@ int main(int argc, const char * argv[]) {
         displacements[proc_idx] = proc_idx * spawn_length;
     }
     
-    unsigned int max_spawn = 100000; // should scale as max expected # on one determinant
-    unsigned char *spawn_orbs = malloc(sizeof(unsigned char) * 4 * max_spawn);
-    double *spawn_probs = malloc(sizeof(double) * max_spawn);
-    unsigned char (*sing_orbs)[2];
-    unsigned char (*doub_orbs)[4];
+    double *subwt_mem = malloc(sizeof(double) * n_irreps * spawn_length);
+    unsigned int *ndiv_vec = malloc(sizeof(unsigned int) * spawn_length);
+    double *comp_vec1 = malloc(sizeof(double) * spawn_length);
+    double *comp_vec2 = malloc(sizeof(double) * spawn_length);
+    double *prob_vec1 = malloc(sizeof(double) * spawn_length);
+    double *prob_vec2 = malloc(sizeof(double) * spawn_length);
+    size_t *det_indices1 = malloc(sizeof(size_t) * spawn_length);
+    size_t *det_indices2 = malloc(sizeof(size_t) * spawn_length);
     
     size_t walker_idx;
     long long ini_flag;
-    unsigned int n_walk, n_doub, n_sing;
-    //    unsigned int rec_one_norms[n_procs];
-    int spawn_walker, walk_sign, new_val;
+    unsigned int n_doub;
+    double last_one_norm = 0;
     unsigned char tmp_orbs[n_elec_unf];
     long long new_det;
     double matr_el;
     double recv_nums[n_procs];
+    
+    // Parameters for systematic sampling
+    double rn_sys = 0;
+    double lbound;
+    double weight;
+    int glob_n_nonz; // Number of nonzero elements in whole vector (across all processors)
     
     unsigned int iterat;
     for (iterat = 0; iterat < max_iter; iterat++) {
         for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
             n_spawn[proc_idx] = 0;
         }
-        for (det_idx = 0; det_idx < n_dets; det_idx++) {
-            n_walk = abs(sol_vals[det_idx]);
-            if (n_walk == 0) {
+        sum_mpi_i(loc_n_nonz, &glob_n_nonz, proc_rank, n_procs);
+        
+        // Systematic matrix compression
+        if (glob_n_nonz > matr_samp) {
+            fprintf(stderr, "Warning: target number of matrix samples (%u) is less than number of nonzero vector elements (%d)\n", matr_samp, glob_n_nonz);
+        }
+        
+        if (proc_rank == 0) {
+            rn_sys = genrand_mt(rngen_ptr) / MT_MAX;
+        }
+#ifdef USE_MPI
+        MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+#endif
+        if (glob_n_nonz < matr_samp) {
+            lbound = seed_sys(loc_norms, &rn_sys, matr_samp - (unsigned int)glob_n_nonz);
+        }
+        else {
+            fprintf(stderr, "Warning: target number of matrix samples (%u) is less than number of nonzero vector elements (%d)\n", matr_samp, glob_n_nonz);
+            lbound = 0;
+            rn_sys = INFINITY;
+        }
+        for (det_idx = 0; det_idx < loc_n_dets; det_idx++) {
+            weight = fabs(sol_vals[det_idx]);
+            if (weight == 0) {
                 continue;
             }
-            ini_flag = n_walk > init_thresh;
-            ini_flag <<= 2 * n_orb;
-            sol_dets[det_idx] = ini_flag | (sol_dets[det_idx] & ini_mask);
-            walk_sign = 1 - ((sol_vals[det_idx] >> (sizeof(sol_vals[det_idx]) * 8 - 1)) & 2);
-            
-            // spawning step
-            count_symm_virt(unocc_symm_cts, occ_orbs[det_idx], n_elec_unf,
-                            n_orb, n_irreps, symm_lookup, symm);
-            n_doub = bin_sample(n_walk, p_doub, rngen_ptr);
-            n_sing = n_walk - n_doub;
-            
-            if (n_doub > max_spawn || n_sing / 2 > max_spawn) {
-                printf("Allocating more memory for spawning\n");
-                max_spawn *= 2;
-                free(spawn_orbs);
-                free(spawn_probs);
-                spawn_orbs = malloc(sizeof(unsigned char) * 4 * max_spawn);
-                spawn_probs = malloc(sizeof(double) * max_spawn);
-            }
-            
-            doub_orbs = (unsigned char (*)[4]) spawn_orbs;
-            n_doub = doub_multin(sol_dets[det_idx], occ_orbs[det_idx], n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_doub, rngen_ptr, doub_orbs, spawn_probs);
-            
-            for (walker_idx = 0; walker_idx < n_doub; walker_idx++) {
-                matr_el = doub_matr_el_nosgn(doub_orbs[walker_idx], tot_orb, eris, n_frz);
-                matr_el *= eps / spawn_probs[walker_idx] / p_doub;
-                spawn_walker = round_binomially(matr_el, 1, rngen_ptr);
-                
-                if (spawn_walker != 0) {
-                    new_det = sol_dets[det_idx];
-                    spawn_walker *= -doub_det_parity(&new_det, doub_orbs[walker_idx]) * walk_sign;
-                    
-                    gen_orb_list(new_det & ini_mask, n_elec_unf, byte_nums, byte_idx, tmp_orbs);
-                    hash_val = hash_fxn(tmp_orbs, n_elec_unf, proc_scrambler);
-                    proc_idx = hash_val % n_procs;
-                    
-                    send_dets[proc_idx][n_spawn[proc_idx]] = new_det;
-                    send_vals[proc_idx][n_spawn[proc_idx]] = spawn_walker;
-                    n_spawn[proc_idx]++;
-                }
-            }
-            
-            sing_orbs = (unsigned char (*)[2]) spawn_orbs;
-            n_sing = sing_multin(sol_dets[det_idx], occ_orbs[det_idx], n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_sing, rngen_ptr, sing_orbs, spawn_probs);
-            
-            for (walker_idx = 0; walker_idx < n_sing; walker_idx++) {
-                matr_el = sing_matr_el_nosgn(sing_orbs[walker_idx], occ_orbs[det_idx], tot_orb, eris, h_core, n_frz, n_elec_unf);
-                matr_el *= eps / spawn_probs[walker_idx] / (1 - p_doub);
-                spawn_walker = round_binomially(matr_el, 1, rngen_ptr);
-                
-                if (spawn_walker != 0) {
-                    new_det = sol_dets[det_idx];
-                    spawn_walker *= -sing_det_parity(&new_det, sing_orbs[walker_idx]) * walk_sign;
-                    
-                    gen_orb_list(new_det & ini_mask, n_elec_unf, byte_nums, byte_idx, tmp_orbs);
-                    hash_val = hash_fxn(tmp_orbs, n_elec_unf, proc_scrambler);
-                    proc_idx = hash_val % n_procs;
-                    
-                    send_dets[proc_idx][n_spawn[proc_idx]] = new_det;
-                    send_vals[proc_idx][n_spawn[proc_idx]] = spawn_walker;
-                    n_spawn[proc_idx]++;
-                }
-            }
-            
             // Death/cloning step
-            matr_el = (1 - eps * (sol_mel[det_idx] - en_shift)) * walk_sign;
-            new_val = round_binomially(matr_el, n_walk, rngen_ptr);
-            if (new_val == 0) {
-                hash_val = hash_fxn(occ_orbs[det_idx], n_elec_unf, det_hash->scrambler);
-                del_ht(det_hash, sol_dets[det_idx] & ini_mask, hash_val);
-                push(det_stack, det_idx);
-            }
-            sol_vals[det_idx] = new_val;
+            sol_vals[det_idx] *= 1 - eps * (sol_mel[det_idx] - en_shift);
         }
         // Communication
 #ifdef USE_MPI
         MPI_Alltoall(n_spawn, 1, MPI_INT, recv_cts, 1, MPI_INT, MPI_COMM_WORLD);
         MPI_Alltoallv(send_dets, n_spawn, displacements, MPI_LONG_LONG, recv_dets, recv_cts, displacements, MPI_LONG_LONG, MPI_COMM_WORLD);
-        MPI_Alltoallv(send_vals, n_spawn, displacements, MPI_INT, recv_vals, recv_cts, displacements, MPI_INT, MPI_COMM_WORLD);
+        MPI_Alltoallv(send_vals, n_spawn, displacements, MPI_DOUBLE, recv_vals, recv_cts, displacements, MPI_DOUBLE, MPI_COMM_WORLD);
 #else
         for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
             recv_cts[proc_idx] = n_spawn[proc_idx];
@@ -357,52 +335,49 @@ int main(int argc, const char * argv[]) {
         for (proc_idx = 0; proc_idx < n_procs; proc_idx++){
             for (walker_idx = 0; walker_idx < recv_cts[proc_idx]; walker_idx++) {
                 new_det = recv_dets[proc_idx][walker_idx];
-                gen_orb_list(new_det & ini_mask, n_elec_unf, byte_nums, byte_idx, spawn_orbs);
-                hash_val = hash_fxn(spawn_orbs, n_elec_unf, det_hash->scrambler);
+                gen_orb_list(new_det & ini_mask, n_elec_unf, byte_nums, byte_idx, tmp_orbs);
+                hash_val = hash_fxn(tmp_orbs, n_elec_unf, det_hash->scrambler);
                 ini_flag = new_det & ini_bit; // came from initiator
                 new_det &= ini_mask;
                 idx_ptr = read_ht(det_hash, new_det, hash_val, !(!ini_flag));
                 if (idx_ptr && *idx_ptr == -1) {
                     *idx_ptr = pop(det_stack);
                     if (*idx_ptr == -1) {
-                        if (n_dets >= max_n_dets) {
+                        if (loc_n_dets >= max_n_dets) {
                             fprintf(stderr, "Exceeded maximum length of determinant arrays\n");
                             return -1;
                         }
-                        *idx_ptr = n_dets;
-                        n_dets++;
+                        *idx_ptr = loc_n_dets;
+                        keep_exact[loc_n_dets] = 0;
+                        srt_arr[loc_n_dets] = loc_n_dets;
+                        loc_n_dets++;
                     }
+                    sol_dets[*idx_ptr] = new_det;
                     sol_vals[*idx_ptr] = 0;
+                    loc_n_nonz++;
                     // copy occupied orbitals over
                     for (n_doub = 0; n_doub < n_elec_unf; n_doub++) {
-                        occ_orbs[*idx_ptr][n_doub] = spawn_orbs[n_doub];
+                        occ_orbs[*idx_ptr][n_doub] = tmp_orbs[n_doub];
                     }
-                    sol_mel[*idx_ptr] = diag_matrel(spawn_orbs, tot_orb, eris, h_core, n_frz, n_elec) - hf_en;
-                    sol_dets[*idx_ptr] = new_det;
+                    sol_mel[*idx_ptr] = diag_matrel(tmp_orbs, tot_orb, eris, h_core, n_frz, n_elec) - hf_en;
                 }
-                if (ini_flag || (idx_ptr && abs(sol_vals[*idx_ptr]) > 0)) {
+                if (ini_flag || (idx_ptr && fabs(sol_vals[*idx_ptr]) > 0)) {
                     sol_vals[*idx_ptr] += recv_vals[proc_idx][walker_idx];
-                    if (sol_vals[*idx_ptr] == 0) {
-                        push(det_stack, *idx_ptr);
-                        del_ht(det_hash, new_det, hash_val);
-                    }
                 }
             }
         }
-        // Communication
+        // Compression step
+        unsigned int n_samp = target_nonz;
+        loc_norms[proc_rank] = find_preserve(sol_vals, srt_arr, keep_exact, loc_n_dets, &n_samp, &glob_norm);
+        
+        // Adjust shift
         if ((iterat + 1) % shift_interval == 0) {
-            loc_norm = 0;
-            for (det_idx = 0; det_idx < n_dets; det_idx++) {
-                loc_norm += abs(sol_vals[det_idx]);
-            }
-            sum_mpi_i(loc_norm, &glob_norm, proc_rank, n_procs);
-            adjust_shift(&en_shift, glob_norm, &last_norm, target_norm, shift_damping / eps / shift_interval);
+            adjust_shift(&en_shift, glob_norm, &last_one_norm, target_norm, shift_damping / shift_interval / eps);
             if (proc_rank == hf_proc) {
-                //                fprintf(walk_file, "%u\n", glob_norm);
                 //                fprintf(shift_file, "%lf\n", en_shift);
+                //                fprintf(norm_file, "%lf\n", glob_norm);
             }
         }
-        
         matr_el = calc_est_num(sol_dets, sol_vals, hf_dets, hf_mel, n_hf_doub, det_hash, hf_hashes);
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
@@ -415,11 +390,30 @@ int main(int argc, const char * argv[]) {
                 matr_el += recv_nums[proc_idx];
             }
             //            fprintf(num_file, "%lf\n", matr_el);
-            //            fprintf(den_file, "%d\n", sol_vals[0]);
-            printf("%6u, n walk: %7u, en est: %lf, shift: %lf\n", iterat, glob_norm, matr_el / sol_vals[0], en_shift);
+            //            fprintf(den_file, "%lf\n", sol_vals[0]);
+            printf("%6u, en est: %lf, shift: %lf, norm: %lf\n", iterat, matr_el / sol_vals[0], en_shift, glob_norm);
         }
+        
+        if (proc_rank == 0) {
+            rn_sys = genrand_mt(rngen_ptr) / MT_MAX;
+        }
+#ifdef USE_MPI
+        MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+        MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+#endif
+        sys_comp(sol_vals, loc_n_dets, loc_norms, n_samp, keep_exact, rn_sys);
+        for (det_idx = 0; det_idx < loc_n_dets; det_idx++) {
+            if (keep_exact[det_idx]) {
+                push(det_stack, det_idx);
+                hash_val = hash_fxn(occ_orbs[det_idx], n_elec_unf, det_hash->scrambler);
+                del_ht(det_hash, sol_dets[det_idx] & ini_mask, hash_val);
+                keep_exact[det_idx] = 0;
+                loc_n_nonz--;
+            }
+        }
+        
         if ((iterat + 1) % save_interval == 0) {
-            save_vec(result_dir, sol_dets, sol_vals, n_dets, sizeof(int));
+            save_vec(result_dir, sol_dets, sol_vals, loc_n_dets, sizeof(double));
             if (proc_rank == hf_proc) {
                 fflush(num_file);
                 fflush(den_file);
@@ -432,3 +426,6 @@ int main(int argc, const char * argv[]) {
 #endif
     return 0;
 }
+
+
+

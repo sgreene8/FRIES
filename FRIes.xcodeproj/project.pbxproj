@@ -45,6 +45,7 @@
 		C534974D22517568001289D4 /* fci_utils.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = fci_utils.c; sourceTree = "<group>"; };
 		C55353232295D38E0015688B /* argparse.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = argparse.h; sourceTree = "<group>"; };
 		C55353242295D38E0015688B /* argparse.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = argparse.c; sourceTree = "<group>"; };
+		C55E4AF722BE953A00FD0FC9 /* fri_sys.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = fri_sys.c; sourceTree = "<group>"; };
 		C562C01D2282156A008D8718 /* heap.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = heap.c; sourceTree = "<group>"; };
 		C562C01E2282156A008D8718 /* heap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = heap.h; sourceTree = "<group>"; };
 		C5703A6B2299C64900DAD730 /* mpi_switch.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = mpi_switch.h; sourceTree = "<group>"; };
@@ -92,6 +93,7 @@
 				C58C52B42252B82A0062A0DC /* dc.h */,
 				C58C52B32252B82A0062A0DC /* libdcmt.a */,
 				C502C7AF22500F0800D0E912 /* main.c */,
+				C55E4AF722BE953A00FD0FC9 /* fri_sys.c */,
 				C51D08C422B93BF600B11FB6 /* hier_comp_ex.c */,
 				C5D0BB322298800000F59565 /* fciqmc.c */,
 				C5D0BB332298800000F59565 /* fri.c */,
