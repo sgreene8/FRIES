@@ -164,11 +164,11 @@ double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
         sum_mpi_d(loc_one_norm, &glob_one_norm, proc_rank, n_procs);
         loc_sampled = 0;
         for (det_idx = 0; det_idx < count; det_idx++) {
-            el_magn = wt_remain[det_idx];
+            el_magn = values[det_idx];
             keep_thresh = glob_one_norm / (*n_samp - loc_sampled);
             if (el_magn >= keep_thresh) {
                 if (n_div[det_idx] > 0) {
-                    if (el_magn / n_div[det_idx] >= keep_thresh) {
+                    if (el_magn / n_div[det_idx] >= keep_thresh && !keep_idx[det_idx][0]) {
                         keep_idx[det_idx][0] = 1;
                         wt_remain[det_idx] = 0;
                         loc_sampled += n_div[det_idx];
@@ -274,3 +274,87 @@ void adjust_shift(double *shift, double one_norm, double *last_norm,
     }
 }
 
+size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
+               double (*sub_weights)[n_sub], int (*keep_idx)[n_sub],
+               size_t count, unsigned int n_samp, double *wt_remain,
+               double *loc_norms, double rand_num, double *new_vals,
+               size_t (*new_idx)[2]) {
+    int n_procs = 1;
+    int proc_rank = 0;
+    unsigned int proc_idx;
+#ifdef USE_MPI
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+#endif
+    double tmp_glob_norm = 0;
+    for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        tmp_glob_norm += loc_norms[proc_idx];
+    }
+    
+    double lbound, rn_sys = rand_num;
+    if (n_samp > 0) {
+        lbound = seed_sys(loc_norms, &rn_sys, n_samp);
+    }
+    else {
+        lbound = 0;
+        rn_sys = INFINITY;
+    }
+    
+    loc_norms[proc_rank] = 0;
+    size_t wt_idx, sub_idx;
+    double tmp_val;
+    size_t num_new = 0;
+    double sub_lbound;
+    for (wt_idx = 0; wt_idx < count; wt_idx++) {
+        tmp_val = values[wt_idx];
+        lbound += wt_remain[wt_idx];
+        if (n_div[wt_idx] > 0) {
+            if (keep_idx[wt_idx][0]) {
+                keep_idx[wt_idx][0] = 0;
+                for (sub_idx = 0; sub_idx < n_div[wt_idx]; sub_idx++) {
+                    new_vals[num_new] = tmp_val / n_div[wt_idx];
+                    new_idx[num_new][0] = wt_idx;
+                    new_idx[num_new][1] = sub_idx;
+                    num_new++;
+                }
+                loc_norms[proc_rank] += tmp_val;
+            }
+            else {
+                while (rn_sys < lbound) {
+                    sub_idx = (lbound - rn_sys) * n_div[wt_idx] / tmp_val;
+                    new_vals[num_new] = tmp_glob_norm / n_samp;
+                    new_idx[num_new][0] = wt_idx;
+                    new_idx[num_new][1] = sub_idx;
+                    num_new++;
+                    rn_sys += tmp_glob_norm / n_samp;
+                    loc_norms[proc_rank] += tmp_glob_norm / n_samp;
+                }
+            }
+        }
+        else if (wt_remain[wt_idx] < tmp_val || rn_sys < lbound) {
+            loc_norms[proc_rank] += (tmp_val - wt_remain[wt_idx]);
+            sub_lbound = lbound - wt_remain[wt_idx];
+            for (sub_idx = 0; sub_idx < n_sub; sub_idx++) {
+                if (keep_idx[wt_idx][sub_idx]) {
+                    keep_idx[wt_idx][sub_idx] = 0;
+                    new_vals[num_new] = tmp_val * sub_weights[wt_idx][sub_idx];
+                    new_idx[num_new][0] = wt_idx;
+                    new_idx[num_new][1] = sub_idx;
+                    num_new++;
+                }
+                else {
+                    sub_lbound += tmp_val * sub_weights[wt_idx][sub_idx];
+                    if (rn_sys < sub_lbound) {
+                        new_vals[num_new] = tmp_glob_norm / n_samp;
+                        new_idx[num_new][0] = wt_idx;
+                        new_idx[num_new][1] = sub_idx;\
+                        num_new++;
+                        loc_norms[proc_rank] += tmp_glob_norm / n_samp;
+                        rn_sys += tmp_glob_norm / n_samp;
+                    }
+                }
+            }
+        }
+    }
+    return num_new;
+}

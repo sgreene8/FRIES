@@ -51,7 +51,7 @@ void read_in_uchar(unsigned char *buf, char *fname) {
 }
 
 
-int parse_input(const char *hf_dir, hf_input *in_struct) {
+int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     char buffer[100];
     strcpy(buffer, hf_dir);
     strcat(buffer, "sys_params.txt");
@@ -151,6 +151,102 @@ int parse_input(const char *hf_dir, hf_input *in_struct) {
     return 0;
 }
 
+int parse_hh_input(const char *hh_path, hh_input *in_struct) {
+    FILE *file_p = fopen(hh_path, "r");
+    if (!file_p) {
+        fprintf(stderr, "Error: could not open file containing Hubbard-Holstein parameters\n");
+        return -1;
+    }
+    
+    char buffer[100];
+    char *str_p = fgets(buffer, sizeof(buffer), file_p);
+    int success = strcmp(buffer, "n_elec");
+    if (success) {
+        str_p = fgets(buffer, sizeof(buffer), file_p);
+        success = !(!str_p);
+    }
+    if (success) {
+        sscanf(buffer, "%u", &(in_struct->n_elec));
+    }
+    else {
+        fprintf(stderr, "Error: could not find n_elec parameter in %s\n", hh_path);
+        return -1;
+    }
+    
+    str_p = fgets(buffer, sizeof(buffer), file_p);
+    success = strcmp(buffer, "lat_len");
+    if (success) {
+        str_p = fgets(buffer, sizeof(buffer), file_p);
+        success = !(!str_p);
+    }
+    if (success) {
+        sscanf(buffer, "%u", &(in_struct->lat_len));
+    }
+    else {
+        fprintf(stderr, "Error: could not find lat_len parameter in %s\n", hh_path);
+        return -1;
+    }
+    
+    str_p = fgets(buffer, sizeof(buffer), file_p);
+    success = strcmp(buffer, "n_dim");
+    if (success) {
+        str_p = fgets(buffer, sizeof(buffer), file_p);
+        success = !(!str_p);
+    }
+    if (success) {
+        sscanf(buffer, "%u", &(in_struct->n_dim));
+    }
+    else {
+        fprintf(stderr, "Error: could not find n_dim parameter in %s\n", hh_path);
+        return -1;
+    }
+    
+    str_p = fgets(buffer, sizeof(buffer), file_p);
+    success = strcmp(buffer, "eps");
+    if (success) {
+        str_p = fgets(buffer, sizeof(buffer), file_p);
+        success = !(!str_p);
+    }
+    if (success) {
+        sscanf(buffer, "%lf", &(in_struct->eps));
+    }
+    else {
+        fprintf(stderr, "Error: could not find eps parameter in %s\n", hh_path);
+        return -1;
+    }
+    
+    str_p = fgets(buffer, sizeof(buffer), file_p);
+    success = strcmp(buffer, "U");
+    if (success) {
+        str_p = fgets(buffer, sizeof(buffer), file_p);
+        success = !(!str_p);
+    }
+    if (success) {
+        sscanf(buffer, "%lf", &(in_struct->elec_int));
+    }
+    else {
+        fprintf(stderr, "Error: could not find electron interaction parameter (U) in %s\n", hh_path);
+        return -1;
+    }
+    
+    str_p = fgets(buffer, sizeof(buffer), file_p);
+    success = strcmp(buffer, "hf_energy");
+    if (success) {
+        str_p = fgets(buffer, sizeof(buffer), file_p);
+        success = !(!str_p);
+    }
+    if (success) {
+        sscanf(buffer, "%lf", &(in_struct->hf_en));
+    }
+    else {
+        fprintf(stderr, "Error: could not find hf_energy parameter in %s\n", hh_path);
+        return -1;
+    }
+    
+    fclose(file_p);
+    return 0;
+}
+
 void save_vec(const char *path, long long *dets, void *vals, size_t n_dets, size_t el_size) {
     int my_rank = 0;
 #ifdef USE_MPI
@@ -170,7 +266,7 @@ void save_vec(const char *path, long long *dets, void *vals, size_t n_dets, size
 }
 
 
-size_t load_vec(const char *path, long long *dets, void *vals, size_t el_size) {
+size_t load_vec(const char *prefix, long long *dets, void *vals, size_t el_size) {
     int my_rank = 0;
 #ifdef USE_MPI
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
@@ -178,17 +274,54 @@ size_t load_vec(const char *path, long long *dets, void *vals, size_t el_size) {
     
     size_t n_dets;
     char buffer[100];
-    sprintf(buffer, "%sdets%d.dat", path, my_rank);
+    sprintf(buffer, "%sdets%d.dat", prefix, my_rank);
     FILE *file_p = fopen(buffer, "rb");
     n_dets = fread(dets, sizeof(long long), 10000000, file_p);
     fclose(file_p);
     
-    sprintf(buffer, "%svals%d.dat", path, my_rank);
+    sprintf(buffer, "%svals%d.dat", prefix, my_rank);
     file_p = fopen(buffer, "rb");
     fread(vals, el_size, n_dets, file_p);
     fclose(file_p);
     
     return n_dets;
+}
+
+size_t load_vec_txt(const char *prefix, long long *dets, void *vals, dtype type) {
+    int my_rank = 0;
+#ifdef USE_MPI
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+#endif
+    
+    char buffer[100];
+    sprintf(buffer, "%sdets%02d", prefix, my_rank);
+    FILE *file_d = fopen(buffer, "r");
+    sprintf(buffer, "%svals%02d", prefix, my_rank);
+    FILE *file_v = fopen(buffer, "r");
+    int num_read_d = 1;
+    int num_read_v = 1;
+    size_t n_dets = 0;
+    
+    if (type == DOUB) {
+        double *val_arr = vals;
+        while (num_read_d == 1 && num_read_v == 1) {
+            num_read_d = fscanf(file_d, "%lld\n", &dets[n_dets]);
+            num_read_v = fscanf(file_v, "%lf\n", &val_arr[n_dets]);
+            n_dets++;
+        }
+    }
+    else if (type == INT) {
+        int *val_arr = vals;
+        while (num_read_d == 1 && num_read_v == 1) {
+            num_read_d = fscanf(file_d, "%lld\n", &dets[n_dets]);
+            num_read_v = fscanf(file_v, "%d\n", &val_arr[n_dets]);
+            n_dets++;
+        }
+    }
+    else {
+        fprintf(stderr, "Error: data type %d not supported in function load_vec_txt.\n", type);
+    }
+    return --n_dets;
 }
 
 
@@ -211,7 +344,47 @@ void save_proc_hash(const char *path, unsigned int *proc_hash, size_t n_hash) {
 void load_proc_hash(const char *path, unsigned int *proc_hash) {
     char buffer[100];
     sprintf(buffer, "%shash.dat", path);
-    FILE *file_p = fopen(buffer, "rrb");
+    FILE *file_p = fopen(buffer, "rb");
     fread(proc_hash, sizeof(unsigned int), 1000, file_p);
     fclose(file_p);
 }
+
+
+double calc_dprod(long long *long_idx, void *long_vals, long long *short_idx, double *short_vals, size_t num_short, hash_table *vec_hash, unsigned long long *short_hashes, dtype type) {
+    size_t hf_idx;
+    ssize_t *ht_ptr;
+    double numer = 0;
+    int *int_vals = long_vals;
+    double *doub_vals = long_vals;
+    for (hf_idx = 0; hf_idx < num_short; hf_idx++) {
+        ht_ptr = read_ht(vec_hash, short_idx[hf_idx], short_hashes[hf_idx], 0);
+        if (ht_ptr) {
+            if (type == INT) {
+                numer += short_vals[hf_idx] * int_vals[*ht_ptr];
+            }
+            else if (type == DOUB) {
+                numer += short_vals[hf_idx] * doub_vals[*ht_ptr];
+            }
+            else {
+                fprintf(stderr, "Error: data type %d not supported in function calc_dprod\n", type);
+            }
+        }
+    }
+    return numer;
+}
+
+
+//size_t distribute_vec_int(long long *in_dets, int *in_vals, size_t num_in, unsigned int *proc_rns, size_t buf_len, long long (*dets_buf)[buf_len], int (*vals_buf)[buf_len], byte_table *table) {
+//    int n_procs = 1;
+//#ifdef USE_MPI
+//    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+//#endif
+//    
+//    size_t n_spawn[n_procs];
+//    size_t det_idx;
+////    unsigned char occ_orbs[
+//    
+//    for (det_idx = 0; det_idx < num_in; det_idx++) {
+//        
+//    }
+//}

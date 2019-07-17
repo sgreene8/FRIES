@@ -1,41 +1,47 @@
+/*
+ Perform FCIQMC on the Hubbard model.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <math.h>
 #include "io_utils.h"
-#include "fci_utils.h"
-#include "near_uniform.h"
 #include "dc.h"
 #include "compress_utils.h"
 #include "det_store.h"
 #include "argparse.h"
 #include "mpi_switch.h"
-#define max_iter 1000000
+#include "hub_holstein.h"
+#define max_iter 10000
 
 static const char *const usage[] = {
-    "fciqmc [options] [[--] args]",
-    "fciqmc [options]",
+    "fciqmc_hh [options] [[--] args]",
+    "fciqmc_hh [options]",
     NULL,
 };
 
-double calc_est_num(long long *vec_dets, int *vec_vals, long long *hf_dets,
-                    double *hf_mel, size_t num_hf, hash_table *vec_hash,
-                    unsigned long long *hf_hashes) {
-    size_t hf_idx;
-    ssize_t *ht_ptr;
-    double numer = 0;
-    for (hf_idx = 0; hf_idx < num_hf; hf_idx++) {
-        ht_ptr = read_ht(vec_hash, hf_dets[hf_idx], hf_hashes[hf_idx], 0);
-        if (ht_ptr) {
-            numer += hf_mel[hf_idx] * vec_vals[*ht_ptr];
-        }
+int pow_int(int base, int exp) {
+    unsigned int idx;
+    int result = 1;
+    for (idx = 0; idx < exp; idx++) {
+        result *= base;
     }
-    return numer;
+    return result;
 }
 
 int main(int argc, const char * argv[]) {
-    const char *hf_path = NULL;
+    int n_procs = 1;
+    int proc_rank = 0;
+    unsigned int proc_idx, ref_proc;
+#ifdef USE_MPI
+    MPI_Init(NULL, NULL);
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+#endif
+    
+    const char *params_path = NULL;
     const char *result_dir = "./";
     const char *load_dir = NULL;
     const char *ini_dir = NULL;
@@ -44,7 +50,7 @@ int main(int argc, const char * argv[]) {
     unsigned int init_thresh = 0;
     struct argparse_option options[] = {
         OPT_HELP(),
-        OPT_STRING('d', "hf_path", &hf_path, "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt"),
+        OPT_STRING('d', "params_path", &params_path, "Path to the file that contains the parameters defining the Hamiltonian, number of electrons, number of sites, etc."),
         OPT_INTEGER('t', "target", &target_walkers, "Target number of walkers, must be greater than the plateau value for this system"),
         OPT_STRING('y', "result_dir", &result_dir, "Directory in which to save output files"),
         OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
@@ -59,8 +65,8 @@ int main(int argc, const char * argv[]) {
     argparse_describe(&argparse, "\nPerform an FCIQMC calculation.", "");
     argc = argparse_parse(&argparse, argc, argv);
     
-    if (hf_path == NULL) {
-        fprintf(stderr, "Error: HF directory not specified.\n");
+    if (params_path == NULL) {
+        fprintf(stderr, "Error: parameter file not specified.\n");
         return 0;
     }
     if (target_walkers == 0) {
@@ -73,15 +79,6 @@ int main(int argc, const char * argv[]) {
         return 0;
     }
     
-    int n_procs = 1;
-    int proc_rank = 0;
-    unsigned int proc_idx, hf_proc;
-#ifdef USE_MPI
-    MPI_Init(NULL, NULL);
-    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
-#endif
-    
     // Parameters
     double shift_damping = 0.05;
     unsigned int shift_interval = 10;
@@ -89,34 +86,33 @@ int main(int argc, const char * argv[]) {
     double en_shift = 0;
     
     // Read in data files
-    hf_input in_data;
-    parse_hf_input(hf_path, &in_data);
+    hh_input in_data;
+    parse_hh_input(params_path, &in_data);
     double eps = in_data.eps;
+    unsigned int hub_len = in_data.lat_len;
+    unsigned int hub_dim = in_data.n_dim;
     unsigned int n_elec = in_data.n_elec;
-    unsigned int n_frz = in_data.n_frz;
-    unsigned int n_orb = in_data.n_orb;
+    double hub_t = 1;
+    double hub_u = in_data.elec_int;
     double hf_en = in_data.hf_en;
     
-    unsigned int n_elec_unf = n_elec - n_frz;
-    unsigned int tot_orb = n_orb + n_frz / 2;
+    if (hub_dim != 1) {
+        fprintf(stderr, "Error: only 1-D Hubbard calculations supported right now.\n");
+        return 0;
+    }
+    
+    unsigned int n_orb = pow_int(hub_len, hub_dim);
     long long ini_bit = 1LL << (2 * n_orb);
     long long ini_mask = ini_bit - 1;
-    
-    unsigned char *symm = in_data.symm;
-    double (* h_core)[tot_orb] = (double (*)[tot_orb])in_data.hcore;
-    double (* eris)[tot_orb][tot_orb][tot_orb] = (double (*)[tot_orb][tot_orb][tot_orb])in_data.eris;
     
     // Setup arrays for determinants, lookup tables, and rn generators
     long long *sol_dets = malloc(sizeof(long long) * max_n_dets);
     int *sol_vals = malloc(sizeof(int) * max_n_dets);
     double *sol_mel = malloc(sizeof(double) * max_n_dets);
-    unsigned char (*occ_orbs)[n_elec_unf] = malloc(sizeof(unsigned char) * max_n_dets * n_elec_unf);
+    unsigned char (*neighb_orbs)[2][n_elec + 1] = malloc(sizeof(unsigned char) * 2 * max_n_dets * (n_elec + 1));
     size_t n_dets = 0; // number of nonzero vector elements on this processor
     ssize_t *idx_ptr;
     byte_table *b_tab = gen_byte_table();
-    unsigned char symm_lookup[n_irreps][n_orb + 1];
-    gen_symm_lookup(symm, n_orb, n_irreps, symm_lookup);
-    unsigned int unocc_symm_cts[n_irreps][2];
     mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, proc_rank, (unsigned int) time(NULL));
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
     
@@ -128,7 +124,7 @@ int main(int argc, const char * argv[]) {
     // Initialize hash function for processors and vector
     size_t det_idx;
     unsigned int proc_scrambler[2 * n_orb];
-    long long hf_det = gen_hf_bitstring(n_orb, n_elec - n_frz);
+    long long neel_det = gen_hub_bitstring(n_orb, n_elec, hub_dim);
     int loc_norm, glob_norm;
     double last_norm = 0;
     
@@ -146,23 +142,9 @@ int main(int argc, const char * argv[]) {
         MPI_Bcast(&proc_scrambler, 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 #endif
     }
-    gen_orb_list(hf_det, b_tab, occ_orbs[0]);
-    hash_val = hash_fxn(occ_orbs[0], n_elec_unf, proc_scrambler);
-    hf_proc = hash_val % n_procs;
-    
-    // Calculate HF column vector for enegry estimator, and count # single/double excitations
-    size_t max_num_doub = count_doub_nosymm(n_elec_unf, n_orb);
-    long long *hf_dets = malloc(max_num_doub * sizeof(long long));
-    double *hf_mel = malloc(max_num_doub * sizeof(double));
-    size_t n_hf_doub = gen_hf_ex(hf_det, occ_orbs[0], n_elec_unf, tot_orb, symm, eris, n_frz, hf_dets, hf_mel);
-    size_t n_hf_sing = count_singex(hf_det, occ_orbs[0], symm, n_orb, symm_lookup, n_elec_unf);
-    double p_doub = (double) n_hf_doub / (n_hf_sing + n_hf_doub);
-    
-    unsigned long long hf_hashes[n_hf_doub];
-    for (det_idx = 0; det_idx < n_hf_doub; det_idx++) {
-        gen_orb_list(hf_dets[det_idx], b_tab, occ_orbs[n_dets]);
-        hf_hashes[det_idx] = hash_fxn(occ_orbs[n_dets], n_elec_unf, det_hash->scrambler);
-    }
+    find_neighbors(neel_det, hub_len, b_tab, n_elec, neighb_orbs[0]);
+    hash_val = hash_fxn_hh(n_elec, neighb_orbs[0], proc_scrambler);
+    ref_proc = hash_val % n_procs;
     
     // Setup arrays to hold spawned walkers
     unsigned int spawn_length = target_walkers / n_procs / n_procs;
@@ -201,8 +183,8 @@ int main(int argc, const char * argv[]) {
             n_spawn[proc_idx] = 0;
         }
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
-            gen_orb_list(load_dets[det_idx], b_tab, occ_orbs[0]);
-            hash_val = hash_fxn(occ_orbs[0], n_elec_unf, proc_scrambler);
+            find_neighbors(load_dets[det_idx], hub_len, b_tab, n_elec, neighb_orbs[0]);
+            hash_val = hash_fxn_hh(n_elec, neighb_orbs[0], proc_scrambler);
             proc_idx = hash_val % n_procs;
             send_dets[proc_idx][n_spawn[proc_idx]] = load_dets[det_idx];
             send_vals[proc_idx][n_spawn[proc_idx]] = load_vals[det_idx];
@@ -224,8 +206,8 @@ int main(int argc, const char * argv[]) {
 #endif
     }
     else {
-        if (hf_proc == proc_rank) {
-            sol_dets[0] = hf_det;
+        if (ref_proc == proc_rank) {
+            sol_dets[0] = neel_det;
             sol_vals[0] = 100;
             n_dets = 1;
         }
@@ -239,9 +221,9 @@ int main(int argc, const char * argv[]) {
         if (sol_vals[det_idx] != 0) {
             sol_dets[n_nonz] = sol_dets[det_idx];
             sol_vals[n_nonz] = sol_vals[det_idx];
-            gen_orb_list(sol_dets[det_idx], b_tab, occ_orbs[n_nonz]);
-            sol_mel[n_nonz] = diag_matrel(occ_orbs[n_nonz], tot_orb, eris, h_core, n_frz, n_elec) - hf_en;
-            hash_val = hash_fxn(occ_orbs[n_nonz], n_elec_unf, det_hash->scrambler);
+            sol_mel[n_nonz] = hub_u * hub_diag(sol_dets[det_idx], hub_len, b_tab);
+            find_neighbors(sol_dets[det_idx], hub_len, b_tab, n_elec, neighb_orbs[n_nonz]);
+            hash_val = hash_fxn_hh(n_elec, neighb_orbs[n_nonz], det_hash->scrambler);
             idx_ptr = read_ht(det_hash, sol_dets[det_idx], hash_val, 1);
             *idx_ptr = n_nonz;
             loc_norm += abs(sol_vals[det_idx]);
@@ -260,7 +242,7 @@ int main(int argc, const char * argv[]) {
     FILE *den_file = NULL;
     FILE *shift_file = NULL;
     FILE *nonz_file = NULL;
-    if (proc_rank == hf_proc) {
+    if (proc_rank == ref_proc) {
         // Setup output files
         strcpy(file_path, result_dir);
         strcat(file_path, "projnum.txt");
@@ -282,7 +264,7 @@ int main(int argc, const char * argv[]) {
         strcpy(file_path, result_dir);
         strcat(file_path, "params.txt");
         FILE *param_f = fopen(file_path, "w");
-        fprintf(param_f, "FCIQMC calculation\nHF path: %s\nepsilon (imaginary time step): %lf\nTarget number of walkers %u\nInitiator threshold: %u\n", hf_path, eps, target_walkers, init_thresh);
+        fprintf(param_f, "FCIQMC calculation\nHubbard-Holstein parameters path: %s\nepsilon (imaginary time step): %lf\nTarget number of walkers %u\nInitiator threshold: %u\n", params_path, eps, target_walkers, init_thresh);
         if (load_dir) {
             fprintf(param_f, "Restarting calculation from %s\n", load_dir);
         }
@@ -296,18 +278,14 @@ int main(int argc, const char * argv[]) {
     }
     
     unsigned int max_spawn = 500000; // should scale as max expected # on one determinant
-    unsigned char *spawn_orbs = malloc(sizeof(unsigned char) * 4 * max_spawn);
-    double *spawn_probs = malloc(sizeof(double) * max_spawn);
-    unsigned char (*sing_orbs)[2];
-    unsigned char (*doub_orbs)[4];
+    unsigned char (*spawn_orbs)[2] = malloc(sizeof(unsigned char) * 2 * max_spawn);
     
     long long ini_flag;
-    unsigned int n_walk, n_doub, n_sing;
+    unsigned int n_walk, n_success;
     int spawn_walker, walk_sign, new_val;
-    unsigned char tmp_orbs[n_elec_unf];
+    unsigned char tmp_orbs[2][n_elec + 1];
     long long new_det;
     double matr_el;
-    double recv_nums[n_procs];
     
     unsigned int iterat;
     int glob_nnonz;
@@ -327,69 +305,37 @@ int main(int argc, const char * argv[]) {
             walk_sign = 1 - ((sol_vals[det_idx] >> (sizeof(sol_vals[det_idx]) * 8 - 1)) & 2);
             
             // spawning step
-            count_symm_virt(unocc_symm_cts, occ_orbs[det_idx], n_elec_unf,
-                            n_orb, n_irreps, symm_lookup, symm);
-            n_doub = bin_sample(n_walk, p_doub, rngen_ptr);
-            n_sing = n_walk - n_doub;
+            matr_el = eps * hub_t * (neighb_orbs[det_idx][0][0] + neighb_orbs[det_idx][1][0]);
+            n_success = round_binomially(matr_el, n_walk, rngen_ptr);
             
-            if (n_doub > max_spawn || n_sing / 2 > max_spawn) {
+            if (n_success > max_spawn) {
                 printf("Allocating more memory for spawning\n");
                 max_spawn *= 2;
                 free(spawn_orbs);
-                free(spawn_probs);
-                spawn_orbs = malloc(sizeof(unsigned char) * 4 * max_spawn);
-                spawn_probs = malloc(sizeof(double) * max_spawn);
+                spawn_orbs = malloc(sizeof(unsigned char) * 2 * max_spawn);
             }
             
-            doub_orbs = (unsigned char (*)[4]) spawn_orbs;
-            n_doub = doub_multin(sol_dets[det_idx], occ_orbs[det_idx], n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_doub, rngen_ptr, doub_orbs, spawn_probs);
+            hub_multin(sol_dets[det_idx], n_elec, neighb_orbs[det_idx], n_success, rngen_ptr, spawn_orbs);
             
-            for (walker_idx = 0; walker_idx < n_doub; walker_idx++) {
-                matr_el = doub_matr_el_nosgn(doub_orbs[walker_idx], tot_orb, eris, n_frz);
-                matr_el *= eps / spawn_probs[walker_idx] / p_doub;
-                spawn_walker = round_binomially(matr_el, 1, rngen_ptr);
+            for (walker_idx = 0; walker_idx < n_success; walker_idx++) {
+                new_det = sol_dets[det_idx] ^ (1LL << spawn_orbs[walker_idx][0]) ^ (1LL << spawn_orbs[walker_idx][1]);
+                //                spawn_walker = -sing_det_parity(&new_det, spawn_orbs[walker_idx]) * walk_sign;
+                spawn_walker = -walk_sign;
                 
-                if (spawn_walker != 0) {
-                    new_det = sol_dets[det_idx];
-                    spawn_walker *= -doub_det_parity(&new_det, doub_orbs[walker_idx]) * walk_sign;
-                    
-                    gen_orb_list(new_det, b_tab, tmp_orbs);
-                    hash_val = hash_fxn(tmp_orbs, n_elec_unf, proc_scrambler);
-                    proc_idx = hash_val % n_procs;
-                    
-                    send_dets[proc_idx][n_spawn[proc_idx]] = new_det | ini_flag;
-                    send_vals[proc_idx][n_spawn[proc_idx]] = spawn_walker;
-                    n_spawn[proc_idx]++;
-                }
-            }
-            
-            sing_orbs = (unsigned char (*)[2]) spawn_orbs;
-            n_sing = sing_multin(sol_dets[det_idx], occ_orbs[det_idx], n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_sing, rngen_ptr, sing_orbs, spawn_probs);
-            
-            for (walker_idx = 0; walker_idx < n_sing; walker_idx++) {
-                matr_el = sing_matr_el_nosgn(sing_orbs[walker_idx], occ_orbs[det_idx], tot_orb, eris, h_core, n_frz, n_elec_unf);
-                matr_el *= eps / spawn_probs[walker_idx] / (1 - p_doub);
-                spawn_walker = round_binomially(matr_el, 1, rngen_ptr);
+                find_neighbors(new_det, hub_len, b_tab, n_elec, tmp_orbs);
+                hash_val = hash_fxn_hh(n_elec, tmp_orbs, proc_scrambler);
+                proc_idx = hash_val % n_procs;
                 
-                if (spawn_walker != 0) {
-                    new_det = sol_dets[det_idx];
-                    spawn_walker *= -sing_det_parity(&new_det, sing_orbs[walker_idx]) * walk_sign;
-                    
-                    gen_orb_list(new_det, b_tab, tmp_orbs);
-                    hash_val = hash_fxn(tmp_orbs, n_elec_unf, proc_scrambler);
-                    proc_idx = hash_val % n_procs;
-                    
-                    send_dets[proc_idx][n_spawn[proc_idx]] = new_det | ini_flag;
-                    send_vals[proc_idx][n_spawn[proc_idx]] = spawn_walker;
-                    n_spawn[proc_idx]++;
-                }
+                send_dets[proc_idx][n_spawn[proc_idx]] = new_det | ini_flag;
+                send_vals[proc_idx][n_spawn[proc_idx]] = spawn_walker;
+                n_spawn[proc_idx]++;
             }
             
             // Death/cloning step
-            matr_el = (1 - eps * (sol_mel[det_idx] - en_shift)) * walk_sign;
+            matr_el = (1 - eps * (sol_mel[det_idx] - en_shift - hf_en)) * walk_sign;
             new_val = round_binomially(matr_el, n_walk, rngen_ptr);
-            if (new_val == 0 && sol_dets[det_idx] != hf_det) {
-                hash_val = hash_fxn(occ_orbs[det_idx], n_elec_unf, det_hash->scrambler);
+            if (new_val == 0) {
+                hash_val = hash_fxn_hh(n_elec, neighb_orbs[det_idx], det_hash->scrambler);
                 del_ht(det_hash, sol_dets[det_idx], hash_val);
                 push(det_stack, det_idx);
             }
@@ -415,8 +361,8 @@ int main(int argc, const char * argv[]) {
                 new_det = recv_dets[proc_idx][walker_idx];
                 ini_flag = new_det & ini_bit; // came from initiator
                 new_det &= ini_mask;
-                gen_orb_list(new_det, b_tab, spawn_orbs);
-                hash_val = hash_fxn(spawn_orbs, n_elec_unf, det_hash->scrambler);
+                find_neighbors(new_det, hub_len, b_tab, n_elec, tmp_orbs);
+                hash_val = hash_fxn_hh(n_elec, tmp_orbs, det_hash->scrambler);
                 idx_ptr = read_ht(det_hash, new_det, hash_val, !(!ini_flag));
                 if (idx_ptr && *idx_ptr == -1) {
                     *idx_ptr = pop(det_stack);
@@ -429,11 +375,13 @@ int main(int argc, const char * argv[]) {
                         n_dets++;
                     }
                     sol_vals[*idx_ptr] = 0;
-                    // copy occupied orbitals over
-                    for (n_doub = 0; n_doub < n_elec_unf; n_doub++) {
-                        occ_orbs[*idx_ptr][n_doub] = spawn_orbs[n_doub];
+                    // copy neighbor lists over
+                    for (det_idx = 0; det_idx < 2; det_idx++) {
+                        for (n_walk = 0; n_walk < (1 + tmp_orbs[det_idx][0]); n_walk++) {
+                            neighb_orbs[*idx_ptr][det_idx][n_walk] = tmp_orbs[det_idx][n_walk];
+                        }
                     }
-                    sol_mel[*idx_ptr] = diag_matrel(spawn_orbs, tot_orb, eris, h_core, n_frz, n_elec) - hf_en;
+                    sol_mel[*idx_ptr] = hub_u * hub_diag(new_det, hub_len, b_tab);
                     sol_dets[*idx_ptr] = new_det;
                 }
                 if (ini_flag || (idx_ptr && (sol_vals[*idx_ptr] * recv_vals[proc_idx][walker_idx]) > 0)) {
@@ -454,31 +402,32 @@ int main(int argc, const char * argv[]) {
             sum_mpi_i(loc_norm, &glob_norm, proc_rank, n_procs);
             adjust_shift(&en_shift, glob_norm, &last_norm, target_norm, shift_damping / eps / shift_interval);
             sum_mpi_i((int)n_nonz, &glob_nnonz, proc_rank, n_procs);
-            if (proc_rank == hf_proc) {
+            if (proc_rank == ref_proc) {
                 fprintf(walk_file, "%u\n", glob_norm);
                 fprintf(shift_file, "%lf\n", en_shift);
                 fprintf(nonz_file, "%d\n", glob_nnonz);
             }
         }
         
-        matr_el = calc_dprod(sol_dets, sol_vals, hf_dets, hf_mel, n_hf_doub, det_hash, hf_hashes, INT);
+        spawn_walker = calc_ref_ovlp(&sol_dets[1], &sol_vals[1], n_dets - 1, neel_det, b_tab);
+        
 #ifdef USE_MPI
-        MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
+        MPI_Gather(&spawn_walker, 1, MPI_INT, recv_vals[0], 1, MPI_INT, ref_proc, MPI_COMM_WORLD);
 #else
-        recv_nums[0] = matr_el;
+        recv_vals[0][0] = spawn_walker;
 #endif
-        if (proc_rank == hf_proc) {
-            matr_el = 0;
+        if (proc_rank == ref_proc) {
+            matr_el = sol_mel[0] * sol_vals[0];
             for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-                matr_el += recv_nums[proc_idx];
+                matr_el += recv_vals[0][proc_idx] * hub_t;
             }
             fprintf(num_file, "%lf\n", matr_el);
             fprintf(den_file, "%d\n", sol_vals[0]);
-            printf("%6u, n walk: %7u, en est: %lf, shift: %lf\n", iterat, glob_norm, matr_el / sol_vals[0], en_shift);
+            printf("%6u, n walk: %7u, en est: %lf, shift: %lf, n_neel: %d\n", iterat, glob_norm, matr_el / sol_vals[0], en_shift, sol_vals[0]);
         }
         if ((iterat + 1) % save_interval == 0) {
             save_vec(result_dir, sol_dets, sol_vals, n_dets, sizeof(int));
-            if (proc_rank == hf_proc) {
+            if (proc_rank == ref_proc) {
                 fflush(num_file);
                 fflush(den_file);
                 fflush(shift_file);
@@ -491,4 +440,3 @@ int main(int argc, const char * argv[]) {
 #endif
     return 0;
 }
-

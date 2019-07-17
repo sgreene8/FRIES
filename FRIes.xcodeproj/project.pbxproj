@@ -16,6 +16,7 @@
 		C562C01F2282156B008D8718 /* heap.c in Sources */ = {isa = PBXBuildFile; fileRef = C562C01D2282156A008D8718 /* heap.c */; };
 		C58C52B52252B82A0062A0DC /* libdcmt.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C58C52B32252B82A0062A0DC /* libdcmt.a */; };
 		C58D275F2259629F00D95A2F /* near_uniform.c in Sources */ = {isa = PBXBuildFile; fileRef = C58D275E2259629F00D95A2F /* near_uniform.c */; };
+		C5940BF522DCF0EF00C0A3E4 /* hub_holstein.c in Sources */ = {isa = PBXBuildFile; fileRef = C5940BF422DCF0EF00C0A3E4 /* hub_holstein.c */; };
 		C5CC28C92262883F0043F487 /* compress_utils.c in Sources */ = {isa = PBXBuildFile; fileRef = C5CC28C82262883F0043F487 /* compress_utils.c */; };
 /* End PBXBuildFile section */
 
@@ -41,6 +42,7 @@
 		C519776C2263B3A900705903 /* det_store.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = det_store.h; sourceTree = "<group>"; };
 		C519776D2263B3A900705903 /* det_store.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = det_store.c; sourceTree = "<group>"; };
 		C51D08C422B93BF600B11FB6 /* hier_comp_ex.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = hier_comp_ex.c; sourceTree = "<group>"; };
+		C52D874322CE4E0500BD8018 /* hier_comp_ex2.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = hier_comp_ex2.c; sourceTree = "<group>"; };
 		C534974C22517568001289D4 /* fci_utils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = fci_utils.h; sourceTree = "<group>"; };
 		C534974D22517568001289D4 /* fci_utils.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = fci_utils.c; sourceTree = "<group>"; };
 		C55353232295D38E0015688B /* argparse.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = argparse.h; sourceTree = "<group>"; };
@@ -48,11 +50,14 @@
 		C55E4AF722BE953A00FD0FC9 /* fri_sys.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = fri_sys.c; sourceTree = "<group>"; };
 		C562C01D2282156A008D8718 /* heap.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = heap.c; sourceTree = "<group>"; };
 		C562C01E2282156A008D8718 /* heap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = heap.h; sourceTree = "<group>"; };
+		C564FEA622DFBA6F00DABA0F /* hh_qmc.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = hh_qmc.c; sourceTree = "<group>"; };
 		C5703A6B2299C64900DAD730 /* mpi_switch.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = mpi_switch.h; sourceTree = "<group>"; };
 		C58C52B32252B82A0062A0DC /* libdcmt.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libdcmt.a; sourceTree = "<group>"; };
 		C58C52B42252B82A0062A0DC /* dc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = dc.h; sourceTree = "<group>"; };
 		C58D275D2259629F00D95A2F /* near_uniform.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = near_uniform.h; sourceTree = "<group>"; };
 		C58D275E2259629F00D95A2F /* near_uniform.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = near_uniform.c; sourceTree = "<group>"; };
+		C5940BF322DCF0EF00C0A3E4 /* hub_holstein.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = hub_holstein.h; sourceTree = "<group>"; };
+		C5940BF422DCF0EF00C0A3E4 /* hub_holstein.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = hub_holstein.c; sourceTree = "<group>"; };
 		C5CC28C72262883F0043F487 /* compress_utils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = compress_utils.h; sourceTree = "<group>"; };
 		C5CC28C82262883F0043F487 /* compress_utils.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = compress_utils.c; sourceTree = "<group>"; };
 		C5D0BB322298800000F59565 /* fciqmc.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = fciqmc.c; sourceTree = "<group>"; };
@@ -93,6 +98,10 @@
 				C58C52B42252B82A0062A0DC /* dc.h */,
 				C58C52B32252B82A0062A0DC /* libdcmt.a */,
 				C502C7AF22500F0800D0E912 /* main.c */,
+				C564FEA622DFBA6F00DABA0F /* hh_qmc.c */,
+				C5940BF322DCF0EF00C0A3E4 /* hub_holstein.h */,
+				C5940BF422DCF0EF00C0A3E4 /* hub_holstein.c */,
+				C52D874322CE4E0500BD8018 /* hier_comp_ex2.c */,
 				C55E4AF722BE953A00FD0FC9 /* fri_sys.c */,
 				C51D08C422B93BF600B11FB6 /* hier_comp_ex.c */,
 				C5D0BB322298800000F59565 /* fciqmc.c */,
@@ -182,6 +191,7 @@
 				C562C01F2282156B008D8718 /* heap.c in Sources */,
 				C519776E2263B3A900705903 /* det_store.c in Sources */,
 				C55353252295D38E0015688B /* argparse.c in Sources */,
+				C5940BF522DCF0EF00C0A3E4 /* hub_holstein.c in Sources */,
 				C502C7B9225013A300D0E912 /* csvparser.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -17,7 +17,10 @@ long long gen_hf_bitstring(unsigned int n_orb, unsigned int n_elec) {
     return hf_state;
 }
 
-void gen_byte_table(unsigned char pos[][8], unsigned char nums[]) {
+byte_table *gen_byte_table(void) {
+    byte_table *new_table = malloc(sizeof(byte_table));
+    new_table->nums = malloc(sizeof(unsigned char) * 256);
+    new_table->pos = malloc(sizeof(unsigned char) * 256 * 8);
     unsigned int byte;
     unsigned int bit;
     unsigned int num;
@@ -25,31 +28,34 @@ void gen_byte_table(unsigned char pos[][8], unsigned char nums[]) {
         num = 0;
         for (bit = 0; bit < 8; bit++) {
             if (byte & (1 << bit)) {
-                pos[byte][num] = bit;
+                new_table->pos[byte][num] = bit;
                 num++;
             }
         }
-        nums[byte] = num;
+        new_table->nums[byte] = num;
     }
+    return new_table;
 }
 
-void gen_orb_list(long long det, unsigned int num_elec, unsigned char lookup_nums[],
-                  unsigned char lookup_idx[][8], unsigned char *occ_orbs) {
+unsigned char gen_orb_list(long long det, byte_table *table, unsigned char *occ_orbs) {
     unsigned int byte_idx, elec_idx;
     long long mask = 255;
     unsigned char n_elec, det_byte, bit_idx;
     elec_idx = 0;
     byte_idx = 0;
+    unsigned char tot_elec = 0;
     while (det != 0) {
         det_byte = det & mask;
-        n_elec = lookup_nums[det_byte];
+        n_elec = table->nums[det_byte];
+        tot_elec += n_elec;
         for (bit_idx = 0; bit_idx < n_elec; bit_idx++) {
-            occ_orbs[elec_idx + bit_idx] = (8 * byte_idx + lookup_idx[det_byte][bit_idx]);
+            occ_orbs[elec_idx + bit_idx] = (8 * byte_idx + table->pos[det_byte][bit_idx]);
         }
         elec_idx = elec_idx + n_elec;
         det = det >> 8;
         byte_idx = byte_idx + 1;
     }
+    return tot_elec;
 }
 
 double doub_matr_el_nosgn(unsigned char *chosen_idx, unsigned int n_orbs,

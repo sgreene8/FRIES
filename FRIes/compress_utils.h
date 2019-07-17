@@ -112,6 +112,12 @@ double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
                      size_t count, unsigned int *n_samp, double *wt_remain);
 
 
+size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
+               double (*sub_weights)[n_sub], int (*keep_idx)[n_sub],
+               size_t count, unsigned int n_samp, double *wt_remain,
+               double *loc_norms, double rand_num, double *new_vals,
+               size_t (*new_idx)[2]);
+
 /*
  Systematically compress a vector
  

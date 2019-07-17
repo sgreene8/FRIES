@@ -307,3 +307,109 @@ unsigned int sing_multin(long long det, unsigned char *occ_orbs, unsigned int nu
     }
     return num_sampl;
 }
+
+
+unsigned int count_sing_allowed(unsigned char *occ_orbs, unsigned int num_elec,
+                                unsigned char *orb_symm, unsigned int num_orb,
+                                unsigned int (* unocc_sym_counts)[2]) {
+    unsigned int elec_idx, num_allowed = 0;
+    unsigned char occ_symm;
+    for (elec_idx = 0; elec_idx < num_elec; elec_idx++) {
+        occ_symm = orb_symm[occ_orbs[elec_idx] % num_orb];
+        if (unocc_sym_counts[occ_symm][elec_idx / (num_elec / 2)] != 0)
+            num_allowed++;
+    }
+    return num_allowed;
+}
+
+
+unsigned int count_sing_virt(unsigned char *occ_orbs, unsigned int num_elec,
+                             unsigned char *orb_symm, unsigned int num_orb,
+                             unsigned int (* unocc_sym_counts)[2],
+                             unsigned char *occ_choice) {
+    unsigned int elec_idx, num_allowed = 0;
+    unsigned char occ_symm;
+    unsigned int virt_allowed;
+    for (elec_idx = 0; elec_idx < num_elec; elec_idx++) {
+        occ_symm = orb_symm[occ_orbs[elec_idx] % num_orb];
+        virt_allowed = unocc_sym_counts[occ_symm][elec_idx / (num_elec / 2)];
+        if (virt_allowed != 0) {
+            if (num_allowed == *occ_choice) {
+                *occ_choice = occ_orbs[elec_idx];
+                return virt_allowed;
+            }
+            num_allowed++;
+        }
+    }
+    return 0;
+}
+
+
+void symm_pair_wt(unsigned char *occ_orbs, unsigned int num_elec,
+                  unsigned char *orb_symm, unsigned int num_orb,
+                  unsigned int (* unocc_sym_counts)[2], unsigned char *occ_choice,
+                  double *virt_weights, unsigned char *virt_counts) {
+    orb_pair occ = _tri_to_occ_pair(occ_orbs, num_elec, *occ_choice);
+    unsigned int sym_prod = orb_symm[occ.orb1 % num_orb] ^ orb_symm[occ.orb2 % num_orb];
+    unsigned int m_a_allow = _count_doub_virt(occ, orb_symm, num_orb, num_elec, unocc_sym_counts);
+    size_t symm_idx;
+    if (m_a_allow == 0) {
+        occ_choice[0] = 0;
+        occ_choice[1] = 0;
+        for (symm_idx = 0; symm_idx < n_irreps; symm_idx++) {
+            virt_weights[symm_idx] = 0;
+        }
+        return;
+    }
+    occ_choice[0] = occ.orb2;
+    occ_choice[1] = occ.orb1;
+    unsigned int num_symm_pair, xor_row_idx, n_symm1, n_symm2;
+    unsigned char xor_idx[4][8] = {
+        {0, 1, 2, 3, 4, 5, 6, 7},
+        {1, 3, 5, 7, 0, 0, 0, 0},
+        {2, 3, 6, 7, 0, 0, 0, 0},
+        {4, 5, 6, 7, 0, 0, 0, 0}
+    };
+    
+    // Get pointer to list to use for enumerating symmetry products
+    if ((occ.spin1 != occ.spin2) || sym_prod == 0) {
+        num_symm_pair = n_irreps;
+        xor_row_idx = 0;
+    }
+    else {
+        num_symm_pair = n_irreps / 2;
+        if (sym_prod == 1)
+            xor_row_idx = 1;
+        else if (sym_prod == 2 || sym_prod == 3)
+            xor_row_idx = 2;
+        else
+            xor_row_idx = 3;
+    }
+    if (sym_prod == 0 && (occ.spin1 == occ.spin2)) {
+        for (symm_idx = 0; symm_idx < num_symm_pair; symm_idx++) {
+            n_symm1 = unocc_sym_counts[xor_idx[xor_row_idx][symm_idx]][occ.spin1];
+            if (n_symm1 > 1) {
+                virt_weights[symm_idx] = n_symm1 * 1. / m_a_allow;
+                virt_counts[symm_idx] = n_symm1 * (n_symm1 - 1) / 2;
+            }
+            else
+                virt_weights[symm_idx] = 0;
+        }
+    }
+    else {
+        for (symm_idx = 0; symm_idx < num_symm_pair; symm_idx++) {
+            n_symm1 = unocc_sym_counts[xor_idx[xor_row_idx][symm_idx]][occ.spin1];
+            n_symm2 = unocc_sym_counts[sym_prod ^ xor_idx[xor_row_idx][symm_idx]][occ.spin2];
+            if (n_symm1 != 0 && n_symm2 != 0) {
+                virt_weights[symm_idx] = 1. * (n_symm1 + n_symm2) / m_a_allow;
+                virt_counts[symm_idx] = n_symm2 * n_symm1;
+            }
+            else {
+                virt_weights[symm_idx] = 0;
+            }
+        }
+    }
+    for (symm_idx = num_symm_pair; symm_idx < n_irreps; symm_idx++) {
+        virt_weights[symm_idx] = 0;
+    }
+}
