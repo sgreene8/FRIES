@@ -15,6 +15,4 @@
 void sift_down(double *a, size_t *indices, size_t start, size_t end);
 void heapify(double *a, size_t *indices, size_t count);
 
-//void sift_down_subd(double *vec, unsigned int *counts, double )
-
 #endif /* heap_h */

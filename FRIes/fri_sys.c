@@ -20,22 +20,6 @@ static const char *const usage[] = {
     NULL,
 };
 
-//double calc_est_num(long long *vec_dets, double *vec_vals, long long *hf_dets,
-//                    double *hf_mel, size_t num_hf, hash_table *vec_hash,
-//                    unsigned long long *hf_hashes) {
-//    size_t hf_idx;
-//    ssize_t *ht_ptr;
-//    double numer = 0;
-//    for (hf_idx = 0; hf_idx < num_hf; hf_idx++) {
-//        ht_ptr = read_ht(vec_hash, hf_dets[hf_idx], hf_hashes[hf_idx], 0);
-//        if (ht_ptr) {
-//            numer += hf_mel[hf_idx] * vec_vals[*ht_ptr];
-//        }
-//    }
-//    return numer;
-//}
-
-
 int main(int argc, const char * argv[]) {
     const char *hf_path = NULL;
     const char *result_dir = "./";
@@ -531,6 +515,4 @@ int main(int argc, const char * argv[]) {
 #endif
     return 0;
 }
-
-
 

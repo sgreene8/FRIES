@@ -15,12 +15,7 @@
 #include "csvparser.h"
 #include "mpi_switch.h"
 #include "fci_utils.h"
-#include "det_store.h"
-
-typedef enum {
-    DOUB,
-    INT
-} dtype;
+#include "vec_utils.h"
 
 void read_in_doub(double *buf, char *fname);
 void read_in_uchar(unsigned char *buf, char *fname);
@@ -88,38 +83,6 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct);
 
 
 /*
- Save a vector in sparse format to disk
- 
- Parameters
- ----------
- path: where files should be saved
- dets: array of Slater determinant bit-string indices
- vals: array of element values in the sparse vector
- n_dets: total number of elements (including zeros) in above arrays
- el_size: size (bytes) of each element in the sparse vector
- */
-void save_vec(const char *path, long long *dets, void *vals, size_t n_dets, size_t el_size);
-
-/*
- Load a distributed sparse vector from disk
- 
- Parameters
- ----------
- prefix: prefix of files containing the vector. File names should be in the
-    format [prefix]dets[i].dat and [prefix]vals[i].dat, where i indicates the
-    MPI process index
- dets: array in which to store Slater determinant bit-string indices
- vals: array in which to store element values
- el_size: size (bytes) of each element in the sparse vector
- 
- Returns
- -------
- number of nonzero elements in the vector on this processor
- */
-size_t load_vec(const char *prefix, long long *dets, void *vals, size_t el_size);
-
-
-/*
  Load a single sparse vector (not distributed) in .txt format from disk
  
  Parameters
@@ -163,27 +126,5 @@ void save_proc_hash(const char *path, unsigned int *proc_hash, size_t n_hash);
  proc_hash: array in which to store random numbers for hash function
  */
 void load_proc_hash(const char *path, unsigned int *proc_hash);
-
-/*
- Calculate dot product of 2 vectors, one short enough for all of its
- elements to be enumerated, the other (long) indexed by a hash table
- for efficiency.
- 
- Parameters
- ----------
- long_idx: indices of elements in long vector
- long_vals: values of elements in long vector
- short_idx: indices of elements in short vector
- short_vals: values of elements in short vector
- num_short: number of elements in short vector
- vec_hash: hash table for long vector
- short_hashes: hash values of all indices in short vector
- type: data type of long vector
- 
- Returns
- -------
- dot product
- */
-double calc_dprod(long long *long_idx, void *long_vals, long long *short_idx, double *short_vals, size_t num_short, hash_table *vec_hash, unsigned long long *short_hashes, dtype type);
 
 #endif /* io_utils_h */

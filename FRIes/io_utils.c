@@ -247,46 +247,6 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct) {
     return 0;
 }
 
-void save_vec(const char *path, long long *dets, void *vals, size_t n_dets, size_t el_size) {
-    int my_rank = 0;
-#ifdef USE_MPI
-    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-#endif
-    
-    char buffer[100];
-    sprintf(buffer, "%sdets%d.dat", path, my_rank);
-    FILE *file_p = fopen(buffer, "wb");
-    fwrite(dets, sizeof(long long), n_dets, file_p);
-    fclose(file_p);
-    
-    sprintf(buffer, "%svals%d.dat", path, my_rank);
-    file_p = fopen(buffer, "wb");
-    fwrite(vals, el_size, n_dets, file_p);
-    fclose(file_p);
-}
-
-
-size_t load_vec(const char *prefix, long long *dets, void *vals, size_t el_size) {
-    int my_rank = 0;
-#ifdef USE_MPI
-    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-#endif
-    
-    size_t n_dets;
-    char buffer[100];
-    sprintf(buffer, "%sdets%d.dat", prefix, my_rank);
-    FILE *file_p = fopen(buffer, "rb");
-    n_dets = fread(dets, sizeof(long long), 10000000, file_p);
-    fclose(file_p);
-    
-    sprintf(buffer, "%svals%d.dat", prefix, my_rank);
-    file_p = fopen(buffer, "rb");
-    fread(vals, el_size, n_dets, file_p);
-    fclose(file_p);
-    
-    return n_dets;
-}
-
 size_t load_vec_txt(const char *prefix, long long *dets, void *vals, dtype type) {
     int my_rank = 0;
 #ifdef USE_MPI
@@ -349,42 +309,3 @@ void load_proc_hash(const char *path, unsigned int *proc_hash) {
     fclose(file_p);
 }
 
-
-double calc_dprod(long long *long_idx, void *long_vals, long long *short_idx, double *short_vals, size_t num_short, hash_table *vec_hash, unsigned long long *short_hashes, dtype type) {
-    size_t hf_idx;
-    ssize_t *ht_ptr;
-    double numer = 0;
-    int *int_vals = long_vals;
-    double *doub_vals = long_vals;
-    for (hf_idx = 0; hf_idx < num_short; hf_idx++) {
-        ht_ptr = read_ht(vec_hash, short_idx[hf_idx], short_hashes[hf_idx], 0);
-        if (ht_ptr) {
-            if (type == INT) {
-                numer += short_vals[hf_idx] * int_vals[*ht_ptr];
-            }
-            else if (type == DOUB) {
-                numer += short_vals[hf_idx] * doub_vals[*ht_ptr];
-            }
-            else {
-                fprintf(stderr, "Error: data type %d not supported in function calc_dprod\n", type);
-            }
-        }
-    }
-    return numer;
-}
-
-
-//size_t distribute_vec_int(long long *in_dets, int *in_vals, size_t num_in, unsigned int *proc_rns, size_t buf_len, long long (*dets_buf)[buf_len], int (*vals_buf)[buf_len], byte_table *table) {
-//    int n_procs = 1;
-//#ifdef USE_MPI
-//    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-//#endif
-//    
-//    size_t n_spawn[n_procs];
-//    size_t det_idx;
-////    unsigned char occ_orbs[
-//    
-//    for (det_idx = 0; det_idx < num_in; det_idx++) {
-//        
-//    }
-//}

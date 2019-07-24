@@ -4,6 +4,8 @@
 
 #include "hub_holstein.h"
 
+unsigned char gen_orb_list(long long det, byte_table *table, unsigned char *occ_orbs);
+
 void find_neighbors(long long det, unsigned int n_sites, byte_table *table,
                     unsigned int n_elec, unsigned char (*neighbors)[n_elec + 1]) {
     long long neib_bits = det & ~(det >> 1);
@@ -39,6 +41,25 @@ void hub_multin(long long det, unsigned int n_elec, unsigned char (*neighbors)[n
     }
 }
 
+
+size_t hub_all(long long det, unsigned int n_elec, unsigned char (*neighbors)[n_elec + 1],
+               unsigned char (* chosen_orbs)[2]) {
+    size_t n_ex = 0;
+    unsigned int orb_idx;
+    for (orb_idx = 0; orb_idx < neighbors[0][0]; orb_idx++) {
+        chosen_orbs[n_ex][0] = neighbors[0][orb_idx + 1];
+        chosen_orbs[n_ex][1] = neighbors[0][orb_idx + 1] + 1;
+        n_ex++;
+    }
+    for (orb_idx = 0; orb_idx < neighbors[1][0]; orb_idx++) {
+        chosen_orbs[n_ex][0] = neighbors[1][orb_idx + 1];
+        chosen_orbs[n_ex][1] = neighbors[1][orb_idx + 1] - 1;
+        n_ex++;
+    }
+    return n_ex;
+}
+
+
 unsigned int hub_diag(long long det, unsigned int n_sites, byte_table *table) {
     long long overlap = (det >> n_sites) & det;
     unsigned int n_overlap = 0;
@@ -63,25 +84,25 @@ long long gen_hub_bitstring(unsigned int n_sites, unsigned int n_elec, unsigned 
 }
 
 
-int calc_ref_ovlp(long long *dets, int *vals, size_t n_dets, long long ref_det,
-                  byte_table *table) {
+double calc_ref_ovlp(long long *dets, void *vals, size_t n_dets, long long ref_det,
+                     byte_table *table, dtype type) {
     size_t det_idx;
-    int result = 0;
-    long long overlap;
-    unsigned char curr_byte;
-    unsigned char mask = 255;
-    unsigned int n_bits;
-    
+    double result = 0;
+    long long curr_det;
+    unsigned int n_elec = count_bits(ref_det, table);
     for (det_idx = 0; det_idx < n_dets; det_idx++) {
-        overlap = dets[det_idx] ^ ref_det;
-        n_bits = 0;
-        while (overlap != 0 && n_bits == 0) {
-            curr_byte = overlap & mask;
-            n_bits += table->nums[curr_byte];
-            overlap >>= 8;
-        }
-        if (n_bits == 2 && overlap == 0) {
-            result += vals[det_idx];
+        curr_det = dets[det_idx];
+        long long hoppers = ((curr_det & ~ref_det ) & ((curr_det & (ref_det >> 1) & (~curr_det >> 1)) | (curr_det & (ref_det << 1) & (~curr_det << 1))));
+        if (count_bits(hoppers, table) == 1) {
+            long long common = ref_det & curr_det & ~hoppers;
+            if (count_bits(common, table) == (n_elec - 1)) {
+                if (type == INT) {
+                    result += ((int *)vals)[det_idx];
+                }
+                else if (type == DOUB) {
+                    result += ((double *)vals)[det_idx];
+                }
+            }
         }
     }
     return result;

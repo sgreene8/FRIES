@@ -13,12 +13,11 @@
 #include <stdlib.h>
 #include "dc.h"
 
-struct stack {
+typedef struct {
     size_t *storage;
     size_t buf_size;
     size_t curr_idx;
-};
-typedef struct stack stack_s;
+} stack_s;
 
 struct hash_entry {
     long long det; // key for the hash table in bit-string form
