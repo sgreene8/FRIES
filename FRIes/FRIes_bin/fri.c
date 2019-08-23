@@ -3,11 +3,11 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
-#include "io_utils.h"
-#include "near_uniform.h"
-#include "dc.h"
-#include "compress_utils.h"
-#include "argparse.h"
+#include "../FRIes/Hamiltonians/near_uniform.h"
+#include "../FRIes/io_utils.h"
+#include "../FRIes/Ext_Libs/dc.h"
+#include "../FRIes/compress_utils.h"
+#include "../FRIes/Ext_Libs/argparse.h"
 #define max_iter 10000000
 
 static const char *const usage[] = {
@@ -246,7 +246,7 @@ int main(int argc, const char * argv[]) {
         
         // Systematic sampling to determine number of samples for each column
         if (proc_rank == 0) {
-            rn_sys = genrand_mt(rngen_ptr) / MT_MAX;
+            rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
 #ifdef USE_MPI
         MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -353,7 +353,7 @@ int main(int argc, const char * argv[]) {
         }
         
         if (proc_rank == 0) {
-            rn_sys = genrand_mt(rngen_ptr) / MT_MAX;
+            rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
 #ifdef USE_MPI
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);

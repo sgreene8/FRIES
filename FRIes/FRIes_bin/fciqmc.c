@@ -3,11 +3,11 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
-#include "io_utils.h"
-#include "near_uniform.h"
-#include "compress_utils.h"
-#include "argparse.h"
-#include "heat_bathPP.h"
+#include "../FRIes/Hamiltonians/near_uniform.h"
+#include "../FRIes/io_utils.h"
+#include "../FRIes/compress_utils.h"
+#include "../FRIes/Ext_Libs/argparse.h"
+#include "../FRIes/Hamiltonians/heat_bathPP.h"
 #define max_iter 1000000
 
 static const char *const usage[] = {

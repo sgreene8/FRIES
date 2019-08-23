@@ -10,11 +10,12 @@
 #define compress_utils_h
 
 #include <stdio.h>
-#include "dc.h"
+#include <stdint.h>
 #include <math.h>
-#include "heap.h"
+#include "Ext_Libs/heap.h"
 #include "mpi_switch.h"
 #include "det_store.h"
+#include "Ext_Libs/dcmt/dc.h"
 
 /* Round p to integer b such that
  b ~ binomial(n, p - floor(p)) + floor(p) * n

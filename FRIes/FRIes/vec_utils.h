@@ -13,8 +13,8 @@
 #include <string.h>
 #include <math.h>
 #include "det_store.h"
-#include "hub_holstein.h"
-#include "dc.h"
+#include "Hamiltonians/hub_holstein.h"
+#include "Ext_Libs/dcmt/dc.h"
 #include "mpi_switch.h"
 
 
@@ -95,7 +95,7 @@ dist_vec *init_vec(size_t size, size_t add_size, mt_struct *rn_ptr, unsigned int
  *
  * \param [in] vec          Struct containing the distributed vector
  * \param [in] idx2         Indices of elements in the local vector
- * \param [in] val2         Values of elements in the local vector
+ * \param [in] vals2         Values of elements in the local vector
  * \param [in] num2         Number of elements in the local vector
  * \param [in] hashes2      hash values of the indices of the local vector from
  *                          the hash table of vec

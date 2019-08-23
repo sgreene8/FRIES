@@ -48,7 +48,7 @@ unsigned int bin_sample(unsigned int n, double p, mt_struct *rn_ptr) {
     double rn;
     unsigned int i, success = 0;
     for (i = 0; i < n; i++) {
-        rn = genrand_mt(rn_ptr) / MT_MAX;
+        rn = genrand_mt(rn_ptr) / (1. + UINT32_MAX);
         success += rn < p;
     }
     return success;
@@ -56,7 +56,7 @@ unsigned int bin_sample(unsigned int n, double p, mt_struct *rn_ptr) {
 
 unsigned int _choose_uint(mt_struct *mt_ptr, unsigned int nmax) {
     // Choose an integer uniformly on the interval [0, nmax)
-    return (genrand_mt(mt_ptr) / MT_MAX * nmax);
+    return (genrand_mt(mt_ptr) / (1. + UINT32_MAX) * nmax);
 }
 
 orb_pair _tri_to_occ_pair(unsigned char *occ_orbs, unsigned int num_elec, unsigned int tri_idx) {

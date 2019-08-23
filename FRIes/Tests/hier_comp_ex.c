@@ -28,11 +28,11 @@ int main(int argc, const char * argv[]) {
     size_t i, j, max_i, max_j;
     double tot_weight;
     for (i = 0; i < n_wt; i += 2) {
-        orig_weights[i] = genrand_mt(rngen_ptr) / MT_MAX * 10;
+        orig_weights[i] = genrand_mt(rngen_ptr) / (1. + UINT32_MAX) * 10;
         counts[i] = 0;
         tot_weight = 0;
         for (j = 0; j < n_sub; j++) {
-            orig_sub[i][j] = genrand_mt(rngen_ptr) / MT_MAX;
+            orig_sub[i][j] = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
             tot_weight += orig_sub[i][j];
         }
         for (j = 0; j < n_sub; j++) {
@@ -42,7 +42,7 @@ int main(int argc, const char * argv[]) {
     }
     
     for (i = 1; i < n_wt; i += 2) {
-        orig_weights[i] = genrand_mt(rngen_ptr) / MT_MAX * 10;
+        orig_weights[i] = genrand_mt(rngen_ptr) / (1. + UINT32_MAX) * 10;
         counts[i] = (genrand_mt(rngen_ptr) % n_sub) + 1;
         for (j = 0; j < counts[i]; j++) {
             accum_mean[i][j] = 0;
@@ -95,7 +95,7 @@ int main(int argc, const char * argv[]) {
     
     for (iter = 0; iter < n_iter; iter++) {
         if (proc_rank == 0) {
-            rn_sys = genrand_mt(rngen_ptr) / MT_MAX;
+            rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
 #ifdef USE_MPI
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);

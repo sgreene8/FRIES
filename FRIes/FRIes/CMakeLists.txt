@@ -14,3 +14,4 @@ list(APPEND FRIES_FILELIST
 add_library(fries "")
 target_sources(fries PRIVATE ${FRIES_FILELIST})
 
+add_subdirectory(Ext_Libs)

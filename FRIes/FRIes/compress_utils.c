@@ -15,7 +15,7 @@ int round_binomially(double p, unsigned int n, mt_struct *mt_ptr) {
     int ret_val = flr * n;
     unsigned int i;
     for (i = 0; i < n; i++) {
-        ret_val += (genrand_mt(mt_ptr) / MT_MAX) < prob;
+        ret_val += (genrand_mt(mt_ptr) / (1. + UINT32_MAX)) < prob;
     }
     return ret_val;
 }
@@ -383,7 +383,7 @@ size_t comp_sub(double *values, size_t count, unsigned int *n_div, size_t n_sub,
 #ifdef USE_MPI
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-    MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&rand_num, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
     unsigned int tmp_nsamp = n_samp;
     double loc_norms[n_procs];

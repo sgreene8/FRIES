@@ -12,7 +12,7 @@
  *  a number
  */
 typedef struct {
-    unsigned char pos[][8]; ///< 2-D array whose rows contain lists of positions of 1's in binary representation of row index (dimensions 256 x 8)
+    unsigned char (*pos)[8]; ///< 2-D array whose rows contain lists of positions of 1's in binary representation of row index (dimensions 256 x 8)
     unsigned char *nums; ///< 1-D array containing number of 1's in binary representation of index (length 256)
 } byte_table;
 

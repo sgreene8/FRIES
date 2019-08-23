@@ -11,7 +11,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "dc.h"
+#include "Ext_Libs/dcmt/dc.h"
 
 typedef struct {
     size_t *storage;

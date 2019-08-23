@@ -134,7 +134,7 @@ int main(int argc, const char * argv[]) {
     dist_vec *sol_vec = init_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec, DOUB, hub_len);
     sol_vec->proc_scrambler = proc_scrambler;
     
-    long long neel_det = gen_hub_bitstring(n_orb, n_elec, hub_dim);
+    long long neel_det = gen_neel_det_1D(n_orb, n_elec, hub_dim);
     ref_proc = idx_to_proc(sol_vec, neel_det);
     size_t walker_idx;
     

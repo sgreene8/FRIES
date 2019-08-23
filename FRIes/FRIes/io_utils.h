@@ -12,10 +12,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "csvparser.h"
+#include "Ext_Libs/csvparser.h"
 #include "mpi_switch.h"
 #include "vec_utils.h"
-#include "mpi_switch.h"
 
 void read_in_doub(double *buf, char *fname);
 void read_in_uchar(unsigned char *buf, char *fname);

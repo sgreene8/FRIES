@@ -29,7 +29,7 @@ void hub_multin(long long det, unsigned int n_elec, unsigned char (*neighbors)[n
     unsigned int n_choices;
     for (samp_idx = 0; samp_idx < num_sampl; samp_idx++) {
         n_choices = neighbors[0][0] + neighbors[1][0];
-        orb_idx = genrand_mt(rn_ptr) / MT_MAX * n_choices;
+        orb_idx = genrand_mt(rn_ptr) / (1. + UINT32_MAX) * n_choices;
         if (orb_idx < neighbors[0][0]) {
             chosen_orbs[samp_idx][0] = neighbors[0][orb_idx + 1];
             chosen_orbs[samp_idx][1] = neighbors[0][orb_idx + 1] + 1;

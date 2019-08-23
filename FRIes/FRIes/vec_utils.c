@@ -280,7 +280,7 @@ void perform_add(dist_vec *vec, long long ini_bit) {
                 vec->n_nonz++;
                 if (vec->neighb) {
                     unsigned char (*tmp_neib)[vec->n_elec + 1] = (unsigned char (*)[vec->n_elec + 1]) &(vec->neighb[*idx_ptr * 2 * (vec->n_elec + 1)]);
-                    find_neighbors(new_idx, vec->n_sites, vec->tabl, vec->n_elec, tmp_neib);
+                    find_neighbors_1D(new_idx, vec->n_sites, vec->tabl, vec->n_elec, tmp_neib);
                 }
             }
             int delete = 0;
@@ -433,7 +433,7 @@ void load_vec(dist_vec *vec, const char *path) {
             n_nonz++;
             if (vec->neighb) {
                 unsigned char (*tmp_neib)[vec->n_elec + 1] = (unsigned char (*)[vec->n_elec + 1]) &(vec->neighb[det_idx * 2 * (vec->n_elec + 1)]);
-                find_neighbors(vec->indices[det_idx], vec->n_sites, vec->tabl, vec->n_elec, tmp_neib);
+                find_neighbors_1D(vec->indices[det_idx], vec->n_sites, vec->tabl, vec->n_elec, tmp_neib);
             }
         }
     }

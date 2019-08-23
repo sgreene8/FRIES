@@ -7,10 +7,10 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
-#include "io_utils.h"
-#include "dc.h"
-#include "compress_utils.h"
-#include "argparse.h"
+#include "../FRIes/io_utils.h"
+#include "../FRIes/Ext_Libs/dc.h"
+#include "../FRIes/compress_utils.h"
+#include "../FRIes/Ext_Libs/argparse.h"
 #define max_iter 1000000
 
 static const char *const usage[] = {
@@ -131,7 +131,7 @@ int main(int argc, const char * argv[]) {
     dist_vec *sol_vec = init_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec, INT, hub_len);
     sol_vec->proc_scrambler = proc_scrambler;
     
-    long long neel_det = gen_hub_bitstring(n_orb, n_elec, hub_dim);
+    long long neel_det = gen_neel_det_1D(n_orb, n_elec, hub_dim);
     ref_proc = idx_to_proc(sol_vec, neel_det);
     size_t walker_idx;
     

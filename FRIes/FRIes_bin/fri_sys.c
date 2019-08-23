@@ -3,12 +3,12 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
-#include "io_utils.h"
-#include "near_uniform.h"
-#include "dc.h"
-#include "compress_utils.h"
-#include "argparse.h"
-#include "heat_bathPP.h"
+#include "../FRIes/Hamiltonians/near_uniform.h"
+#include "../FRIes/io_utils.h"
+#include "../FRIes/Ext_Libs/dc.h"
+#include "../FRIes/compress_utils.h"
+#include "../FRIes/Ext_Libs/argparse.h"
+#include "../FRIes/Hamiltonians/heat_bathPP.h"
 #define max_iter 10000
 
 static const char *const usage[] = {
@@ -288,7 +288,7 @@ int main(int argc, const char * argv[]) {
             }
         }
         if (proc_rank == 0) {
-            rn_sys = genrand_mt(rngen_ptr) / MT_MAX;
+            rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
         comp_len = comp_sub(comp_vec1, sol_vec->curr_size, ndiv_vec, n_subwt, (double (*)[n_subwt])subwt_mem, (int (*)[n_subwt])keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
         
@@ -317,7 +317,7 @@ int main(int argc, const char * argv[]) {
         }
         
         if (proc_rank == 0) {
-            rn_sys = genrand_mt(rngen_ptr) / MT_MAX;
+            rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
         comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, n_subwt, (double (*)[n_subwt])subwt_mem, (int (*)[n_subwt])keep_idx, matr_samp, wt_remain, rn_sys, comp_vec1, comp_idx);
         
@@ -348,7 +348,7 @@ int main(int argc, const char * argv[]) {
             }
         }
         if (proc_rank == 0) {
-            rn_sys = genrand_mt(rngen_ptr) / MT_MAX;
+            rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
         comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, n_subwt, (double (*)[n_subwt])subwt_mem, (int (*)[n_subwt])keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
         
@@ -374,7 +374,7 @@ int main(int argc, const char * argv[]) {
             }
         }
         if (proc_rank == 0) {
-            rn_sys = genrand_mt(rngen_ptr) / MT_MAX;
+            rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
         comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, n_subwt, (double (*)[n_subwt])subwt_mem, (int (*)[n_subwt])keep_idx, matr_samp, wt_remain, rn_sys, comp_vec1, comp_idx);
         
@@ -401,7 +401,7 @@ int main(int argc, const char * argv[]) {
             }
         }
         if (proc_rank == 0) {
-            rn_sys = genrand_mt(rngen_ptr) / MT_MAX;
+            rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
         comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, n_subwt, (double (*)[n_subwt])subwt_mem, (int (*)[n_subwt])keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
         
@@ -501,7 +501,7 @@ int main(int argc, const char * argv[]) {
         }
         
         if (proc_rank == 0) {
-            rn_sys = genrand_mt(rngen_ptr) / MT_MAX;
+            rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
 #ifdef USE_MPI
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
