@@ -257,12 +257,15 @@ size_t load_vec_txt(const char *prefix, long long *dets, void *vals, dtype type)
     sprintf(buffer, "%sdets%02d", prefix, my_rank);
     FILE *file_d = fopen(buffer, "r");
     if (!file_d) {
-        fprintf(stderr, "Error: could not find input file: %s\n", buffer);
+        fprintf(stderr, "Warning: could not find file: %s\n", buffer);
     }
     sprintf(buffer, "%svals%02d", prefix, my_rank);
     FILE *file_v = fopen(buffer, "r");
     if (!file_v) {
-        fprintf(stderr, "Error: could not find input file: %s\n", buffer);
+        fprintf(stderr, "Warning: could not find file: %s\n", buffer);
+    }
+    if (!file_d || !file_v) {
+        return 0;
     }
     int num_read_d = 1;
     int num_read_v = 1;

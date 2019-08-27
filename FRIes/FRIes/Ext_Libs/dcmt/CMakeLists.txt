@@ -1,5 +1,5 @@
 
-add_library(dcmt
+add_library(dcmt SHARED
             check32.c
             prescr.c
             mt19937.c

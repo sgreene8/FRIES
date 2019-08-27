@@ -3,12 +3,12 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
-#include "../FRIes/Hamiltonians/near_uniform.h"
-#include "../FRIes/io_utils.h"
-#include "../FRIes/Ext_Libs/dc.h"
-#include "../FRIes/compress_utils.h"
-#include "../FRIes/Ext_Libs/argparse.h"
-#include "../FRIes/Hamiltonians/heat_bathPP.h"
+#include <FRIes/Hamiltonians/near_uniform.h>
+#include <FRIes/io_utils.h>
+#include <FRIes/Ext_Libs/dcmt/dc.h>
+#include <FRIes/compress_utils.h>
+#include <FRIes/Ext_Libs/argparse.h>
+#include <FRIes/Hamiltonians/heat_bathPP.h>
 #define max_iter 10000
 
 static const char *const usage[] = {
@@ -87,7 +87,7 @@ int main(int argc, const char * argv[]) {
     unsigned int n_elec = in_data.n_elec;
     unsigned int n_frz = in_data.n_frz;
     unsigned int n_orb = in_data.n_orb;
-    double hf_en = in_data.hf_en;;
+    double hf_en = in_data.hf_en;
     
     unsigned int n_elec_unf = n_elec - n_frz;
     unsigned int tot_orb = n_orb + n_frz / 2;
@@ -104,7 +104,7 @@ int main(int argc, const char * argv[]) {
     //    sgenrand_mt(0, rngen_ptr);
     
     // Solution vector
-    unsigned int spawn_length = matr_samp * 2 / n_procs;
+    unsigned int spawn_length = matr_samp * 2 * n_orb / n_procs;
     dist_vec *sol_vec = init_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
     size_t det_idx;
     
@@ -115,12 +115,6 @@ int main(int argc, const char * argv[]) {
         if (symm_lookup[det_idx][0] > max_n_symm) {
             max_n_symm = symm_lookup[det_idx][0];
         }
-        printf("%u: ", symm_lookup[det_idx][0]);
-        size_t symm_idx;
-        for (symm_idx = 0; symm_idx < symm_lookup[det_idx][0]; symm_idx++) {
-            printf("%u ", symm_lookup[det_idx][symm_idx + 1]);
-        }
-        printf("\n");
     }
     
     // Initialize hash function for processors and vector

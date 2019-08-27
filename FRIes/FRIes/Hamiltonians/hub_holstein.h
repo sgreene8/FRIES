@@ -7,9 +7,9 @@
 #define hub_holstein_h
 
 #include <stdio.h>
-#include "../fci_utils.h"
-#include "../math_utils.h"
-#include "../Ext_Libs/dcmt/dc.h"
+#include <FRIes/fci_utils.h>
+#include <FRIes/math_utils.h>
+#include <FRIes/Ext_Libs/dcmt/dc.h>
 
 
 /*! \brief Uniformly chooses num_sampl excitations from a column of the

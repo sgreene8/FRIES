@@ -37,7 +37,7 @@
 #define LSB 0x1
 #define WORDLEN 32
 
-#if defined(DEBUG)
+#if defined(DEBUG_MT)
 /* period parameters */
 #define NNN 17
 #define MMM 9
@@ -84,7 +84,7 @@ void _InitCheck32_dc(check32_t *ck, int r, int w)
     ck->upper_mask = (~ck->lower_mask) & ck->word_mask;
 }
 
-#if defined(DEBUG)
+#if defined(DEBUG_MT)
 static uint32_t next_A(check32_t *ck, _org_state *st, int w)
 {
     uint32_t x;

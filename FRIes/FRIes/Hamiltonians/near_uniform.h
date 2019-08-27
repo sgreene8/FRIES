@@ -12,7 +12,7 @@
 #define near_uniform_h
 
 #include <stdio.h>
-#include "../Ext_Libs/dcmt/dc.h"
+#include <FRIes/Ext_Libs/dcmt/dc.h>
 #include <math.h>
 #include <stdint.h>
 

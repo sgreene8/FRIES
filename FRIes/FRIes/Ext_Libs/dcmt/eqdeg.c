@@ -116,11 +116,11 @@ static MaskNode *cons_MaskNode(MaskNode *head, uint32_t b, uint32_t c, int leng)
 /* static void count_MaskNodes(MaskNode *head); */
 static void next_state(eqdeg_t *eq, Vector *v, int *count);
 
-#if defined(DEBUG)
+#if defined(DEBUG_MT)
 static void show_distrib(eqdeg_t *eq, mt_struct *mts);
 #endif
 
-#if defined(DEBUG)
+#if defined(DEBUG_MT)
 int main(int argc, char **argv)
 {
     mt_struct mt = {AAA,MMM,NNN,RRR,WWW,0,0,0,S00,SSS,TTT,0,0,0,NULL};
@@ -237,7 +237,7 @@ static void init_tempering(eqdeg_t *eq, mt_struct *mts)
 
     eq->greal_mask = (eq->gupper_mask | eq->glower_mask);
 
-#if defined(DEBUG)
+#if defined(DEBUG_MT)
     printf ("n=%d m=%d r=%d w=%d\n", eq->nnn, eq->mmm, eq->rrr, eq->www);
     printf ("nw-r=%d\n", eq->nnn * eq->www - eq->rrr);
     printf ("a=%x(%x << %d)\n", eq->aaa[1],mts->aaa,eq->ggap);
@@ -612,7 +612,7 @@ static MaskNode *delete_lower_MaskNodes(MaskNode *head, int l)
     return s;
 }
 
-#if defined(DEBUG)
+#if defined(DEBUG_MT)
 static void count_MaskNodes(MaskNode *head)
 {
     int c;

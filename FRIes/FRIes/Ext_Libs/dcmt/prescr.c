@@ -111,7 +111,7 @@ static void makemodlist(prescr_t *pre, Polynomial *pl, int nPoly);
 static void NextIrredPoly(Polynomial *pl, int nth);
 
 
-#if defined(DEBUG)
+#if defined(DEBUG_MT)
 /******* debuging functions ********/
 static void printPoly(Polynomial *p);
 static void printPoly2(Polynomial *p);
@@ -398,7 +398,7 @@ static void MakepreModPolys(prescr_t *pre, int mm, int nn, int rr, int ww)
 /********************************/
 
 /* following functions are used for debuging */
-#if defined(DEBUG)
+#if defined(DEBUG_MT)
 static void printPoly(Polynomial *p)
 {
     int i;
