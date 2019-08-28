@@ -14,7 +14,7 @@
 #include <FRIes/compress_utils.h>
 #include <FRIes/Ext_Libs/argparse.h>
 #include <FRIes/Hamiltonians/hub_holstein.h>
-#define max_iter 1000000
+#define max_iter 10000
 
 static const char *const usage[] = {
     "fri_hh [options] [[--] args]",
@@ -102,6 +102,7 @@ int main(int argc, const char * argv[]) {
     unsigned int n_elec = in_data.n_elec;
     double hub_t = 1;
     double hub_u = in_data.elec_int;
+    double hf_en = in_data.hf_en;
     
     if (hub_dim != 1) {
         fprintf(stderr, "Error: only 1-D Hubbard calculations supported right now.\n");
@@ -138,7 +139,7 @@ int main(int argc, const char * argv[]) {
     
     // Solution vector
     unsigned int spawn_length = matr_samp * 2 / n_procs;
-    dist_vec *sol_vec = init_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec, INT, hub_len);
+    dist_vec *sol_vec = init_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec, DOUB, hub_len);
     sol_vec->proc_scrambler = proc_scrambler;
     
     long long neel_det = gen_neel_det_1D(n_orb, n_elec, hub_dim);
@@ -274,10 +275,10 @@ int main(int argc, const char * argv[]) {
             ini_flag <<= 2 * n_orb;
             int el_sign = 1 - 2 * signbit(*curr_el);
             
-            matr_el = eps * hub_t * (neighb_orbs[det_idx][0][0] + neighb_orbs[det_idx][1][0]) * comp_vec2[samp_idx] * el_sign;
+            matr_el = -eps * hub_t * (neighb_orbs[det_idx][0][0] + neighb_orbs[det_idx][1][0]) * comp_vec2[samp_idx] * el_sign;
             idx_to_orbs((unsigned int) comp_idx[samp_idx][1], n_elec, neighb_orbs[det_idx], spawn_orbs);
             new_det = curr_det ^ (1LL << spawn_orbs[0]) ^ (1LL << spawn_orbs[1]);
-            
+            add_doub(sol_vec, new_det, matr_el, ini_flag);
         }
         
         // Death/cloning step
@@ -287,7 +288,7 @@ int main(int argc, const char * argv[]) {
                 double *diag_el = &(sol_vec->matr_el[det_idx]);
                 if (isnan(*diag_el)) {
                     long long curr_det = sol_vec->indices[det_idx];
-                    *diag_el = hub_diag(curr_det, hub_len, sol_vec->tabl) * hub_u;
+                    *diag_el = hub_diag(curr_det, hub_len, sol_vec->tabl) * hub_u - hf_en;
                 }
                 *curr_el *= 1 - eps * (*diag_el - en_shift);
             }
@@ -308,7 +309,7 @@ int main(int argc, const char * argv[]) {
         }
         
         // Calculate energy estimate
-        matr_el = calc_ref_ovlp(sol_vec->indices, (int *)sol_vec->values, sol_vec->curr_size, neel_det, sol_vec->tabl, sol_vec->type);
+        matr_el = calc_ref_ovlp(sol_vec->indices, sol_vec->values, sol_vec->curr_size, neel_det, sol_vec->tabl, sol_vec->type);
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
 #else
@@ -317,16 +318,16 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == ref_proc) {
             double *diag_el = &(sol_vec->matr_el[0]);
             if (isnan(*diag_el)) {
-                *diag_el = hub_diag(neel_det, hub_len, sol_vec->tabl) * hub_u;
+                *diag_el = hub_diag(neel_det, hub_len, sol_vec->tabl) * hub_u - hf_en;
             }
-            int ref_element = ((int *)sol_vec->values)[0];
+            double ref_element = ((double *)sol_vec->values)[0];
             matr_el = *diag_el * ref_element;
             for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
                 matr_el += recv_nums[proc_idx] * hub_t;
             }
             fprintf(num_file, "%lf\n", matr_el);
-            fprintf(den_file, "%d\n", ref_element);
-            printf("%6u, n walk: %7u, en est: %lf, shift: %lf, n_neel: %d\n", iterat, (unsigned int)glob_norm, matr_el / ref_element, en_shift, ref_element);
+            fprintf(den_file, "%lf\n", ref_element);
+            printf("%6u, n walk: %lf, en est: %lf, shift: %lf, n_neel: %lf\n", iterat, glob_norm, matr_el / ref_element, en_shift, ref_element);
         }
         
         // Save vector snapshot to disk
