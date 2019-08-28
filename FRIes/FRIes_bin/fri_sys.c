@@ -1,3 +1,9 @@
+/*! \file
+ *
+ * \brief FRI algorithm with systematic matrix compression for a molecular
+ * system
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,7 +15,7 @@
 #include <FRIes/compress_utils.h>
 #include <FRIes/Ext_Libs/argparse.h>
 #include <FRIes/Hamiltonians/heat_bathPP.h>
-#define max_iter 10000
+#define max_iter 2
 
 static const char *const usage[] = {
     "fri_sys [options] [[--] args]",
@@ -432,6 +438,9 @@ int main(int argc, const char * argv[]) {
                     int par_sign = doub_det_parity(&curr_det, doub_orbs);
                     matr_el *= -eps / p_doub / calc_unnorm_wt(hb_probs, doub_orbs) * el_sign * par_sign * comp_vec2[samp_idx];
                     add_doub(sol_vec, curr_det, matr_el, ini_flag);
+                    if (curr_det == 146575) {
+                        printf("Adding %.9lf\n", matr_el);
+                    }
                 }
             }
             else { // single excitation
@@ -459,6 +468,9 @@ int main(int argc, const char * argv[]) {
                 unsigned char *occ_orbs = orbs_at_pos(sol_vec, det_idx);
                 if (isnan(*diag_el)) {
                     *diag_el = diag_matrel(occ_orbs, tot_orb, eris, h_core, n_frz, n_elec) - hf_en;
+                }
+                if (sol_vec->indices[det_idx] == 146575) {
+                    printf("multiplying %.9lf by %.9lf\n", *curr_el, 1 - eps * (*diag_el - en_shift));
                 }
                 *curr_el *= 1 - eps * (*diag_el - en_shift);
             }
@@ -491,7 +503,7 @@ int main(int argc, const char * argv[]) {
             //            fprintf(num_file, "%lf\n", matr_el);
             double ref_element = ((double *)sol_vec->values)[0];
             //            fprintf(den_file, "%lf\n", sol_vals[0]);
-            printf("%6u, en est: %lf, shift: %lf, norm: %lf\n", iterat, matr_el / ref_element, en_shift, glob_norm);
+            printf("%6u, en est: %.9lf, shift: %lf, norm: %lf\n", iterat, matr_el / ref_element, en_shift, glob_norm);
         }
         
         if (proc_rank == 0) {

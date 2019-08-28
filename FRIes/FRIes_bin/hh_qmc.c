@@ -1,5 +1,9 @@
-/*
- Perform FCIQMC on the Hubbard model.
+/*! \file
+ *
+ * \brief Implementation of the FCIQMC algorithm described in Booth et al. (2009)
+ * for the Hubbard Model
+ *
+ * Hamiltonian matrix elements are integerized before matrix-vector multiplication
  */
 
 #include <stdio.h>
@@ -267,7 +271,7 @@ int main(int argc, const char * argv[]) {
         }
         perform_add(sol_vec, ini_bit);
         
-        // Communication
+        // Adjust shift
         if ((iterat + 1) % shift_interval == 0) {
             loc_norm = local_norm(sol_vec);
             sum_mpi_d(loc_norm, &glob_norm, proc_rank, n_procs);
@@ -279,8 +283,9 @@ int main(int argc, const char * argv[]) {
                 fprintf(nonz_file, "%d\n", glob_nnonz);
             }
         }
-        matr_el = calc_ref_ovlp(sol_vec->indices, (int *)sol_vec->values, sol_vec->curr_size, neel_det, sol_vec->tabl, sol_vec->type);
         
+        // Calculate energy estimate
+        matr_el = calc_ref_ovlp(sol_vec->indices, (int *)sol_vec->values, sol_vec->curr_size, neel_det, sol_vec->tabl, sol_vec->type);
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, ref_proc, MPI_COMM_WORLD);
 #else
@@ -300,6 +305,8 @@ int main(int argc, const char * argv[]) {
             fprintf(den_file, "%d\n", ref_element);
             printf("%6u, n walk: %7u, en est: %lf, shift: %lf, n_neel: %d\n", iterat, (unsigned int)glob_norm, matr_el / ref_element, en_shift, ref_element);
         }
+        
+        // Save vector snapshot to disk
         if ((iterat + 1) % save_interval == 0) {
             save_vec(sol_vec, result_dir);
             if (proc_rank == ref_proc) {

@@ -1,3 +1,11 @@
+/*! \file
+ *
+ * \brief Implementation of the FCIQMC algorithm described in Booth et al. (2009)
+ * for a molecular system
+ *
+ * Hamiltonian matrix elements are integerized before matrix-vector multiplication
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -161,9 +169,11 @@ int main(int argc, const char * argv[]) {
     
     // Initialize solution vector
     if (load_dir) {
+        // from previous FCIQMC calculation
         load_vec(sol_vec, load_dir);
     }
     else if (ini_dir) {
+        // from an initial vector in txt format
         long long *load_dets = sol_vec->indices;
         int *load_vals = sol_vec->values;
         
@@ -176,6 +186,7 @@ int main(int argc, const char * argv[]) {
         }
     }
     else {
+        // from Hartree-Fock
         if (hf_proc == proc_rank) {
             add_int(sol_vec, hf_det, 100, ini_bit);
         }
@@ -214,7 +225,7 @@ int main(int argc, const char * argv[]) {
         strcat(file_path, "nnonz.txt");
         nonz_file = fopen(file_path, "a");
         
-        
+        // Describe parameters of this calculation
         strcpy(file_path, result_dir);
         strcat(file_path, "params.txt");
         FILE *param_f = fopen(file_path, "w");
@@ -281,7 +292,13 @@ int main(int argc, const char * argv[]) {
             }
             
             doub_orbs = (unsigned char (*)[4]) spawn_orbs;
-            n_doub = doub_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_doub, rngen_ptr, doub_orbs, spawn_probs);
+            
+            if (qmc_dist == near_uni) {
+                n_doub = doub_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_doub, rngen_ptr, doub_orbs, spawn_probs);
+            }
+            else if (qmc_dist == heat_bath) {
+                n_doub = 0;
+            }
             
             for (walker_idx = 0; walker_idx < n_doub; walker_idx++) {
                 matr_el = doub_matr_el_nosgn(doub_orbs[walker_idx], tot_orb, eris, n_frz);
@@ -324,7 +341,7 @@ int main(int argc, const char * argv[]) {
         }
         perform_add(sol_vec, ini_bit);
         
-        // Communication
+        // Adjust shift
         if ((iterat + 1) % shift_interval == 0) {
             loc_norm = local_norm(sol_vec);
             sum_mpi_d(loc_norm, &glob_norm, proc_rank, n_procs);
@@ -336,6 +353,8 @@ int main(int argc, const char * argv[]) {
                 fprintf(nonz_file, "%d\n", glob_nnonz);
             }
         }
+        
+        // Calculate energy estimate
         matr_el = vec_dot(sol_vec, hf_dets, hf_mel, n_hf_doub, hf_hashes);
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
@@ -352,6 +371,8 @@ int main(int argc, const char * argv[]) {
             fprintf(den_file, "%d\n", ref_element);
             printf("%6u, n walk: %7u, en est: %lf, shift: %lf\n", iterat, (unsigned int)glob_norm, matr_el / ref_element, en_shift);
         }
+        
+        // Save vector snapshot to disk
         if ((iterat + 1) % save_interval == 0) {
             save_vec(sol_vec, result_dir);
             if (proc_rank == hf_proc) {

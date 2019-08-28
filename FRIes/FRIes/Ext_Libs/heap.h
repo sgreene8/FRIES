@@ -1,11 +1,10 @@
-/*
+/*! \file
+ * \brief Utilities for constructng and maintaining a heap using an
+ * auxiliary array of indices.
  *
+ * Source code adapted from https://en.wikipedia.org/wiki/Heapsort
  */
 
-// Shamelessly copied from https://en.wikipedia.org/wiki/Heapsort
-// but added indices so sort does not need to be performed in-place
-// and modified so that elements are sorted by magnitude
-// and added subroutines that treat hierarchical vectors
 
 #ifndef heap_h
 #define heap_h

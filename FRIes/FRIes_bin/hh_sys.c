@@ -102,7 +102,6 @@ int main(int argc, const char * argv[]) {
     unsigned int n_elec = in_data.n_elec;
     double hub_t = 1;
     double hub_u = in_data.elec_int;
-    double hf_en = in_data.hf_en;
     
     if (hub_dim != 1) {
         fprintf(stderr, "Error: only 1-D Hubbard calculations supported right now.\n");
@@ -120,7 +119,7 @@ int main(int argc, const char * argv[]) {
     // Initialize hash function for processors and vector
     unsigned int proc_scrambler[2 * n_orb];
     double loc_norm, glob_norm;
-    double last_norm = 0;
+    double last_one_norm = 0;
     
     if (load_dir) {
         load_proc_hash(load_dir, proc_scrambler);
@@ -144,7 +143,6 @@ int main(int argc, const char * argv[]) {
     
     long long neel_det = gen_neel_det_1D(n_orb, n_elec, hub_dim);
     ref_proc = idx_to_proc(sol_vec, neel_det);
-    size_t walker_idx;
     
     // Initialize solution vector
     if (load_dir) {
@@ -171,7 +169,7 @@ int main(int argc, const char * argv[]) {
     loc_norm = local_norm(sol_vec);
     sum_mpi_d(loc_norm, &glob_norm, proc_rank, n_procs);
     if (load_dir) {
-        last_norm = glob_norm;
+        last_one_norm = glob_norm;
     }
     
     char file_path[100];
@@ -228,17 +226,19 @@ int main(int argc, const char * argv[]) {
     double rn_sys = 0;
     double weight;
     int glob_n_nonz; // Number of nonzero elements in whole vector (across all processors)
+    double loc_norms[n_procs];
+    size_t *srt_arr = malloc(sizeof(size_t) * max_n_dets);
+    for (det_idx = 0; det_idx < max_n_dets; det_idx++) {
+        srt_arr[det_idx] = det_idx;
+    }
+    int *keep_exact = calloc(max_n_dets, sizeof(int));
     
     long long ini_flag;
-    unsigned int n_walk, n_success;
-    int spawn_walker, walk_sign, new_val;
     long long new_det;
     double matr_el;
     double recv_nums[n_procs];
     
     unsigned int iterat;
-    int glob_nnonz;
-    //    int n_nonz;
     unsigned char (*neighb_orbs)[2][n_elec + 1] = (unsigned char (*)[2][n_elec + 1])sol_vec->neighb;
     for (iterat = 0; iterat < max_iter; iterat++) {
         sum_mpi_i(sol_vec->n_nonz, &glob_n_nonz, proc_rank, n_procs);
@@ -264,6 +264,7 @@ int main(int argc, const char * argv[]) {
         }
         comp_len = comp_sub(comp_vec1, sol_vec->curr_size, ndiv_vec, n_subwt, NULL, (int (*)[n_subwt])keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
         
+        unsigned char spawn_orbs[2];
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
             weight_idx = comp_idx[samp_idx][0];
             det_idx = comp_idx[samp_idx][0];
@@ -273,66 +274,43 @@ int main(int argc, const char * argv[]) {
             ini_flag <<= 2 * n_orb;
             int el_sign = 1 - 2 * signbit(*curr_el);
             
-            matr_el = eps * hub_t * (neighb_orbs[det_idx][0][0] + neighb_orbs[det_idx][1][0]);
+            matr_el = eps * hub_t * (neighb_orbs[det_idx][0][0] + neighb_orbs[det_idx][1][0]) * comp_vec2[samp_idx] * el_sign;
+            idx_to_orbs((unsigned int) comp_idx[samp_idx][1], n_elec, neighb_orbs[det_idx], spawn_orbs);
+            new_det = curr_det ^ (1LL << spawn_orbs[0]) ^ (1LL << spawn_orbs[1]);
             
         }
         
+        // Death/cloning step
         for (det_idx = 0; det_idx < sol_vec->curr_size; det_idx++) {
             double *curr_el = doub_at_pos(sol_vec, det_idx);
-            long long curr_det = sol_vec->indices[det_idx];
-            
-            ini_flag = fabs(*curr_el) > init_thresh;
-            ini_flag <<= 2 * n_orb;
-            int el_sign = 1 - 2 * signbit(*curr_el);
-            
-            // spawning step
-            matr_el = eps * hub_t * (neighb_orbs[det_idx][0][0] + neighb_orbs[det_idx][1][0]);
-            n_success = round_binomially(matr_el, n_walk, rngen_ptr);
-            
-            if (n_success > max_spawn) {
-                printf("Allocating more memory for spawning\n");
-                max_spawn *= 2;
-                spawn_orbs = realloc(spawn_orbs, sizeof(unsigned char) * 2 * max_spawn);
+            if (*curr_el != 0) {
+                double *diag_el = &(sol_vec->matr_el[det_idx]);
+                if (isnan(*diag_el)) {
+                    long long curr_det = sol_vec->indices[det_idx];
+                    *diag_el = hub_diag(curr_det, hub_len, sol_vec->tabl) * hub_u;
+                }
+                *curr_el *= 1 - eps * (*diag_el - en_shift);
             }
-            
-            hub_multin(curr_det, n_elec, neighb_orbs[det_idx], n_success, rngen_ptr, spawn_orbs);
-            
-            for (walker_idx = 0; walker_idx < n_success; walker_idx++) {
-                new_det = curr_det ^ (1LL << spawn_orbs[walker_idx][0]) ^ (1LL << spawn_orbs[walker_idx][1]);
-                spawn_walker = -walk_sign;
-                add_int(sol_vec, new_det, spawn_walker, ini_flag);
-            }
-            
-            // Death/cloning step
-            double *diag_el = &(sol_vec->matr_el[det_idx]);
-            if (isnan(*diag_el)) {
-                *diag_el = hub_diag(curr_det, hub_len, sol_vec->tabl) * hub_u;
-            }
-            matr_el = (1 - eps * (*diag_el - en_shift - hf_en)) * walk_sign;
-            new_val = round_binomially(matr_el, n_walk, rngen_ptr);
-            if (new_val == 0 && sol_vec->indices[det_idx] != neel_det) {
-                del_at_pos(sol_vec, det_idx);
-            }
-            *curr_el = new_val;
         }
         perform_add(sol_vec, ini_bit);
         
-        // Communication
+        // Compression step
+        unsigned int n_samp = target_nonz;
+        loc_norms[proc_rank] = find_preserve(sol_vec->values, srt_arr, keep_exact, sol_vec->curr_size, &n_samp, &glob_norm);
+        
+        // Adjust shift
         if ((iterat + 1) % shift_interval == 0) {
-            loc_norm = local_norm(sol_vec);
-            sum_mpi_d(loc_norm, &glob_norm, proc_rank, n_procs);
-            adjust_shift(&en_shift, glob_norm, &last_norm, target_norm, shift_damping / eps / shift_interval);
-            sum_mpi_i((int)n_nonz, &glob_nnonz, proc_rank, n_procs);
+            adjust_shift(&en_shift, glob_norm, &last_one_norm, target_norm, shift_damping / shift_interval / eps);
             if (proc_rank == ref_proc) {
-                fprintf(norm_file, "%u\n", (unsigned int) glob_norm);
-                fprintf(shift_file, "%lf\n", en_shift);
-                fprintf(nonz_file, "%d\n", glob_nnonz);
+                //                fprintf(shift_file, "%lf\n", en_shift);
+                //                fprintf(norm_file, "%lf\n", glob_norm);
             }
         }
-        matr_el = calc_ref_ovlp(sol_vec->indices, (int *)sol_vec->values, sol_vec->curr_size, neel_det, sol_vec->tabl, sol_vec->type);
         
+        // Calculate energy estimate
+        matr_el = calc_ref_ovlp(sol_vec->indices, (int *)sol_vec->values, sol_vec->curr_size, neel_det, sol_vec->tabl, sol_vec->type);
 #ifdef USE_MPI
-        MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, ref_proc, MPI_COMM_WORLD);
+        MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
 #else
         recv_nums[0] = matr_el;
 #endif
@@ -350,6 +328,8 @@ int main(int argc, const char * argv[]) {
             fprintf(den_file, "%d\n", ref_element);
             printf("%6u, n walk: %7u, en est: %lf, shift: %lf, n_neel: %d\n", iterat, (unsigned int)glob_norm, matr_el / ref_element, en_shift, ref_element);
         }
+        
+        // Save vector snapshot to disk
         if ((iterat + 1) % save_interval == 0) {
             save_vec(sol_vec, result_dir);
             if (proc_rank == ref_proc) {
@@ -372,3 +352,4 @@ int main(int argc, const char * argv[]) {
 #endif
     return 0;
 }
+

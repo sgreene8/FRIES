@@ -1,3 +1,9 @@
+/*! \file
+ *
+ * \brief FRI algorithm with multinomial matrix compression for a molecular
+ * system
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

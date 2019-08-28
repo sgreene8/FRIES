@@ -101,4 +101,17 @@ long long gen_neel_det_1D(unsigned int n_sites, unsigned int n_elec,
 double calc_ref_ovlp(long long *dets, void *vals, size_t n_dets, long long ref_det,
                      byte_table *table, dtype type);
 
+/*! \brief Find the orbitals involved in the ith excitation from a Hubbard
+ * determinant
+ *
+ * \param [in] chosen_idx   The index of the excitation in question
+ * \param [in] n_elec       Number of electrons defining the Hubbard determinant
+ * \param [in] neighbors    2-D array indicating which occupied orbitals in the
+ *                          determinant have an empty neighboring orbital
+ *                          (dimensions 2 x (n_elec + 1))
+ * \param [out] orbs        The orbitals defining the excitation
+ */
+void idx_to_orbs(unsigned int chosen_idx, unsigned int n_elec,
+                 unsigned char (*neighbors)[n_elec + 1], unsigned char *orbs);
+
 #endif /* hub_holstein_h */

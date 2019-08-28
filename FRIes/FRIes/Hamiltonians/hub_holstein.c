@@ -30,19 +30,25 @@ void hub_multin(long long det, unsigned int n_elec, unsigned char (*neighbors)[n
     for (samp_idx = 0; samp_idx < num_sampl; samp_idx++) {
         n_choices = neighbors[0][0] + neighbors[1][0];
         orb_idx = genrand_mt(rn_ptr) / (1. + UINT32_MAX) * n_choices;
-        if (orb_idx < neighbors[0][0]) {
-            chosen_orbs[samp_idx][0] = neighbors[0][orb_idx + 1];
-            chosen_orbs[samp_idx][1] = neighbors[0][orb_idx + 1] + 1;
-        }
-        else {
-            orb_idx -= neighbors[0][0];
-            chosen_orbs[samp_idx][0] = neighbors[1][orb_idx + 1];
-            chosen_orbs[samp_idx][1] = neighbors[1][orb_idx + 1] - 1;
-        }
+        idx_to_orbs(orb_idx, n_elec, neighbors, chosen_orbs[samp_idx]);
     }
 }
 
-//void idx_to_orbs(unsigned int chosen_idx, unsigned char (*neighbors)[)
+void idx_to_orbs(unsigned int chosen_idx, unsigned int n_elec,
+                 unsigned char (*neighbors)[n_elec + 1], unsigned char *orbs) {
+    if (chosen_idx < neighbors[0][0]) {
+        orbs[0] = neighbors[0][chosen_idx + 1];
+        orbs[1] = neighbors[0][chosen_idx + 1] + 1;
+    }
+    else if (chosen_idx < neighbors[0][0] + neighbors[1][0]){
+        chosen_idx -= neighbors[0][0];
+        orbs[0] = neighbors[1][chosen_idx + 1];
+        orbs[1] = neighbors[1][chosen_idx + 1] - 1;
+    }
+    else {
+        fprintf(stderr, "Error: Excitation index selected for a Hubbard determinant exceeds the possible number of excitations from that determinant.");
+    }
+}
 
 
 size_t hub_all(long long det, unsigned int n_elec, unsigned char (*neighbors)[n_elec + 1],
