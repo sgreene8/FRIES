@@ -19,6 +19,7 @@ add_library(fries SHARED ${FRIES_FILELIST})
 add_subdirectory(Ext_Libs)
 
 target_link_libraries(fries PUBLIC dcmt)
+target_link_libraries(fries PUBLIC m)
 
 option(USE_MPI "Enable MPI" ON)
 if(USE_MPI)

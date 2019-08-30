@@ -15,7 +15,7 @@
 #include <FRIes/compress_utils.h>
 #include <FRIes/Ext_Libs/argparse.h>
 #include <FRIes/Hamiltonians/heat_bathPP.h>
-#define max_iter 2
+#define max_iter 1000000
 
 static const char *const usage[] = {
     "fri_sys [options] [[--] args]",
@@ -412,7 +412,7 @@ int main(int argc, const char * argv[]) {
             double *curr_el = doub_at_pos(sol_vec, det_idx);
             long long ini_flag = fabs(*curr_el) > init_thresh;
             ini_flag <<= 2 * n_orb;
-            int el_sign = 1 - 2 * signbit(*curr_el);
+            int el_sign = 1 - 2 * (*curr_el < 0);
             if (orb_indices2[weight_idx][0] == 0) { // double excitation
                 unsigned char doub_orbs[4];
                 doub_orbs[0] = orb_indices2[weight_idx][1];
@@ -434,13 +434,10 @@ int main(int argc, const char * argv[]) {
                     doub_orbs[0] = tmp;
                 }
                 matr_el = doub_matr_el_nosgn(doub_orbs, tot_orb, eris, n_frz);
-                if (fabs(matr_el) > 1e-9) {
+                if (fabs(matr_el) > 1e-9 && comp_vec2[samp_idx] > 1e-9) {
                     int par_sign = doub_det_parity(&curr_det, doub_orbs);
                     matr_el *= -eps / p_doub / calc_unnorm_wt(hb_probs, doub_orbs) * el_sign * par_sign * comp_vec2[samp_idx];
                     add_doub(sol_vec, curr_det, matr_el, ini_flag);
-                    if (curr_det == 146575) {
-                        printf("Adding %.9lf\n", matr_el);
-                    }
                 }
             }
             else { // single excitation
@@ -451,7 +448,7 @@ int main(int argc, const char * argv[]) {
                 sing_orbs[1] = virt_from_idx(curr_det, symm_lookup[u1_symm], n_orb * (o1 / n_orb), orb_indices2[weight_idx][2]);
                 unsigned char *occ_orbs = orbs_at_pos(sol_vec, det_idx);
                 matr_el = sing_matr_el_nosgn(sing_orbs, occ_orbs, tot_orb, eris, h_core, n_frz, n_elec_unf);
-                if (fabs(matr_el) > 1e-9) {
+                if (fabs(matr_el) > 1e-9 && comp_vec2[samp_idx] > 1e-9) {
                     count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf, n_orb, n_irreps, symm_lookup, symm);
                     unsigned int n_occ = count_sing_allowed(occ_orbs, n_elec_unf, symm, n_orb, unocc_symm_cts);
                     matr_el *= -eps / (1 - p_doub) * n_occ * orb_indices2[weight_idx][3] * el_sign * sing_det_parity(&curr_det, sing_orbs) * comp_vec2[samp_idx];
@@ -468,9 +465,6 @@ int main(int argc, const char * argv[]) {
                 unsigned char *occ_orbs = orbs_at_pos(sol_vec, det_idx);
                 if (isnan(*diag_el)) {
                     *diag_el = diag_matrel(occ_orbs, tot_orb, eris, h_core, n_frz, n_elec) - hf_en;
-                }
-                if (sol_vec->indices[det_idx] == 146575) {
-                    printf("multiplying %.9lf by %.9lf\n", *curr_el, 1 - eps * (*diag_el - en_shift));
                 }
                 *curr_el *= 1 - eps * (*diag_el - en_shift);
             }
@@ -502,7 +496,7 @@ int main(int argc, const char * argv[]) {
             }
             //            fprintf(num_file, "%lf\n", matr_el);
             double ref_element = ((double *)sol_vec->values)[0];
-            //            fprintf(den_file, "%lf\n", sol_vals[0]);
+            //            fprintf(den_file, "%lf\n", ref_element);
             printf("%6u, en est: %.9lf, shift: %lf, norm: %lf\n", iterat, matr_el / ref_element, en_shift, glob_norm);
         }
         
