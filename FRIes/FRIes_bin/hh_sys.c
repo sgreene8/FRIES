@@ -45,20 +45,20 @@ int main(int argc, const char * argv[]) {
     const char *result_dir = "./";
     const char *load_dir = NULL;
     const char *ini_dir = NULL;
-    double target_norm = 0;
     unsigned int target_nonz = 0;
     unsigned int matr_samp = 0;
     unsigned int max_n_dets = 0;
-    double init_thresh = 0;
+    unsigned int init_thresh = 0;
+    unsigned int tmp_norm = 0;
     struct argparse_option options[] = {
         OPT_HELP(),
         OPT_STRING('d', "params_path", &params_path, "Path to the file that contains the parameters defining the Hamiltonian, number of electrons, number of sites, etc."),
-        OPT_FLOAT('t', "target", &target_norm, "Target one-norm of solution vector"),
+        OPT_INTEGER('t', "target", &tmp_norm, "Target one-norm of solution vector"),
         OPT_INTEGER('m', "vec_nonz", &target_nonz, "Target number of nonzero vector elements to keep after each iteration"),
         OPT_INTEGER('M', "mat_nonz", &matr_samp, "Target number of nonzero matrix elements to keep after each iteration"),
         OPT_STRING('y', "result_dir", &result_dir, "Directory in which to save output files"),
         OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
-        OPT_FLOAT('i', "initiator", &init_thresh, "Number of walkers on a determinant required to make it an initiator."),
+        OPT_INTEGER('i', "initiator", &init_thresh, "Number of walkers on a determinant required to make it an initiator."),
         OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous calculation."),
         OPT_STRING('n', "ini_dir", &ini_dir, "Directory from which to read the initial vector for a new calculation."),
         OPT_END(),
@@ -85,7 +85,8 @@ int main(int argc, const char * argv[]) {
         fprintf(stderr, "Error: maximum number of determinants expected on each processor not specified.\n");
         return 0;
     }
-    init_thresh = fabs(init_thresh);
+    
+    double target_norm = tmp_norm;
     
     // Parameters
     double shift_damping = 0.05;
@@ -200,7 +201,7 @@ int main(int argc, const char * argv[]) {
         strcpy(file_path, result_dir);
         strcat(file_path, "params.txt");
         FILE *param_f = fopen(file_path, "w");
-        fprintf(param_f, "FRI calculation\nHubbard-Holstein parameters path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nInitiator threshold: %lf\nMatrix nonzero: %u\nVector nonzero: %u\n", params_path, eps, target_norm, init_thresh, matr_samp, target_nonz);
+        fprintf(param_f, "FRI calculation\nHubbard-Holstein parameters path: %s\nepsilon (imaginary time step): %lf\nTarget norm %u\nInitiator threshold: %lf\nMatrix nonzero: %u\nVector nonzero: %u\n", params_path, eps, target_norm, init_thresh, matr_samp, target_nonz);
         if (load_dir) {
             fprintf(param_f, "Restarting calculation from %s\n", load_dir);
         }
