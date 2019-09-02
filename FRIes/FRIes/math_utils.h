@@ -41,4 +41,17 @@ byte_table *gen_byte_table(void);
 unsigned int count_bits(long long num, byte_table *tab);
 
 
+/*! \brief Count number of 1's between two bits in binary representation of a
+ * number
+ *
+ * The order of the two bit indices does not matter
+ *
+ * \param [in] bit_str  The number whose bits will be counted
+ * \param [in] a        The position of one of the bits in question
+ * \param [in] b        The position of the second bit in question
+ * \return the number of bits
+ */
+unsigned int bits_between(long long bit_str, unsigned char a, unsigned char b);
+
+
 #endif /* math_utils_h */

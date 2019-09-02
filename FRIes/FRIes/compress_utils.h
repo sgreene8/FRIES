@@ -1,10 +1,4 @@
-//
-//  compress_utils.h
-//  FRIes
-//
-//  Created by Samuel Greene on 4/13/19.
-//  Copyright © 2019 Samuel Greene. All rights reserved.
-//
+/*! \file Utilities for compressing vectors stochastically using the FRI framework */
 
 #ifndef compress_utils_h
 #define compress_utils_h
@@ -17,171 +11,221 @@
 #include "det_store.h"
 #include "Ext_Libs/dcmt/dc.h"
 
-/* Round p to integer b such that
- b ~ binomial(n, p - floor(p)) + floor(p) * n
- 
- Parameters
- ----------
- p: non-integer number to be rounded
- n: Number of rn's to sample
- mt_ptr: Address to MT state object to use for RN generation
- 
- Returns
- -------
- integer result
- 
+
+/*! \brief Round a non-integral number binomially.
+ *
+ * Given a non-integral input p and a positive-integral input n, the result r of
+ * this operation is distributed according to:
+ * \f[
+ * r \sim \text{binomial}(n, p - \text{floor}(p)) + \text{floor}(p) * n
+ * \f]
+ * \param [in] p        The non-integral parameter p of the rounding operation
+ * \param [in] n        The positive integral parameter n of the rounding oper.
+ * \param [in] mt_ptr   Address to MT state object to use for RN generation
+ * \return Integer result r of the operation
  */
 int round_binomially(double p, unsigned int n, mt_struct *mt_ptr);
 
 
-/* Identify the greatest-magnitude elements of a vector to be preserved
- in a compression
- 
- Parameters
- ----------
- values: vector of elements (can be + or -); not modified in this subroutine
- srt_idx: an array of indices that will be used to build the heap, must already
-    contain integers from 0 to count - 1 in any order
- keep_idx: upon return, contains 1's at each position of values that should be
-    preserved exactly. all elements should be zeroed before calling
- count: number of elements in values array
- n_samp: pointer to desired number of nonzero elements after compression;
-    upon return, points to remaining number available for systematic resampling
- global_norm: upon return, contains the norm of the whole vector, including
-    preserved elements
- 
- Returns
- -------
- sum of magnitudes of elements that are not preserved exactly
+/*! \brief Identify the greatest-magnitude elements of a vector
+ *
+ * The greatest-magnitude elements of the vector are identified according to the
+ * rule in the FRI paper and preserved exactly in the compression
+ *
+ * \param [in] values   Vector of elements (can be + or -); not modified in this
+ *                      subroutine (length \p count)
+ * \param [in] srt_idx  An array of indices that will be used to build the heap,
+ *                      must be initialized with integers from 0 to count - 1 in
+ *                      any order (length \p count)
+ * \param [out] keep_idx Contains 1's at each position of values designated to
+ *                      be preserved exactly. Upon input, all elements must be 0
+ *                      (length \p count)
+ * \param [in] count    Number of elements in the vector being compressed
+ * \param [in,out] n_samp Pointer to desired number of nonzero elements after
+ *                      compression. Upon return, points to remaining number
+ *                      available for systematic resampling
+ * \param [out] global_norm The norm of the whole vector, including
+ *                      preserved elements
+ * \return Sum of magnitudes of elements that are not preserved exactly
  */
 double find_preserve(double *values, size_t *srt_idx, int *keep_idx,
                      size_t count, unsigned int *n_samp, double *global_norm);
 
-/* Sum a variable across all processors and store the sum in the global ptr
- 
- Parameters
- ----------
- local: local value to be summed
- global: pointer to where result should be stored
- my_rank: rank of calling process
- n_procs: total number of processors to sum over
+
+/*! \brief Systematic resampling of vector elements
+ *
+ * \param [in, out] vec_vals Elements in the vector (can be negative) before
+ *                      and after compression (length \p vec_len)
+ * \param [in] vec_len  Number of elements in the vector
+ * \param [in, out] loc_norms Sum of magnitudes of elements on each MPI process
+ *                      before and after compression
+ * \param [in] n_samp   Number of samples in systematic resampling
+ * \param [in, out] keep_exact Array indicating elements to be preserved exactly
+ *                      in compression; upon return, 1's indicate elements
+ *                      zeroed in the compression
+ * \param [in] rand_num A random number chosen uniformly on [0, 1). Only the
+ *                      argument from the 0th MPI process is used.
+ */
+void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
+              unsigned int n_samp, int *keep_exact, double rand_num);
+
+
+/*! \brief Sum a variable across all MPI processes
+ *
+ * \param [in] local    local value to be summed
+ * \param [in] global   pointer to where result should be stored
+ * \param [in] my_rank  Rank of the local processor
+ * \param [in] n_procs  Total number of MPI processes
  */
 void sum_mpi_d(double local, double *global, int my_rank, int n_procs);
 
 
-/* Same as sum_mpi_d, except for integers
+/*! \brief Sum a variable across all MPI processes
+ *
+ * \param [in] local    local value to be summed
+ * \param [out] global  pointer to where result should be stored
+ * \param [in] my_rank  Rank of the local processor
+ * \param [in] n_procs  Total number of MPI processes
  */
 void sum_mpi_i(int local, int *global, int my_rank, int n_procs);
 
-/* Initialize the parameters needed to perform systematic sampling on a vector of weights
- 
- Parameters
- ----------
- norms: array of one-norms of the portion of the vector stored on each processor
- rn: pointer to a random number on [0,1). Upon return, will be set to the position of the random sampler (the "X") within this portion of the vector.
- n_samp: desired number of elements to select in systematic sampling
+
+/*! \brief Set-up for performing systematic compression across many MPI processes
+ *
+ * Calculates the position of the first random sample on each MPI process
+ *
+ * \param [in] norms    Array of one-norms of the portions of the vector stored
+ *                      on each processor (length \p n_samp)
+ * \param [in, out] rn  Pointer to a random number generated on [0,1). Upon
+ *                      return, will be set to the position of the random sample
+ *                      (the "X" in the paper) within this portion of the vector
+ * \param [in] n_samp   Desired number of elements to select randomly
+ * \return Sum of the one-norms of the portions of the vector stored on MPI
+ * processes with ranks less than the current one
  */
 double seed_sys(double *norms, double *rn, unsigned int n_samp);
 
 
-/*
- Identify elements of a vector to preserve in a systematic FRI compression scheme.
- Vector elements are subdivided into sub-weights.
- 
- Parameters
- ----------
- values: vector on which to perform compression. Elements must be positive.
- n_div: number of uniform intervals into which vector elements are divided. If =0,
-    vector is divided nonuniformly at this position
- n_sub: length of 2nd dimension of sub_wts and keep_idx arrays
- sub_wts: 2-d array of sub-weights for vector elements divided nonuniformly;
-            each nonzero row must sum to 1
- keep_idx: 2-d array that, upon return, contains 1's at all positions to be
-            preserved exactly. Relevant indices should be zeroed before calling.
- count: length of values array
- n_samp: pointer to desired number of nonzero elements after compression;
-    upon return, points to remaining number available for systematic resampling
- wt_remain: array that, upon return, contains the remaining weight to be sampled
-    at each position
- 
- Returns
- -------
- sum of magnitudes of elements that are not preserved exactly
+/*! \brief Identify elements to preserve exactly according to the FRI rule when
+ * vector elements are subdivided into sub-weights.
+ *
+ * \param [in] values   Magnitudes of elements of vector to be compressed
+ *                      (length \p count)
+ * \param [in] n_div    Number of uniform intervals into which each element is
+ *                      divided. If =0, this element is divided nonuniformly
+ *                      according to sub_wts at this position (length \p count)
+ * \param [in] n_sub    Length of 2nd dimension of \p sub_wts and \p keep_idx
+ *                      arrays
+ * \param [in] sub_weights  2-d array of sub-weights for vector elements divided
+ *                      nonuniformly; each nonzero row must sum to 1. Elements
+ *                      in rows corresponding to nonzero elements of n_div are
+ *                      undefined. (dimensions \p count x \p n_sub)
+ * \param [out] keep_idx 2-d array that contains 1's at all positions to be
+ *                      preserved exactly. Elements must be zeroed before
+ *                      calling. If vector is divided uniformly, only the
+ *                      element in the 0th column is set to 1
+ *                      (dimensions \p count * \p n_sub)
+ * \param [in] count    Length of vector to compress
+ * \param [in, out] n_samp Pointer to desired number of nonzero elements after
+ *                      compression; upon return, points to remaining number
+ *                      available for systematic resampling
+ * \param [out] wt_remain Sum of magnitudes of sub-elements not preserved
+ *                      exactly at each position (length \p count)
+ * \return sum of magnitudes of elements on this local MPI process that are not
+ * preserved exactly
  */
 double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
                      double (*sub_weights)[n_sub], int (*keep_idx)[n_sub],
                      size_t count, unsigned int *n_samp, double *wt_remain);
 
 
+/*! \brief Perform systematic resampling on a vector with subdivided elements
+ *
+ * \param [in] values   Magnitudes of elements of original vector to be
+ *                      compressed, potentially with some elements preserved
+ *                      exactly (length \p count)
+ * \param [in] n_div    Number of uniform intervals into which each element is
+ *                      divided. If =0, this element is divided nonuniformly
+ *                      according to sub_wts at this position (length \p count)
+ * \param [in] n_sub    Length of 2nd dimension of \p sub_wts and \p keep_idx
+ *                      arrays
+ * \param [in] sub_weights  2-d array of sub-weights for vector elements divided
+ *                      nonuniformly; each nonzero row must sum to 1. Elements
+ *                      in rows corresponding to nonzero elements of n_div are
+ *                      undefined. (dimensions \p count * \p n_sub)
+ * \param [in] keep_idx 2-d array that contains 1's at all positions to be
+ *                      preserved exactly. (dimensions \p count * \p n_sub)
+ * \param [in] count    Length of vector to compress
+ * \param [in] n_samp   Number of elements to select in systematic resampling
+ * \param [in] wt_remain Sum of magnitudes of sub-elements not preserved
+ *                      exactly at each position (length \p count)
+ * \param [in, out] loc_norms Sum of magnitudes of elements on each MPI process
+ *                      not preserved exactly
+ * \param [in] rand_num A random number chosen uniformly on [0, 1). Only the
+ *                      argument from the 0th MPI process is used.
+ * \param [out] new_vals Magnitudes of elements in compressed vector, including
+ *                      elements preserved exactly
+ * \param [out] new_idx Indices of elements of the compressed vector in the
+ *                      original (input) vector. The 0th column gives the index
+ *                      in the values array, and the 1st gives the index of the
+ *                      subdivided element
+ * \return Number of elements in compressed vector
+ */
 size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
                double (*sub_weights)[n_sub], int (*keep_idx)[n_sub],
                size_t count, unsigned int n_samp, double *wt_remain,
                double *loc_norms, double rand_num, double *new_vals,
                size_t (*new_idx)[2]);
 
-/*
- Perform systematic compression with exact preservation on a vector whose
- elements are divided into sub-weights
- 
- Parameters
- ----------
- values: elements of undivided vector on which to perform compression. Elements
-    must be positive
- count: length of values array
- n_div: number of uniform intervals into which vector elements are divided. If =0,
-    vector is divided nonuniformly at this position
- n_sub: length of 2nd dimension of sub_wts and keep_idx arrays
- sub_wts: 2-d array of sub-weights for vector elements divided nonuniformly;
-    each nonzero row must sum to 1
- keep_idx: 2-d array that, upon return, contains 1's at all positions to be
-    preserved exactly. Relevant indices should be zeroed before calling.
- n_samp: desired number of nonzero elements after compression
- wt_remain: scratch array of length count used in compression
- rand_num: random number generated uniformly on [0,1); only needs to be defined
-    on 0th processor
- new_vals: elements of the compressed array
- new_idx: 2-d array containing indices of each element in compressed vector.
-    first index is index in values, second index is the subweight index
- 
- Returns
- -------
- number of elements in the compressed array (at most n_samp)
+
+/*! \brief Perform systematic compression with exact preservation on a vector
+ * whose elements are divided into sub-weights
+ *
+ * \param [in] values   Magnitudes of elements of original vector on which to
+ *                      perform compression (length \p count)
+ * \param [in] count    Length of vector to compress
+ * \param [in] n_div    Number of uniform intervals into which each element is
+ *                      divided. If =0, this element is divided nonuniformly
+ *                      according to sub_wts at this position (length \p count)
+ * \param [in] n_sub    Length of 2nd dimension of \p sub_wts and \p keep_idx
+ *                      arrays
+ * \param [in] sub_weights  2-d array of sub-weights for vector elements divided
+ *                      nonuniformly; each nonzero row must sum to 1. Elements
+ *                      in rows corresponding to nonzero elements of n_div are
+ *                      undefined. (dimensions \p count * \p n_sub)
+ * \param [in] keep_idx Scratch array used to identify elements to preserve
+ *                      exactly. Must be 0 upon input
+ *                      (dimensions \p count * \p n_sub)
+ * \param [in] n_samp   Desired number of nonzero elements in compressed vector
+ * \param [in] wt_remain Scratch array used for compression (length \p count)
+ * \param [in] rand_num A random number chosen uniformly on [0, 1). Only the
+ *                      argument from the 0th MPI process is used.
+ * \param [out] new_vals Magnitudes of elements in compressed vector, including
+ *                      elements preserved exactly
+ * \param [out] new_idx Indices of elements of the compressed vector in the
+ *                      original (input) vector. The 0th column gives the index
+ *                      in the values array, and the 1st gives the index of the
+ *                      subdivided element
+ * \return number of elements in the compressed array (at most n_samp)
  */
 size_t comp_sub(double *values, size_t count, unsigned int *n_div, size_t n_sub,
                 double (*sub_weights)[n_sub], int (*keep_idx)[n_sub],
                 unsigned int n_samp, double *wt_remain, double rand_num,
                 double *new_vals, size_t (*new_idx)[2]);
 
-/*
- Systematically compress a vector
- 
- Parameters
- ----------
- vec_vals: values of elements in the vector
- vec_len: number of elements in the vector
- loc_norms: one-norm of the segments of the solution vector on each processor
-            updated upon return
- n_samp: number of samples to sample using systematic sampling
- keep_exact: array indicating which elements should be preserved exactly; upon
-             return, 1's indicate elements that should be removed from solution
-             vector
- rand_num: random number on [0,1); only needs to be defined
- on 0th processor
- */
-void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
-                unsigned int n_samp, int *keep_exact, double rand_num);
 
-
-/*
- Adjust energy shift according to eq 17 in Booth et al. (2009)
- 
- Parameters
- ----------
- shift: pointer to current energy shift; updated upon return
- one_norm: current one-norm of solution vector
- last_norm: ptr to previous one-norm of solution vector; updated upon return
- target_norm: one-norm above which the energy shift should be adjusted
- damp_factor: prefactor for log in eq 17 (\zeta / A \delta \tau)
+/*! \brief Adjust energy shift to maintain one-norm of solution vector in DMC
+ * simulation
+ *
+ * \param [in, out] shift Pointer to energy shift; updated upon return
+ * \param [in] one_norm Current one-norm of solution vector
+ * \param [in, out] last_norm Ptr to previous one-norm of solution vector, or 0
+ *                      if vector norm is not yet being updated. Upon return,
+ *                      set to \p one_norm if one_norm > target_norm
+ * \param [in] target_norm One-norm above which the energy shift should be
+ *                      adjusted
+ * \param [in] damp_factor Factor by which the shift calculated based on the
+ *                      change in one-norm is damped (or amplified)
  */
 void adjust_shift(double *shift, double one_norm, double *last_norm,
                   double target_norm, double damp_factor);

@@ -1,6 +1,9 @@
-/*
- Utilities for performing operations on vectors in sparse format stored across
- multiple processes
+/*! \file
+ *
+ * \brief Utilities for storing and manipulating sparse vectors
+ *
+ * Supports sparse vectors distributed among multiple processes if USE_MPI is
+ * defined
  */
 
 #include "vec_utils.h"

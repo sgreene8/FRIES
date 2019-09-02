@@ -94,7 +94,7 @@ double calc_o2_probs(hb_info *tens, double *prob_arr, unsigned int n_elec,
 /*! \brief Calculate the normalized probabilities for choosing the first
  * unoccupied orbital in a double excitation from a particular determinant
  *
- * The probabilities for the first unoccupied orbitak are
+ * The probabilities for the first unoccupied orbital are
  * \f[
  * P_a = \frac{|\langle i a | a i \rangle|^{1/2}}{\sum_{c \in \lbrace \text{virt} \rbrace} |\langle i c | c i \rangle|^{1/2}}
  * \f]

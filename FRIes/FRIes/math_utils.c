@@ -37,3 +37,30 @@ unsigned int count_bits(long long num, byte_table *tab) {
     }
     return n_bits;
 }
+
+
+unsigned int bits_between(long long bit_str, unsigned char a, unsigned char b) {
+    // count number of 1's between bits a and b in binary representation of bit_str
+    unsigned int n_bits = 0;
+    unsigned char byte_counts[] = {0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4};
+    unsigned char min_bit, max_bit;
+    
+    if (a < b) {
+        min_bit = a;
+        max_bit = b;
+    }
+    else {
+        max_bit = a;
+        min_bit = b;
+    }
+    
+    long long mask = (1LL << max_bit) - (1LL << (min_bit + 1));
+    long long curr_int = (bit_str & mask) >> (min_bit + 1);
+    
+    while (curr_int != 0) {
+        n_bits += byte_counts[curr_int & 15];
+        curr_int >>= 4;
+    }
+    
+    return n_bits;
+}

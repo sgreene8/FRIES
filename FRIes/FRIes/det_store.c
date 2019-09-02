@@ -1,10 +1,6 @@
-//
-//  det_store.c
-//  FRIes
-//
-//  Created by Samuel Greene on 4/14/19.
-//  Copyright © 2019 Samuel Greene. All rights reserved.
-//
+/*! \file Utilities for keeping track of Slater determinant indices of a sparse
+ * vector.
+ */
 
 #include "det_store.h"
 
@@ -13,20 +9,6 @@ unsigned long long hash_fxn(unsigned char *occ_orbs, unsigned int n_elec, unsign
     unsigned int i;
     for (i = 0; i < n_elec; i++) {
         hash = 1099511628211LL * hash + (i + 1) * rand_nums[occ_orbs[i]];
-    }
-    return hash;
-}
-
-
-unsigned long long hash_fxn_hh(unsigned int n_elec, unsigned char (*neighb)[n_elec + 1],
-                               unsigned int *rand_nums) {
-    unsigned long long hash = 0;
-    unsigned int i;
-    for (i = 0; i < neighb[0][0]; i++) {
-        hash = 1099511628211LL * hash + (i + 1) * rand_nums[neighb[0][i]];
-    }
-    for (i = 0; i < neighb[1][0]; i++) {
-        hash = 1099511628211LL * hash + (i + 1) * rand_nums[neighb[1][i]];
     }
     return hash;
 }

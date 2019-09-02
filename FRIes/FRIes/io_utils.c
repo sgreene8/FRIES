@@ -1,14 +1,8 @@
-//
-//  io_utils.c
-//  FRIes
-//
-//  Created by Samuel Greene on 3/30/19.
-//  Copyright © 2019 Samuel Greene. All rights reserved.
-//
+/*! \file Utilities for reading/writing data from/to disk. */
 
 #include "io_utils.h"
 
-void read_in_doub(double *buf, char *fname) {
+void read_doub_csv(double *buf, char *fname) {
     int i =  0;
     size_t row_idx = 0;
     size_t n_col;
@@ -28,7 +22,7 @@ void read_in_doub(double *buf, char *fname) {
     CsvParser_destroy(csvparser);
 }
 
-void read_in_uchar(unsigned char *buf, char *fname) {
+void read_uchar_csv(unsigned char *buf, char *fname) {
     int i =  0;
     size_t row_idx = 0;
     size_t n_col;
@@ -135,18 +129,18 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     strcpy(buffer, hf_dir);
     strcat(buffer, "symm.txt");
     in_struct->symm = malloc(sizeof(unsigned char) * tot_orb);
-    read_in_uchar(in_struct->symm, buffer);
+    read_uchar_csv(in_struct->symm, buffer);
     in_struct->symm = &(in_struct->symm[n_frz / 2]);
     
     strcpy(buffer, hf_dir);
     strcat(buffer, "hcore.txt");
     in_struct->hcore = malloc(sizeof(double) * tot_orb * tot_orb);
-    read_in_doub(in_struct->hcore, buffer);
+    read_doub_csv(in_struct->hcore, buffer);
     
     strcpy(buffer, hf_dir);
     strcat(buffer, "eris.txt");
     in_struct->eris = malloc(sizeof(double) * tot_orb * tot_orb * tot_orb * tot_orb);
-    read_in_doub(in_struct->eris, buffer);
+    read_doub_csv(in_struct->eris, buffer);
     
     return 0;
 }

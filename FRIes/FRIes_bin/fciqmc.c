@@ -16,6 +16,7 @@
 #include <FRIes/compress_utils.h>
 #include <FRIes/Ext_Libs/argparse.h>
 #include <FRIes/Hamiltonians/heat_bathPP.h>
+#include <FRIes/Hamiltonians/molecule.h>
 #define max_iter 1000000
 
 static const char *const usage[] = {

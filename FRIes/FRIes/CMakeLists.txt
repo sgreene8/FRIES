@@ -6,6 +6,7 @@ list(APPEND FRIES_FILELIST
         Hamiltonians/heat_bathPP.c
         Hamiltonians/hub_holstein.c
         Hamiltonians/near_uniform.c
+        Hamiltonians/molecule.c
         io_utils.c
         math_utils.c
         mpi_switch.h

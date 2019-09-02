@@ -1,10 +1,4 @@
-//
-//  compress_utils.c
-//  FRIes
-//
-//  Created by Samuel Greene on 4/13/19.
-//  Copyright © 2019 Samuel Greene. All rights reserved.
-//
+/*! \file Utilities for compressing vectors stochastically using the FRI framework */
 
 #include "compress_utils.h"
 
