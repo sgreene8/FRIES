@@ -201,7 +201,7 @@ int main(int argc, const char * argv[]) {
         strcpy(file_path, result_dir);
         strcat(file_path, "params.txt");
         FILE *param_f = fopen(file_path, "w");
-        fprintf(param_f, "FRI calculation\nHubbard-Holstein parameters path: %s\nepsilon (imaginary time step): %lf\nTarget norm %u\nInitiator threshold: %lf\nMatrix nonzero: %u\nVector nonzero: %u\n", params_path, eps, target_norm, init_thresh, matr_samp, target_nonz);
+        fprintf(param_f, "FRI calculation\nHubbard-Holstein parameters path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nInitiator threshold: %u\nMatrix nonzero: %u\nVector nonzero: %u\n", params_path, eps, target_norm, init_thresh, matr_samp, target_nonz);
         if (load_dir) {
             fprintf(param_f, "Restarting calculation from %s\n", load_dir);
         }

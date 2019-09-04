@@ -12,9 +12,9 @@
 #define near_uniform_h
 
 #include <stdio.h>
-#include <FRIes/Ext_Libs/dcmt/dc.h>
 #include <math.h>
 #include <stdint.h>
+#include <FRIes/Ext_Libs/dcmt/dc.h>
 
 
 /*! \brief number of irreps in the supported point groups */

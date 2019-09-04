@@ -277,7 +277,9 @@ void perform_add(dist_vec *vec, long long ini_bit) {
                 else if (vec->type == DOUB) {
                     ((double *)vec->values)[*idx_ptr] = 0;
                 }
-                gen_orb_list(new_idx, vec->tabl, &(vec->occ_orbs[vec->n_elec * *idx_ptr]));
+                if (gen_orb_list(new_idx, vec->tabl, &(vec->occ_orbs[vec->n_elec * *idx_ptr])) < 8) {
+                    printf("stop\n");
+                }
                 vec->indices[*idx_ptr] = new_idx;
                 vec->matr_el[*idx_ptr] = NAN;
                 vec->n_nonz++;

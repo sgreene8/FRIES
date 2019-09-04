@@ -6,9 +6,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "Ext_Libs/csvparser.h"
-#include "mpi_switch.h"
-#include "vec_utils.h"
+#include <FRIes/Ext_Libs/csvparser.h>
+#include <FRIes/mpi_switch.h>
+#include <FRIes/vec_utils.h>
 
 /*! \brief Read an array of floating-point numbers from a .csv file
  *

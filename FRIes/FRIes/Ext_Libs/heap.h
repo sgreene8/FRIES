@@ -8,6 +8,7 @@
 
 #ifndef heap_h
 #define heap_h
+
 #define iLeftChild(i) (2 * i + 1)
 #define iRightChild(i) (2 * i + 2)
 #define iParent(i) ((i-1) / 2)
