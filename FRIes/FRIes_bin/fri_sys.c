@@ -229,7 +229,7 @@ int main(int argc, const char * argv[]) {
         fclose(param_f);
     }
     
-    double *subwt_mem = malloc(sizeof(double) * n_irreps * spawn_length);
+    double *subwt_mem = malloc(sizeof(double) * n_orb * spawn_length);
     unsigned int *ndiv_vec = malloc(sizeof(unsigned int) * spawn_length);
     double *comp_vec1 = malloc(sizeof(double) * spawn_length);
     double *comp_vec2 = malloc(sizeof(double) * spawn_length);
@@ -240,7 +240,7 @@ int main(int argc, const char * argv[]) {
     unsigned char (*orb_indices1)[4] = malloc(sizeof(char) * 4 * spawn_length);
     unsigned char (*orb_indices2)[4] = malloc(sizeof(char) * 4 * spawn_length);
     unsigned int unocc_symm_cts[n_irreps][2];
-    int *keep_idx = calloc(n_irreps * spawn_length, sizeof(int));
+    int *keep_idx = calloc(n_orb * spawn_length, sizeof(int));
     double *wt_remain = calloc(spawn_length, sizeof(double));
     size_t samp_idx, weight_idx;
     
@@ -478,8 +478,8 @@ int main(int argc, const char * argv[]) {
         if ((iterat + 1) % shift_interval == 0) {
             adjust_shift(&en_shift, glob_norm, &last_one_norm, target_norm, shift_damping / shift_interval / eps);
             if (proc_rank == hf_proc) {
-                //                fprintf(shift_file, "%lf\n", en_shift);
-                //                fprintf(norm_file, "%lf\n", glob_norm);
+                fprintf(shift_file, "%lf\n", en_shift);
+                fprintf(norm_file, "%lf\n", glob_norm);
             }
         }
         matr_el = vec_dot(sol_vec, hf_dets, hf_mel, n_hf_doub, hf_hashes);
@@ -493,9 +493,10 @@ int main(int argc, const char * argv[]) {
             for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
                 matr_el += recv_nums[proc_idx];
             }
-            //            fprintf(num_file, "%lf\n", matr_el);
+            
+            fprintf(num_file, "%lf\n", matr_el);
             double ref_element = ((double *)sol_vec->values)[0];
-            //            fprintf(den_file, "%lf\n", ref_element);
+            fprintf(den_file, "%lf\n", ref_element);
             printf("%6u, en est: %.9lf, shift: %lf, norm: %lf\n", iterat, matr_el / ref_element, en_shift, glob_norm);
         }
         
@@ -504,7 +505,6 @@ int main(int argc, const char * argv[]) {
         }
 #ifdef USE_MPI
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-        //        MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
         sys_comp(sol_vec->values, sol_vec->curr_size, loc_norms, n_samp, keep_exact, rn_sys);
         for (det_idx = 0; det_idx < sol_vec->curr_size; det_idx++) {
