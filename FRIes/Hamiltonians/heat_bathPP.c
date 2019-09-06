@@ -257,3 +257,92 @@ double calc_unnorm_wt(hb_info *tens, unsigned char *orbs) {
     }
     return weight;
 }
+
+
+double calc_norm_wt(hb_info *tens, unsigned char *orbs, unsigned char *occ, unsigned int n_elec, long long det) {
+    unsigned int n_orb = (unsigned int)tens->n_orb;
+    unsigned char o1 = orbs[0] % n_orb;
+    int o1_spin = orbs[0] / n_orb;
+    unsigned char o2 = orbs[1] % n_orb;
+    int o2_spin = orbs[1] / n_orb;
+    unsigned char u1 = orbs[2] % n_orb;
+    unsigned char u2 = orbs[3] % n_orb;
+    unsigned char min_o1_u1 = o1 < u1 ? o1 : u1;
+    unsigned char max_o1_u1 = o1 > u1 ? o1 : u1;
+    unsigned char min_o2_u2 = o2 < u2 ? o2 : u2;
+    unsigned char max_o2_u2 = o2 > u2 ? o2 : u2;
+    int same_sp = (orbs[0] / n_orb) == (orbs[1] / n_orb);
+    double weight;
+    size_t orb_idx;
+    double s_denom = 0;
+    for (orb_idx = 0; orb_idx < n_elec; orb_idx++) {
+        s_denom += tens->s_tens[occ[orb_idx] % n_orb];
+    }
+    double (*diff_tab)[n_orb] = (double (*)[n_orb])tens->d_diff;
+    double d1_denom = 0;
+    unsigned int offset = (1 - o1_spin) * n_elec / 2;
+    for (orb_idx = offset; orb_idx < (n_elec / 2 + offset); orb_idx++) {
+        d1_denom += diff_tab[o1][occ[orb_idx] % n_orb];;
+    }
+    offset = o1_spin * n_elec / 2;
+    for (orb_idx = offset; (occ[orb_idx] % n_orb) < o1; orb_idx++) {
+        d1_denom += tens->d_same[I_J_TO_TRI(occ[orb_idx] % n_orb, o1)];
+    }
+    for (orb_idx++; orb_idx < (n_elec / 2 + offset); orb_idx++) {
+        d1_denom += tens->d_same[I_J_TO_TRI(o1, occ[orb_idx] % n_orb)];
+    }
+    double d2_denom = 0;
+    offset = (1 - o2_spin) * n_elec / 2;
+    for (orb_idx = offset; orb_idx < (n_elec / 2 + offset); orb_idx++) {
+        d2_denom += diff_tab[o2][occ[orb_idx] % n_orb];;
+    }
+    offset = o2_spin * n_elec / 2;
+    for (orb_idx = offset; (occ[orb_idx] % n_orb) < o2; orb_idx++) {
+        d2_denom += tens->d_same[I_J_TO_TRI(occ[orb_idx] % n_orb, o2)];
+    }
+    for (orb_idx++; orb_idx < (n_elec / 2 + offset); orb_idx++) {
+        d2_denom += tens->d_same[I_J_TO_TRI(o2, occ[orb_idx] % n_orb)];
+    }
+    
+    double e1_virt = 0;
+    offset = o1_spin * n_orb;
+    for (orb_idx = 0; orb_idx < o1; orb_idx++) {
+        if (!((1LL << (orb_idx + offset)) & det)) {
+            e1_virt += tens->exch_sqrt[I_J_TO_TRI(orb_idx, o1)];
+        }
+    }
+    for (orb_idx = o1 + 1; orb_idx < n_orb; orb_idx++) {
+        if (!((1LL << (orb_idx + offset)) & det)) {
+            e1_virt += tens->exch_sqrt[I_J_TO_TRI(o1, orb_idx)];
+        }
+    }
+    
+    double e2_virt = 0;
+    offset = o2_spin * n_orb;
+    for (orb_idx = 0; orb_idx < o2; orb_idx++) {
+        if (!((1LL << (orb_idx + offset)) & det)) {
+            e2_virt += tens->exch_sqrt[I_J_TO_TRI(orb_idx, o2)];
+        }
+    }
+    for (orb_idx = o2 + 1; orb_idx < n_orb; orb_idx++) {
+        if (!((1LL << (orb_idx + offset)) & det)) {
+            e2_virt += tens->exch_sqrt[I_J_TO_TRI(o2, orb_idx)];
+        }
+    }
+    
+    
+    
+    
+    if (same_sp) {
+        unsigned char min_o1_u2 = o1 < u2 ? o1 : u2;
+        unsigned char max_o1_u2 = o1 > u2 ? o1 : u2;
+        unsigned char min_o2_u1 = o2 < u1 ? o2 : u1;
+        unsigned char max_o2_u1 = o2 > u1 ? o2 : u1;
+        weight = (tens->s_tens[o1] + tens->s_tens[o2]) * tens->d_same[I_J_TO_TRI(o1, o2)] * (tens->exch_sqrt[I_J_TO_TRI(min_o1_u1, max_o1_u1)] * tens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)] + tens->exch_sqrt[I_J_TO_TRI(min_o1_u2, max_o1_u2)] * tens->exch_sqrt[I_J_TO_TRI(min_o2_u1, max_o2_u1)]);
+    }
+    else {
+        double (*diff_tab)[n_orb] = (double (*)[n_orb])tens->d_diff;
+        weight = (tens->s_tens[o1] * diff_tab[o1][o2] + tens->s_tens[o2] * diff_tab[o2][o1]) * tens->exch_sqrt[I_J_TO_TRI(min_o1_u1, max_o1_u1)] * tens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)];
+    }
+    return weight;
+}
