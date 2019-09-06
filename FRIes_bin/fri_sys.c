@@ -16,7 +16,7 @@
 #include <FRIes/Ext_Libs/argparse.h>
 #include <FRIes/Hamiltonians/heat_bathPP.h>
 #include <FRIes/Hamiltonians/molecule.h>
-#define max_iter 1000000
+#define max_iter 1000
 
 static const char *const usage[] = {
     "fri_sys [options] [[--] args]",
@@ -84,7 +84,7 @@ int main(int argc, const char * argv[]) {
     // Parameters
     double shift_damping = 0.05;
     unsigned int shift_interval = 10;
-    unsigned int save_interval = 1000;
+    unsigned int save_interval = 100;
     double en_shift = 0;
     
     // Read in data files
@@ -109,7 +109,7 @@ int main(int argc, const char * argv[]) {
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
     
     // Solution vector
-    unsigned int spawn_length = matr_samp * 2 * n_orb / n_procs;
+    unsigned int spawn_length = matr_samp * 2 / n_procs;
     dist_vec *sol_vec = init_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
     size_t det_idx;
     
@@ -263,6 +263,10 @@ int main(int argc, const char * argv[]) {
     size_t n_subwt;
     
     unsigned int iterat;
+//    double hf_tmp[n_hf_doub];
+//    for (det_idx = 0; det_idx < n_hf_doub; det_idx++) {
+//        hf_tmp[det_idx] = 0;
+//    }
     for (iterat = 0; iterat < max_iter; iterat++) {
         sum_mpi_i(sol_vec->n_nonz, &glob_n_nonz, proc_rank, n_procs);
         
@@ -299,7 +303,8 @@ int main(int argc, const char * argv[]) {
             orb_indices1[samp_idx][0] = comp_idx[samp_idx][1];
             if (orb_indices1[samp_idx][0] == 0) { // double excitation
                 ndiv_vec[samp_idx] = 0;
-                comp_vec2[samp_idx] *= calc_o1_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], n_elec_unf, orbs_at_pos(sol_vec, det_idx));
+//                comp_vec2[samp_idx] *= calc_o1_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], n_elec_unf, orbs_at_pos(sol_vec, det_idx));
+                calc_o1_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], n_elec_unf, orbs_at_pos(sol_vec, det_idx));
             }
             else {
                 unsigned char *occ_orbs = orbs_at_pos(sol_vec, det_idx);
@@ -331,7 +336,8 @@ int main(int argc, const char * argv[]) {
             unsigned char *occ_orbs = orbs_at_pos(sol_vec, det_idx);
             if (orb_indices2[samp_idx][0] == 0) { // double excitation
                 ndiv_vec[samp_idx] = 0;
-                comp_vec1[samp_idx] *= calc_o2_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], n_elec_unf, occ_orbs, &orb_indices2[samp_idx][1]);
+//                comp_vec1[samp_idx] *= calc_o2_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], n_elec_unf, occ_orbs, &orb_indices2[samp_idx][1]);
+                calc_o2_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], n_elec_unf, occ_orbs, &orb_indices2[samp_idx][1]);
             }
             else { // single excitation
                 count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf, n_orb, n_irreps, symm_lookup, symm);
@@ -365,7 +371,8 @@ int main(int argc, const char * argv[]) {
                 ndiv_vec[samp_idx] = 0;
                 unsigned char *occ_tmp = orbs_at_pos(sol_vec, det_idx);
                 orb_indices1[samp_idx][2] = occ_tmp[orb_indices1[samp_idx][2]];
-                comp_vec2[samp_idx] *= calc_u1_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, sol_vec->indices[det_indices1[samp_idx]]);
+//                comp_vec2[samp_idx] *= calc_u1_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, sol_vec->indices[det_indices1[samp_idx]]);
+                calc_u1_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, sol_vec->indices[det_indices1[samp_idx]]);
             }
             else { // single excitation
                 orb_indices1[samp_idx][3] = orb_indices2[weight_idx][3];
@@ -392,7 +399,8 @@ int main(int argc, const char * argv[]) {
                 ndiv_vec[samp_idx] = 0;
                 unsigned char u1_orb = comp_idx[samp_idx][1] + n_orb * (o1_orb / n_orb);
                 orb_indices2[samp_idx][3] = u1_orb;
-                comp_vec1[samp_idx] *= calc_u2_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, o2_orb, u1_orb, (unsigned char *)symm_lookup, symm, max_n_symm); // not normalizing
+//                comp_vec1[samp_idx] *= calc_u2_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, o2_orb, u1_orb, (unsigned char *)symm_lookup, symm, max_n_symm); // not normalizing
+                calc_u1_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, sol_vec->indices[det_indices1[samp_idx]]);
             }
             else {
                 orb_indices2[samp_idx][3] = orb_indices1[weight_idx][3];
@@ -469,6 +477,24 @@ int main(int argc, const char * argv[]) {
             }
         }
         perform_add(sol_vec, ini_bit);
+//        for (det_idx = 0; det_idx < n_hf_doub; det_idx++) {
+//            unsigned long long hash_val = idx_to_hash(sol_vec, hf_dets[det_idx]);
+//            ssize_t *hf_entry = read_ht(sol_vec->vec_hash, hf_dets[det_idx], hash_val, 0);
+//            double *old = &hf_tmp[det_idx];
+//            if (hf_entry) {
+//                double *new = doub_at_pos(sol_vec, *hf_entry);
+//                if (fabs(*new - *old) > .1 && iterat == 611) {
+//                    printf("big add to det: %lld, hf_pos: %zu, vec_pos: %ld\n", hf_dets[det_idx], det_idx, *hf_entry);
+//                }
+//                *old = *new;
+//            }
+//            else {
+//                if (fabs(*old) > .1) {
+//                    printf("big removal at det: %lld, hf_pos: %zu\n", hf_dets[det_idx], det_idx);
+//                }
+//                *old = 0;
+//            }
+//        }
         
         // Compression step
         unsigned int n_samp = target_nonz;

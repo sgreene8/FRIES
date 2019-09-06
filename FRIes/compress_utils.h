@@ -1,4 +1,8 @@
-/*! \file Utilities for compressing vectors stochastically using the FRI framework */
+/*! \file
+ *
+ * \brief Utilities for compressing vectors stochastically using the FRI
+ * framework
+ */
 
 #ifndef compress_utils_h
 #define compress_utils_h

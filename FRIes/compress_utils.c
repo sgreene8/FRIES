@@ -1,4 +1,8 @@
-/*! \file Utilities for compressing vectors stochastically using the FRI framework */
+/*! \file
+ *
+ * \brief Utilities for compressing vectors stochastically using the FRI
+ * framework
+ */
 
 #include "compress_utils.h"
 

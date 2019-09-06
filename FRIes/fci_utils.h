@@ -1,4 +1,7 @@
-/*! \file Utilities for manipulating Slater determinants for FCI calculations */
+/*! \file
+ *
+ * \brief Utilities for manipulating Slater determinants for FCI calculations
+ */
 
 #ifndef fci_utils_h
 #define fci_utils_h

@@ -1,4 +1,6 @@
-/*! \file Utilities for a Hamiltonian describing a molecular system */
+/*! \file
+ * \brief Utilities for a Hamiltonian describing a molecular system
+ */
 
 #include "molecule.h"
 

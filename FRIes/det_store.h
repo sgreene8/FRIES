@@ -1,5 +1,7 @@
-/*! \file Utilities for keeping track of Slater determinant indices of a sparse
- * vector.
+/*! \file
+ *
+ * \brief Utilities for keeping track of Slater determinant indices of a
+ * sparse vector.
  */
 
 #ifndef det_store_h

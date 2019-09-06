@@ -1,4 +1,7 @@
-/*! \file Utilities for reading/writing data from/to disk. */
+/*! \file
+ *
+ * \brief Utilities for reading/writing data from/to disk.
+ */
 
 #ifndef io_utils_h
 #define io_utils_h

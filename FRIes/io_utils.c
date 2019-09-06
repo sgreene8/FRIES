@@ -1,4 +1,7 @@
-/*! \file Utilities for reading/writing data from/to disk. */
+/*! \file
+ *
+ * \brief Utilities for reading/writing data from/to disk.
+ */
 
 #include "io_utils.h"
 
