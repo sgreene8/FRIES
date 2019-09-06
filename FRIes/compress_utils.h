@@ -10,10 +10,10 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <math.h>
-#include <FRIes/Ext_Libs/heap.h>
-#include <FRIes/mpi_switch.h>
-#include <FRIes/det_store.h>
-#include <FRIes/Ext_Libs/dcmt/dc.h>
+#include <FRIES/Ext_Libs/heap.h>
+#include <FRIES/mpi_switch.h>
+#include <FRIES/det_store.h>
+#include <FRIES/Ext_Libs/dcmt/dc.h>
 
 
 /*! \brief Round a non-integral number binomially.

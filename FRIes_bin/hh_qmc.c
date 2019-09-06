@@ -11,10 +11,10 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
-#include <FRIes/io_utils.h>
-#include <FRIes/Ext_Libs/dcmt/dc.h>
-#include <FRIes/compress_utils.h>
-#include <FRIes/Ext_Libs/argparse.h>
+#include <FRIES/io_utils.h>
+#include <FRIES/Ext_Libs/dcmt/dc.h>
+#include <FRIES/compress_utils.h>
+#include <FRIES/Ext_Libs/argparse.h>
 #define max_iter 1000000
 
 static const char *const usage[] = {

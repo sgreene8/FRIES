@@ -9,9 +9,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <FRIes/Ext_Libs/csvparser.h>
-#include <FRIes/mpi_switch.h>
-#include <FRIes/vec_utils.h>
+#include <FRIES/Ext_Libs/csvparser.h>
+#include <FRIES/mpi_switch.h>
+#include <FRIES/vec_utils.h>
 
 /*! \brief Read an array of floating-point numbers from a .csv file
  *

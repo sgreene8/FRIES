@@ -8,7 +8,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <FRIes/math_utils.h>
+#include <FRIES/math_utils.h>
 
 /*! \brief Generate the bit string representation of the Hartree-Fock
  * determinant

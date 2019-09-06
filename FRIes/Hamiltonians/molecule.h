@@ -6,7 +6,7 @@
 #define molecule_h
 
 #include <stdio.h>
-#include <FRIes/fci_utils.h>
+#include <FRIES/fci_utils.h>
 
 /*! \brief Calculate a double excitation matrix element
  *

@@ -12,10 +12,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include <FRIes/det_store.h>
-#include <FRIes/Hamiltonians/hub_holstein.h>
-#include <FRIes/Ext_Libs/dcmt/dc.h>
-#include <FRIes/mpi_switch.h>
+#include <FRIES/det_store.h>
+#include <FRIES/Hamiltonians/hub_holstein.h>
+#include <FRIES/Ext_Libs/dcmt/dc.h>
+#include <FRIES/mpi_switch.h>
 
 
 /*! \brief Struct used to add elements to sparse vector

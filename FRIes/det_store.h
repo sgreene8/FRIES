@@ -9,7 +9,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <FRIes/Ext_Libs/dcmt/dc.h>
+#include <FRIES/Ext_Libs/dcmt/dc.h>
 
 
 /*! \brief Stack data structure used to keep track of unused indices in a

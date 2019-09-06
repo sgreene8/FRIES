@@ -1,4 +1,4 @@
-Fast Randomized Iteration for Electronic Structure (FRIes)
+Fast Randomized Iteration for Electronic Structure (FRIES)
 ==========================================================
 
 ## Summary
