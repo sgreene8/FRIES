@@ -3,7 +3,11 @@
  * \brief Implementation of the FCIQMC algorithm described in Booth et al. (2009)
  * for a molecular system
  *
- * Hamiltonian matrix elements are integerized before matrix-vector multiplication
+ * The steps involved in each iteration of an FCIQMC calculation are:
+ * - Compress Hamiltonian matrix multinomially
+ * - Stochastically round Hamiltonian matrix elements to integers
+ * - Multiply current iterate by the compressed Hamiltonian matrix, scaled and
+ * shifted to ensure convergence to the ground state
  */
 
 #include <stdio.h>

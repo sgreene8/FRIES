@@ -400,7 +400,7 @@ int main(int argc, const char * argv[]) {
                 unsigned char u1_orb = comp_idx[samp_idx][1] + n_orb * (o1_orb / n_orb);
                 orb_indices2[samp_idx][3] = u1_orb;
 //                comp_vec1[samp_idx] *= calc_u2_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, o2_orb, u1_orb, (unsigned char *)symm_lookup, symm, max_n_symm); // not normalizing
-                calc_u1_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, sol_vec->indices[det_indices1[samp_idx]]);
+                calc_u2_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, o2_orb, u1_orb, (unsigned char *)symm_lookup, symm, max_n_symm);
             }
             else {
                 orb_indices2[samp_idx][3] = orb_indices1[weight_idx][3];
@@ -442,8 +442,10 @@ int main(int argc, const char * argv[]) {
                 }
                 matr_el = doub_matr_el_nosgn(doub_orbs, tot_orb, eris, n_frz);
                 if (fabs(matr_el) > 1e-9 && comp_vec2[samp_idx] > 1e-9) {
-                    int par_sign = doub_det_parity(&curr_det, doub_orbs);
-                    matr_el *= -eps / p_doub / calc_unnorm_wt(hb_probs, doub_orbs) * el_sign * par_sign * comp_vec2[samp_idx];
+//                    matr_el *= -eps / p_doub / calc_unnorm_wt(hb_probs, doub_orbs) * el_sign * par_sign * comp_vec2[samp_idx];
+                    unsigned char *occ_orbs = orbs_at_pos(sol_vec, det_idx);
+                    matr_el *= -eps / p_doub / calc_norm_wt(hb_probs, doub_orbs, occ_orbs, n_elec_unf, curr_det, (unsigned char *)symm_lookup, symm) * el_sign * comp_vec2[samp_idx];
+                    matr_el *= doub_det_parity(&curr_det, doub_orbs);
                     add_doub(sol_vec, curr_det, matr_el, ini_flag);
                 }
             }
