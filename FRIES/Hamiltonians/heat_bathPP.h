@@ -150,4 +150,20 @@ double calc_u2_probs(hb_info *tens, double *prob_arr, unsigned char o1_orb,
 double calc_unnorm_wt(hb_info *tens, unsigned char *orbs);
 
 
+/*! \brief Calculate the normalized weight for a double excitation from a
+ *  particular determinant
+ *
+ * This function accounts for the different possible ways a double excitation
+ * can be selected, based on the order of the occupied and unoccupied orbitals.
+ * The weights are normalized at each level of the hierarchical construction.
+ *
+ * \param [in] tens         hb_info struct containing the HB-PP parameters
+ * \param [in] orbs         Array containing the 2 occupied and 2 unoccupied
+ *                          orbitals defining the excitation
+ * \return the weight for the excitation
+ */
+double calc_norm_wt(hb_info *tens, unsigned char *orbs, unsigned char *occ,
+                    unsigned int n_elec, long long det,
+                    unsigned char *lookup_mem, unsigned char *symm);
+
 #endif /* heat_bathPP_h */

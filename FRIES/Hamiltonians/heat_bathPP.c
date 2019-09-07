@@ -259,7 +259,9 @@ double calc_unnorm_wt(hb_info *tens, unsigned char *orbs) {
 }
 
 
-double calc_norm_wt(hb_info *tens, unsigned char *orbs, unsigned char *occ, unsigned int n_elec, long long det) {
+double calc_norm_wt(hb_info *tens, unsigned char *orbs, unsigned char *occ,
+                    unsigned int n_elec, long long det,
+                    unsigned char *lookup_mem, unsigned char *symm) {
     unsigned int n_orb = (unsigned int)tens->n_orb;
     unsigned char o1 = orbs[0] % n_orb;
     int o1_spin = orbs[0] / n_orb;
@@ -330,19 +332,41 @@ double calc_norm_wt(hb_info *tens, unsigned char *orbs, unsigned char *occ, unsi
         }
     }
     
+    unsigned char (*lookup_tabl)[n_orb + 1] = (unsigned char (*)[n_orb + 1])lookup_mem;
+    unsigned char u1_irrep = symm[u1];
+    unsigned char u2_irrep = symm[u2];
+    unsigned char symm_orb, min_orb, max_orb;
     
+    double e2_symm = 0;
+    for (orb_idx = 0; orb_idx < lookup_tabl[u2_irrep][0]; orb_idx++) {
+        symm_orb = lookup_tabl[u2_irrep][orb_idx + 1];
+        if ((same_sp && symm_orb != u1) || !same_sp) {
+            min_orb = (o2 < symm_orb) ? o2 : symm_orb;
+            max_orb = (o2 > symm_orb) ? o2 : symm_orb;
+            e2_symm += tens->exch_sqrt[I_J_TO_TRI(min_orb, max_orb)];
+        }
+    }
     
+    double e1_symm = 0;
+    for (orb_idx = 0; orb_idx < lookup_tabl[u1_irrep][0]; orb_idx++) {
+        symm_orb = lookup_tabl[u1_irrep][orb_idx + 1];
+        if ((same_sp && symm_orb != u2) || !same_sp) {
+            min_orb = (o1 < symm_orb) ? o1 : symm_orb;
+            max_orb = (o1 > symm_orb) ? o1 : symm_orb;
+            e1_symm += tens->exch_sqrt[I_J_TO_TRI(min_orb, max_orb)];
+        }
+    }
     
     if (same_sp) {
         unsigned char min_o1_u2 = o1 < u2 ? o1 : u2;
         unsigned char max_o1_u2 = o1 > u2 ? o1 : u2;
         unsigned char min_o2_u1 = o2 < u1 ? o2 : u1;
         unsigned char max_o2_u1 = o2 > u1 ? o2 : u1;
-        weight = (tens->s_tens[o1] + tens->s_tens[o2]) * tens->d_same[I_J_TO_TRI(o1, o2)] * (tens->exch_sqrt[I_J_TO_TRI(min_o1_u1, max_o1_u1)] * tens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)] + tens->exch_sqrt[I_J_TO_TRI(min_o1_u2, max_o1_u2)] * tens->exch_sqrt[I_J_TO_TRI(min_o2_u1, max_o2_u1)]);
+        weight = (tens->s_tens[o1] / d1_denom / e1_virt / e2_symm + tens->s_tens[o2] / d2_denom / e2_virt / e2_symm) / s_denom * tens->d_same[I_J_TO_TRI(o1, o2)] * (tens->exch_sqrt[I_J_TO_TRI(min_o1_u1, max_o1_u1)] * tens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)] + tens->exch_sqrt[I_J_TO_TRI(min_o1_u2, max_o1_u2)] * tens->exch_sqrt[I_J_TO_TRI(min_o2_u1, max_o2_u1)]);
     }
     else {
         double (*diff_tab)[n_orb] = (double (*)[n_orb])tens->d_diff;
-        weight = (tens->s_tens[o1] * diff_tab[o1][o2] + tens->s_tens[o2] * diff_tab[o2][o1]) * tens->exch_sqrt[I_J_TO_TRI(min_o1_u1, max_o1_u1)] * tens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)];
+        weight = (tens->s_tens[o1] * diff_tab[o1][o2] / d1_denom / e1_virt / e2_symm + tens->s_tens[o2] * diff_tab[o2][o1] / d2_denom / e2_virt / e1_symm) * tens->exch_sqrt[I_J_TO_TRI(min_o1_u1, max_o1_u1)] * tens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)] / s_denom;
     }
     return weight;
 }
