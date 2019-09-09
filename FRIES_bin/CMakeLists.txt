@@ -1,15 +1,15 @@
 
-add_executable(fciqmc fciqmc.c)
-target_link_libraries(fciqmc PRIVATE fries)
+add_executable(fciqmc_mol fciqmc_mol.c)
+target_link_libraries(fciqmc_mol PRIVATE fries)
 
-add_executable(fri fri.c)
-target_link_libraries(fri PRIVATE fries)
+add_executable(frimulti_mol frimulti_mol.c)
+target_link_libraries(frimulti_mol PRIVATE fries)
 
-add_executable(fri_sys fri_sys.c)
-target_link_libraries(fri_sys PRIVATE fries)
+add_executable(frisys_mol frisys_mol.c)
+target_link_libraries(frisys_mol PRIVATE fries)
 
-add_executable(hh_qmc hh_qmc.c)
-target_link_libraries(hh_qmc PRIVATE fries)
+add_executable(fciqmc_hh fciqmc_hh.c)
+target_link_libraries(fciqmc_hh PRIVATE fries)
 
-add_executable(hh_sys hh_sys.c)
-target_link_libraries(hh_sys PRIVATE fries)
+add_executable(frisys_hh frisys_hh.c)
+target_link_libraries(frisys_hh PRIVATE fries)
