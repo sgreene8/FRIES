@@ -3,7 +3,11 @@
  * \brief Implementation of the FCIQMC algorithm described in Booth et al. (2009)
  * for the Hubbard Model
  *
- * Hamiltonian matrix elements are integerized before matrix-vector multiplication
+ * The steps involved in each iteration of an FCIQMC calculation are:
+ * - Compress Hamiltonian matrix multinomially
+ * - Stochastically round Hamiltonian matrix elements to integers
+ * - Multiply current iterate by the compressed Hamiltonian matrix, scaled and
+ * shifted to ensure convergence to the ground state
  */
 
 #include <stdio.h>
@@ -56,8 +60,8 @@ int main(int argc, const char * argv[]) {
         OPT_STRING('y', "result_dir", &result_dir, "Directory in which to save output files"),
         OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
         OPT_INTEGER('i', "initiator", &init_thresh, "Number of walkers on a determinant required to make it an initiator."),
-        OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous calculation."),
-        OPT_STRING('n', "ini_dir", &ini_dir, "Directory from which to read the initial vector for a new calculation."),
+        OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous fciqmc calculation (in binary format, see documentation for save_vec())."),
+        OPT_STRING('n', "ini_dir", &ini_dir, "Directory from which to read the initial vector for a new calculation (vector elements must be integers, see documentation for load_vec_txt())."),
         OPT_END(),
     };
     

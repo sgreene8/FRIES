@@ -51,8 +51,8 @@ int main(int argc, const char * argv[]) {
         OPT_STRING('y', "result_dir", &result_dir, "Directory in which to save output files"),
         OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
         OPT_INTEGER('i', "initiator", &init_thresh, "Number of walkers on a determinant required to make it an initiator."),
-        OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous calculation."),
-        OPT_STRING('n', "ini_dir", &ini_dir, "Directory from which to read the initial vector for a new calculation."),
+        OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous fciqmc calculation (in binary format, see documentation for save_vec())."),
+        OPT_STRING('n', "ini_dir", &ini_dir, "Directory from which to read the initial vector for a new calculation (vector elements must be integers, see documentation for load_vec_txt())."),
         OPT_END(),
     };
     
@@ -178,7 +178,7 @@ int main(int argc, const char * argv[]) {
         load_vec(sol_vec, load_dir);
     }
     else if (ini_dir) {
-        // from an initial vector in txt format
+        // from an initial vector in .txt format
         long long *load_dets = sol_vec->indices;
         int *load_vals = sol_vec->values;
         

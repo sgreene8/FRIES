@@ -7,21 +7,6 @@
 
 unsigned char gen_orb_list(long long det, byte_table *table, unsigned char *occ_orbs);
 
-void find_neighbors_1D(long long det, unsigned int n_sites, byte_table *table,
-                    unsigned int n_elec, unsigned char (*neighbors)[n_elec + 1]) {
-    long long neib_bits = det & ~(det >> 1);
-    long long mask = (1LL << (2 * n_sites)) - 1;
-    mask ^= (1LL << (n_sites - 1));
-    mask ^= (1LL << (2 * n_sites - 1));
-    neib_bits &= mask; // open boundary conditions
-    neighbors[0][0] = gen_orb_list(neib_bits, table, &neighbors[0][1]);
-    
-    neib_bits = det & (~det << 1);
-    mask = (1LL << (2 * n_sites)) - 1;
-    mask ^= (1LL << n_sites);
-    neib_bits &= mask; // open boundary conditions
-    neighbors[1][0] = gen_orb_list(neib_bits, table, &neighbors[1][1]);
-}
 
 void hub_multin(long long det, unsigned int n_elec, unsigned char (*neighbors)[n_elec + 1],
                 unsigned int num_sampl, mt_struct *rn_ptr, unsigned char (* chosen_orbs)[2]) {
@@ -33,6 +18,7 @@ void hub_multin(long long det, unsigned int n_elec, unsigned char (*neighbors)[n
         idx_to_orbs(orb_idx, n_elec, neighbors, chosen_orbs[samp_idx]);
     }
 }
+
 
 void idx_to_orbs(unsigned int chosen_idx, unsigned int n_elec,
                  unsigned char (*neighbors)[n_elec + 1], unsigned char *orbs) {

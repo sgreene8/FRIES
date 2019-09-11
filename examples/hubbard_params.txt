@@ -1,0 +1,12 @@
+n_elec
+6
+lat_len
+6
+n_dim
+1
+eps
+0.001
+U
+2
+hf_energy
+-3.98791841486987
