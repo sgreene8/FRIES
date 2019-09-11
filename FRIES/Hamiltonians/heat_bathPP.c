@@ -205,9 +205,6 @@ double calc_u2_probs(hb_info *tens, double *prob_arr, unsigned char o1_orb,
     unsigned char u2_irrep = symm[o1_orb % n_orb] ^ symm[o2_spinless] ^ symm[u1_spinless];
     unsigned int num_u2 = lookup_tabl[u2_irrep][0];
     unsigned int orb_idx;
-    for (orb_idx = 0; orb_idx < prob_len; orb_idx++) {
-        prob_arr[orb_idx] = 0;
-    }
     unsigned char u2_orb;
     unsigned char min_o2_u2, max_o2_u2;
     double norm = 0;
@@ -219,6 +216,12 @@ double calc_u2_probs(hb_info *tens, double *prob_arr, unsigned char o1_orb,
             prob_arr[orb_idx] = tens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)];
             norm += prob_arr[orb_idx];
         }
+        else {
+            prob_arr[orb_idx] = 0;
+        }
+    }
+    for (orb_idx = num_u2; orb_idx < prob_len; orb_idx++) {
+        prob_arr[orb_idx] = 0;
     }
     if (norm != 0) {
         double inv_norm = 1 / norm;
