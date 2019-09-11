@@ -277,8 +277,8 @@ void perform_add(dist_vec *vec, long long ini_bit) {
                 else if (vec->type == DOUB) {
                     ((double *)vec->values)[*idx_ptr] = 0;
                 }
-                if (gen_orb_list(new_idx, vec->tabl, &(vec->occ_orbs[vec->n_elec * *idx_ptr])) < 8) {
-                    printf("stop\n");
+                if (gen_orb_list(new_idx, vec->tabl, &(vec->occ_orbs[vec->n_elec * *idx_ptr])) != vec->n_elec) {
+                    fprintf(stderr, "Error: determinant created with an incorrect number of electrons.\n");
                 }
                 vec->indices[*idx_ptr] = new_idx;
                 vec->matr_el[*idx_ptr] = NAN;

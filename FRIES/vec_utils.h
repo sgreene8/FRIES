@@ -137,33 +137,123 @@ int idx_to_proc(dist_vec *vec, long long idx);
 unsigned long long idx_to_hash(dist_vec *vec, long long idx);
 
 
-/*
- Add element to a buffer to be added later to the vector in an MPI step
+/*! \brief Add an int to a vector
+ *
+ * The element will be added to a buffer for later processing
+ *
+ * \param [in] vec          The dist_vec struct to which the element will be
+ *                          added
+ * \param [in] idx          The index of the element in the vector
+ * \param [in] val          The value of the added element
+ * \param [in] ini_flag     A bit string indicating whether the added element
+ *                          came from an initiator element. None of the 1 bits
+ *                          should overlap with the orbitals encoded in the rest
+ *                          of the bit string
  */
 void add_int(dist_vec *vec, long long idx, int val, long long ini_flag);
+
+
+/*! \brief Add a double to a vector
+ *
+ * The element will be added to a buffer for later processing
+ *
+ * \param [in] vec          The dist_vec struct to which the element will be
+ *                          added
+ * \param [in] idx          The index of the element in the vector
+ * \param [in] val          The value of the added element
+ * \param [in] ini_flag     A bit string indicating whether the added element
+ *                          came from an initiator element. None of the 1 bits
+ *                          should overlap with the orbitals encoded in the rest
+ *                          of the bit string
+ */
 void add_doub(dist_vec *vec, long long idx, double val, long long ini_flag);
 
-/* Empty the adder by adding elements to vector, following the initiator criterion
+
+/*! \brief Incorporate elements from the buffer into the vector
+ *
+ * Sign-coherent elements are added regardless of their corresponding initiator
+ * flags. Otherwise, only elements with nonzero initiator flags are added
+ *
+ * \param [in] vec          The dist_vec struct on which to perform addition
+ * \param [in] ini_bit      A bit mask defining where to look for initiator
+ *                          flags in added elements
  */
 void perform_add(dist_vec *vec, long long ini_bit);
 
 
-// Delete an element from the vector
+/*! \brief Delete an element from the vector
+ *
+ * Removes an element from the vector and modifies the hash table accordingly
+ *
+ * \param [in] vec          The dist_vec struct from which to delete the element
+ * \param [in] pos          The position of the element to be deleted in the
+ *                          element storage array of the dist_vec structure
+ */
 void del_at_pos(dist_vec *vec, size_t pos);
 
-// Read values from the vector
+/*! \brief Get a pointer to an element in the vector
+ *
+ * This function must be used in lieu of \p vec->values[\p pos] because the
+ * values are stored as a (void *) array
+ *
+ * \param [in] vec          The dist_vec structure from which to read the element
+ * \param [in] pos          The position of the desired element in the local
+ *                          storage
+ */
 int *int_at_pos(dist_vec *vec, size_t pos);
+
+
+/*! \brief Get a pointer to an element in the vector
+ *
+ * This function must be used in lieu of \p vec->values[\p pos] because the
+ * values are stored as a (void *) array
+ *
+ * \param [in] vec          The dist_vec structure from which to read the element
+ * \param [in] pos          The position of the desired element in the local
+ *                          storage
+ */
 double *doub_at_pos(dist_vec *vec, size_t pos);
+
+
+/*! \brief Get a pointer to the list of occupied orbitals corresponding to an
+ * existing determinant index in the vector
+ *
+ * \param [in] vec          The dist_vec structure to reference
+ * \param [in] pos          The position of the index in the local storage
+ */
 unsigned char *orbs_at_pos(dist_vec *vec, size_t pos);
 
-// Vector one-norm
+
+/*! \brief Calculate the one-norm of a vector
+ *
+ * This function sums over the elements on all MPI processes
+ *
+ * \param [in] vec          The vector whose one-norm is to be calculated
+ * \return The one-norm of the vector
+ */
 double local_norm(dist_vec *vec);
 
 
-/* Save/load a distributed vector to/from disk, stored in binary format with file names
- [prefix]dets[proc_rank].dat and [prefix]vals[proc_rank].dat
+/*! Save a vector to disk in binary format
+ *
+ * The vector indices from each MPI process are stored in the file
+ * [path]dets[MPI rank].dat, and the values at [path]vals[MPI rank].dat
+ *
+ * \param [in] vec          Pointer to the vector to save
+ * \param [in] path         Location where the files are to be stored
  */
 void save_vec(dist_vec *vec, const char *path);
+
+
+/*! Load a vector from disk in binary format
+ *
+ * The vector indices from each MPI process are read from the file
+ * [path]dets[MPI rank].dat, and the values from [path]vals[MPI rank].dat
+ *
+ * \param [out] vec         Pointer to an allocated and initialized dist_vec
+ *                          struct
+ * \param [in] path         Location where the files are to be stored
+ */
 void load_vec(dist_vec *vec, const char *path);
 
 #endif /* vec_utils_h */
