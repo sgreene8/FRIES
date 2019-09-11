@@ -158,6 +158,7 @@ double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
     
     int loc_sampled, glob_sampled = 1;
     double el_magn, sub_magn, keep_thresh, sub_remain;
+    int last_pass = 0;
     while (glob_sampled > 0) {
         sum_mpi_d(loc_one_norm, &glob_one_norm, proc_rank, n_procs);
         if (glob_one_norm < 0) {
@@ -207,6 +208,18 @@ double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
         }
         sum_mpi_i(loc_sampled, &glob_sampled, proc_rank, n_procs);
         (*n_samp) -= glob_sampled;
+        
+        if (last_pass && glob_sampled) {
+            last_pass = 0;
+        }
+        if (glob_sampled == 0 && !last_pass) {
+            last_pass = 1;
+            glob_sampled = 1;
+            loc_one_norm = 0;
+            for (det_idx = 0; det_idx < count; det_idx++) {
+                loc_one_norm += wt_remain[det_idx];
+            }
+        }
     }
     loc_one_norm = 0;
     if (glob_one_norm < 1e-7) {
@@ -344,7 +357,7 @@ size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
             }
         }
         else if (wt_remain[wt_idx] < tmp_val || rn_sys < lbound) {
-            loc_norms[proc_rank] += (tmp_val - wt_remain[wt_idx]);
+            loc_norms[proc_rank] += (tmp_val - wt_remain[wt_idx]); // add kept weight
             sub_lbound = lbound - wt_remain[wt_idx];
             for (sub_idx = 0; sub_idx < n_sub; sub_idx++) {
                 if (keep_idx[wt_idx][sub_idx]) {
