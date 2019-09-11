@@ -263,10 +263,6 @@ int main(int argc, const char * argv[]) {
     size_t n_subwt;
     
     unsigned int iterat;
-//    double hf_tmp[n_hf_doub];
-//    for (det_idx = 0; det_idx < n_hf_doub; det_idx++) {
-//        hf_tmp[det_idx] = 0;
-//    }
     for (iterat = 0; iterat < max_iter; iterat++) {
         sum_mpi_i(sol_vec->n_nonz, &glob_n_nonz, proc_rank, n_procs);
         
@@ -420,6 +416,7 @@ int main(int argc, const char * argv[]) {
             long long ini_flag = fabs(*curr_el) > init_thresh;
             ini_flag <<= 2 * n_orb;
             int el_sign = 1 - 2 * (*curr_el < 0);
+            unsigned char *occ_orbs = orbs_at_pos(sol_vec, det_idx);
             if (orb_indices2[weight_idx][0] == 0) { // double excitation
                 unsigned char doub_orbs[4];
                 doub_orbs[0] = orb_indices2[weight_idx][1];
@@ -443,7 +440,6 @@ int main(int argc, const char * argv[]) {
                 matr_el = doub_matr_el_nosgn(doub_orbs, tot_orb, eris, n_frz);
                 if (fabs(matr_el) > 1e-9 && comp_vec2[samp_idx] > 1e-9) {
 //                    matr_el *= -eps / p_doub / calc_unnorm_wt(hb_probs, doub_orbs) * el_sign * par_sign * comp_vec2[samp_idx];
-                    unsigned char *occ_orbs = orbs_at_pos(sol_vec, det_idx);
                     matr_el *= -eps / p_doub / calc_norm_wt(hb_probs, doub_orbs, occ_orbs, n_elec_unf, curr_det, (unsigned char *)symm_lookup, symm) * el_sign * comp_vec2[samp_idx];
                     matr_el *= doub_det_parity(&curr_det, doub_orbs);
                     add_doub(sol_vec, curr_det, matr_el, ini_flag);
@@ -455,7 +451,6 @@ int main(int argc, const char * argv[]) {
                 sing_orbs[0] = o1;
                 unsigned char u1_symm = symm[o1 % n_orb];
                 sing_orbs[1] = virt_from_idx(curr_det, symm_lookup[u1_symm], n_orb * (o1 / n_orb), orb_indices2[weight_idx][2]);
-                unsigned char *occ_orbs = orbs_at_pos(sol_vec, det_idx);
                 matr_el = sing_matr_el_nosgn(sing_orbs, occ_orbs, tot_orb, eris, h_core, n_frz, n_elec_unf);
                 if (fabs(matr_el) > 1e-9 && comp_vec2[samp_idx] > 1e-9) {
                     count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf, n_orb, n_irreps, symm_lookup, symm);
@@ -479,24 +474,6 @@ int main(int argc, const char * argv[]) {
             }
         }
         perform_add(sol_vec, ini_bit);
-//        for (det_idx = 0; det_idx < n_hf_doub; det_idx++) {
-//            unsigned long long hash_val = idx_to_hash(sol_vec, hf_dets[det_idx]);
-//            ssize_t *hf_entry = read_ht(sol_vec->vec_hash, hf_dets[det_idx], hash_val, 0);
-//            double *old = &hf_tmp[det_idx];
-//            if (hf_entry) {
-//                double *new = doub_at_pos(sol_vec, *hf_entry);
-//                if (fabs(*new - *old) > .1 && iterat == 611) {
-//                    printf("big add to det: %lld, hf_pos: %zu, vec_pos: %ld\n", hf_dets[det_idx], det_idx, *hf_entry);
-//                }
-//                *old = *new;
-//            }
-//            else {
-//                if (fabs(*old) > .1) {
-//                    printf("big removal at det: %lld, hf_pos: %zu\n", hf_dets[det_idx], det_idx);
-//                }
-//                *old = 0;
-//            }
-//        }
         
         // Compression step
         unsigned int n_samp = target_nonz;
