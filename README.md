@@ -7,6 +7,10 @@ This project contains implementations of various methods within the Fast Randomi
 
 In their current form, these FRI methods evolve an arbitrary initial vector in Slater determinant space towards the ground-state eigenvector via a stochastic implementation of the power method. Efficiency is achieved by stochastically compressing the Hamiltonian matrix and solution vector at each iteration and exploiting sparse linear algebra techniques. Observables are calculated by averaging over many iterations.
 
+## Documentation
+
+Documentation is available at https://sgreene8.github.io/FRIES/
+
 ## Acknowledgments
 
 This work was supported by startup funding provided by the University of Chicago and the Flatiron Institute, a division of the Simons Foundation. Additional funding was provided by the Molecular Software Sciences Institute (MolSSI) through a software "seed" fellowship, the Advanced Scientific Computing Research program through award DE-SC0014205, NSF RTG awards 1547396 and 1646339, and a MacCracken Fellowship from New York University.
