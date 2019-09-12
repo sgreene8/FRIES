@@ -9,13 +9,16 @@ list(APPEND FRIES_FILELIST
         Hamiltonians/molecule.c
         io_utils.c
         math_utils.c
-        mpi_switch.h
         vec_utils.c
         Ext_Libs/argparse.c
         Ext_Libs/csvparser.c
         Ext_Libs/heap.c)
 
 add_library(fries SHARED ${FRIES_FILELIST})
+
+set_target_properties(fries
+  PROPERTIES
+PUBLIC_HEADER "FRIES/compress_utils.h;FRIES/det_store.h;FRIES/fci_utils.h;FRIES/io_utils.h;FRIES/math_utils.h")
 
 add_subdirectory(Ext_Libs)
 
