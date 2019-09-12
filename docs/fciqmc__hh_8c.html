@@ -109,7 +109,11 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>main</b> (int argc, co
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Implementation of the FCIQMC algorithm described in Booth et al. (2009) for the Hubbard Model. </p>
-<p>Hamiltonian matrix elements are integerized before matrix-vector multiplication </p>
+<p>The steps involved in each iteration of an FCIQMC calculation are:</p><ul>
+<li>Compress Hamiltonian matrix multinomially</li>
+<li>Stochastically round Hamiltonian matrix elements to integers</li>
+<li>Multiply current iterate by the compressed Hamiltonian matrix, scaled and shifted to ensure convergence to the ground state </li>
+</ul>
 </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>

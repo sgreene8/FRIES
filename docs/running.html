@@ -92,8 +92,8 @@ Molecular Systems</h2>
 </ul>
 </li>
 </ul>
-<h2><a class="anchor" id="Lattice"></a>
-Systems</h2>
+<h2><a class="anchor" id="run_input_lattice"></a>
+Lattice Systems</h2>
 <p>Code for running calculations on the Hubbard model (<a class="el" href="fciqmc__hh_8c.html" title="Implementation of the FCIQMC algorithm described in Booth et al. (2009) for the Hubbard Model.">fciqmc_hh.c</a> and <a class="el" href="frisys__hh_8c.html" title="Perform FRI with systematic matrix compression on the Hubbard model.">frisys_hh.c</a>) use the parameters in the file at the path specified by the <code>params_path</code> input argument. See the examples for an example format of this file. The parameters are as follows:</p>
 <ul>
 <li><code>n_elec</code>: The total number of electrons in the system</li>
@@ -101,7 +101,25 @@ Systems</h2>
 <li><code>n_dim</code>: The number of dimensions in the lattice</li>
 <li><code>eps</code>: The value of \( \varepsilon \) (the imaginary time step) to use to evolve the solution vector during the calculation</li>
 <li><code>U</code>: The on-site repulsion energy, in units of \( t \) (the kinetic energy hoping term)</li>
-<li><code>hf_energy</code>: The HF electronic energy of the system, in Hartrees (optional, but useful for accelerating convergence) </li>
+<li><code>hf_energy</code>: The HF electronic energy of the system, in Hartrees (optional, but useful for accelerating convergence)</li>
+</ul>
+<h1><a class="anchor" id="run_output"></a>
+Output Files</h1>
+<p>All executables produce the following files in the directory specified by the <code>result_dir</code> input parameter:</p>
+<ul>
+<li><code>projnum.txt</code>: A list of the values \( \langle \phi_\text{T} | \hat{H} | \psi^{(i)} \rangle \) calculated at each iteration in the trajectory, where \( \phi_\text{T} \) is the trial wave function</li>
+<li><code>projden.txt</code>: A list of the values \( \langle \phi_\text{T} | \psi^{(i)} \rangle \) calculated at each iteration</li>
+<li><code>S.txt</code>: The value of the energy shift after every 10 iterations in the trajectory</li>
+<li><code>params.txt</code>: A summary of the input parameters for this calculation</li>
+</ul>
+<p>Executables for FCIQMC calculations produce these additional output files:</p>
+<ul>
+<li><code>N.txt</code>: The number of walkers after each iteration</li>
+<li><code>nnonz.txt</code>: The number of nonzero vector elements after each iteration</li>
+</ul>
+<p>Executables for FCI-FRI calculations produce one additional output file:</p>
+<ul>
+<li><code>norm.txt</code>: The vector one-norm calculated after each iteration </li>
 </ul>
 </div></div><!-- contents -->
 </div><!-- PageDoc -->

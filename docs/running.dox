@@ -33,4 +33,22 @@ Code for running calculations on the Hubbard model (fciqmc_hh.c and frisys_hh.c)
 - `U`: The on-site repulsion energy, in units of \f$ t \f$ (the kinetic energy hoping term)
 - `hf_energy`: The HF electronic energy of the system, in Hartrees (optional, but useful for accelerating convergence)
 
+\section run_output Output Files
+
+All executables produce the following files in the directory specified by the `result_dir` input parameter:
+
+- `projnum.txt`: A list of the values \f$ \langle \phi_\text{T} | \hat{H} | \psi^{(i)} \rangle \f$ calculated at each iteration in the trajectory, where \f$ \phi_\text{T} \f$ is the trial wave function
+- `projden.txt`: A list of the values \f$ \langle \phi_\text{T} | \psi^{(i)} \rangle \f$ calculated at each iteration
+- `S.txt`: The value of the energy shift after every 10 iterations in the trajectory
+- `params.txt`: A summary of the input parameters for this calculation
+
+Executables for FCIQMC calculations produce these additional output files:
+
+- `N.txt`: The number of walkers after each iteration
+- `nnonz.txt`: The number of nonzero vector elements after each iteration
+
+Executables for FCI-FRI calculations produce one additional output file:
+
+- `norm.txt`: The vector one-norm calculated after each iteration
+
 */

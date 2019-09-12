@@ -304,8 +304,8 @@ int main(int argc, const char * argv[]) {
         if ((iterat + 1) % shift_interval == 0) {
             adjust_shift(&en_shift, glob_norm, &last_one_norm, target_norm, shift_damping / shift_interval / eps);
             if (proc_rank == ref_proc) {
-                //                fprintf(shift_file, "%lf\n", en_shift);
-                //                fprintf(norm_file, "%lf\n", glob_norm);
+                fprintf(shift_file, "%lf\n", en_shift);
+                fprintf(norm_file, "%lf\n", glob_norm);
             }
         }
         
