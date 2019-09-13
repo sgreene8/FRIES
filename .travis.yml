@@ -1,10 +1,12 @@
 language: c
-script: echo 'hi, $TRAVIS_BUILD_DOCS'
+script: echo 'hi, "$TRAVIS_BUILD_DOCS"'
 after_success:
 - |-
   if [[ "$TRAVIS_BRANCH" = "master" && -n "$TRAVIS_BUILD_DOCS" && "$TRAVIS_PULL_REQUEST" = "false" ]] ; then
     echo 'made it inside if statement'
+    pwd
     cd $PROJECT_DIR_ABS
+    pwd
     source .ci/setup-ssh.sh || travis_terminate 1
     .ci/generateDocumentation.sh || travis_terminate 1
   fi
