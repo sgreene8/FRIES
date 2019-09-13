@@ -6,7 +6,7 @@ after_success:
     echo 'made it inside if statement'
     pwd
     source .ci/setup-ssh.sh || travis_terminate 1
-    .ci/generateDocumentation.sh || travis_terminate 1
+    source .ci/generateDocumentation.sh || travis_terminate 1
   fi
 
 before_install:
