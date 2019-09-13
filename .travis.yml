@@ -1,5 +1,5 @@
 language: c
-script: echo 'hi'
+script: echo 'hi, $TRAVIS_BUILD_DOCS'
 after_success:
 - |-
   if [[ "$TRAVIS_BRANCH" = "master" && -n "$TRAVIS_BUILD_DOCS" && "$TRAVIS_PULL_REQUEST" = "false" ]] ; then
