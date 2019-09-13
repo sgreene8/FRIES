@@ -1,6 +1,8 @@
 Fast Randomized Iteration for Electronic Structure (FRIES)
 ==========================================================
 
+[![Build Status](https://travis-ci.com/sgreene8/FRIES.svg?branch=master)](https://travis-ci.com/sgreene8/FRIES)
+
 ## Summary
 
 This project contains implementations of various methods within the Fast Randomized Iteration (FRI) framework for performing Full Configuration Interaction calculations on molecular systems and the Hubbard model. A detailed description of the FRI framework for quantum chemistry problems can be found in this publication: (https://doi.org/10.1021/acs.jctc.9b00422) Implementations of the related Full Configuration Interaction (FCIQMC) method (http://dx.doi.org/10.1063/1.3193710) are also included for comparison.
