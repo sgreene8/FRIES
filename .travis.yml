@@ -10,5 +10,5 @@ after_success:
 
 before_install:
 - openssl aes-256-cbc -K $encrypted_bc2b37132209_key -iv $encrypted_bc2b37132209_iv
-  -in travis_deploy_key.enc -out .ci/travis_deploy_key -d
+  -in .ci/travis_deploy_key.enc -out .ci/travis_deploy_key -d
 
