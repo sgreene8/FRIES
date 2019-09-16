@@ -344,7 +344,7 @@ size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
                 }
                 loc_norms[proc_rank] += tmp_val;
             }
-            else {
+            else if (tmp_val != 0) {
                 while (rn_sys < lbound) {
                     sub_idx = (lbound - rn_sys) * n_div[wt_idx] / tmp_val;
                     new_vals[num_new] = tmp_glob_norm / n_samp;
