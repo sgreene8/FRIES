@@ -222,7 +222,7 @@ double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
         }
     }
     loc_one_norm = 0;
-    if (glob_one_norm < 1e-7) {
+    if (glob_one_norm / *n_samp < 1e-8) {
         *n_samp = 0;
     }
     else {

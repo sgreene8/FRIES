@@ -340,36 +340,55 @@ double calc_norm_wt(hb_info *tens, unsigned char *orbs, unsigned char *occ,
     unsigned char u2_irrep = symm[u2];
     unsigned char symm_orb, min_orb, max_orb;
     
-    double e2_symm = 0;
+    double e2_symm_no1 = 0;
+    double e2_symm_no2 = 0;
+    double e1_symm_no1 = 0;
+    double e1_symm_no2 = 0;
     for (orb_idx = 0; orb_idx < lookup_tabl[u2_irrep][0]; orb_idx++) {
         symm_orb = lookup_tabl[u2_irrep][orb_idx + 1];
         if ((same_sp && symm_orb != u1) || !same_sp) {
             min_orb = (o2 < symm_orb) ? o2 : symm_orb;
             max_orb = (o2 > symm_orb) ? o2 : symm_orb;
-            e2_symm += tens->exch_sqrt[I_J_TO_TRI(min_orb, max_orb)];
+            e2_symm_no1 += tens->exch_sqrt[I_J_TO_TRI(min_orb, max_orb)];
+        }
+        if ((same_sp && symm_orb != u1) || !same_sp) {
+            min_orb = (o1 < symm_orb) ? o1 : symm_orb;
+            max_orb = (o1 > symm_orb) ? o1 : symm_orb;
+            e1_symm_no1 += tens->exch_sqrt[I_J_TO_TRI(min_orb, max_orb)];
         }
     }
     
-    double e1_symm = 0;
     for (orb_idx = 0; orb_idx < lookup_tabl[u1_irrep][0]; orb_idx++) {
         symm_orb = lookup_tabl[u1_irrep][orb_idx + 1];
         if ((same_sp && symm_orb != u2) || !same_sp) {
+            min_orb = (o2 < symm_orb) ? o2 : symm_orb;
+            max_orb = (o2 > symm_orb) ? o2 : symm_orb;
+            e2_symm_no2 += tens->exch_sqrt[I_J_TO_TRI(min_orb, max_orb)];
+        }
+        if ((same_sp && symm_orb != u2) || !same_sp) {
             min_orb = (o1 < symm_orb) ? o1 : symm_orb;
             max_orb = (o1 > symm_orb) ? o1 : symm_orb;
-            e1_symm += tens->exch_sqrt[I_J_TO_TRI(min_orb, max_orb)];
+            e1_symm_no2 += tens->exch_sqrt[I_J_TO_TRI(min_orb, max_orb)];
         }
     }
     
+    unsigned int o1u1tri = I_J_TO_TRI(min_o1_u1, max_o1_u1);
+    unsigned int o2u2tri = I_J_TO_TRI(min_o2_u2, max_o2_u2);
     if (same_sp) {
         unsigned char min_o1_u2 = o1 < u2 ? o1 : u2;
         unsigned char max_o1_u2 = o1 > u2 ? o1 : u2;
         unsigned char min_o2_u1 = o2 < u1 ? o2 : u1;
         unsigned char max_o2_u1 = o2 > u1 ? o2 : u1;
-        weight = (tens->s_tens[o1] / d1_denom / e1_virt / e2_symm + tens->s_tens[o2] / d2_denom / e2_virt / e2_symm) / s_denom * tens->d_same[I_J_TO_TRI(o1, o2)] * (tens->exch_sqrt[I_J_TO_TRI(min_o1_u1, max_o1_u1)] * tens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)] + tens->exch_sqrt[I_J_TO_TRI(min_o1_u2, max_o1_u2)] * tens->exch_sqrt[I_J_TO_TRI(min_o2_u1, max_o2_u1)]);
+        unsigned int o1o2tri = I_J_TO_TRI(o1, o2);
+        unsigned int o1u2tri = I_J_TO_TRI(min_o1_u2, max_o1_u2);
+        unsigned int o2u1tri = I_J_TO_TRI(min_o2_u1, max_o2_u1);
+        weight = tens->d_same[o1o2tri] / s_denom * (
+        tens->s_tens[o1] / d1_denom / e1_virt * (tens->exch_sqrt[o1u1tri] * tens->exch_sqrt[o2u2tri] / e2_symm_no1 + tens->exch_sqrt[o1u2tri] * tens->exch_sqrt[o2u1tri] / e2_symm_no2) +
+        tens->s_tens[o2] / d2_denom / e2_virt * (tens->exch_sqrt[o2u1tri] * tens->exch_sqrt[o1u2tri] / e1_symm_no1 + tens->exch_sqrt[o2u2tri] * tens->exch_sqrt[o1u1tri] / e1_symm_no2));
     }
     else {
         double (*diff_tab)[n_orb] = (double (*)[n_orb])tens->d_diff;
-        weight = (tens->s_tens[o1] * diff_tab[o1][o2] / d1_denom / e1_virt / e2_symm + tens->s_tens[o2] * diff_tab[o2][o1] / d2_denom / e2_virt / e1_symm) * tens->exch_sqrt[I_J_TO_TRI(min_o1_u1, max_o1_u1)] * tens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)] / s_denom;
+        weight = (tens->s_tens[o1] * diff_tab[o1][o2] / d1_denom / e1_virt / e2_symm_no1 + tens->s_tens[o2] * diff_tab[o2][o1] / d2_denom / e2_virt / e1_symm_no2) * tens->exch_sqrt[o1u1tri] * tens->exch_sqrt[o2u2tri] / s_denom;
     }
     return weight;
 }

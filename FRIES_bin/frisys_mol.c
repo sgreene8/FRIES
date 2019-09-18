@@ -16,7 +16,7 @@
 #include <FRIES/Ext_Libs/argparse.h>
 #include <FRIES/Hamiltonians/heat_bathPP.h>
 #include <FRIES/Hamiltonians/molecule.h>
-#define max_iter 1000
+#define max_iter 1000000
 
 static const char *const usage[] = {
     "fri_sys [options] [[--] args]",
