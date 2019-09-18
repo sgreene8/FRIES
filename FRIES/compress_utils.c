@@ -405,3 +405,54 @@ size_t comp_sub(double *values, size_t count, unsigned int *n_div, size_t n_sub,
 #endif
     return sys_sub(values, n_div, n_sub, sub_weights, keep_idx, count, tmp_nsamp, wt_remain, loc_norms, rand_num, new_vals, new_idx);
 }
+
+
+void setup_alias(double *probs, unsigned int *aliases, double *alias_probs,
+                 size_t n_states) {
+    size_t n_s = 0;
+    size_t n_b = 0;
+    unsigned int i;
+    unsigned int smaller[n_states];
+    unsigned int bigger[n_states];
+    unsigned int s, b;
+    for (i = 0; i < n_states; i++) {
+        aliases[i] = i;
+        alias_probs[i] = n_states * probs[i];
+        if (alias_probs[i] < 1) {
+            smaller[n_s] = i;
+            n_s++;
+        }
+        else {
+            bigger[n_b] = i;
+            n_b++;
+        }
+    }
+    while (n_s > 0 && n_b > 0) {
+        s = smaller[n_s - 1];
+        b = bigger[n_b - 1];
+        aliases[s] = b;
+        alias_probs[b] += alias_probs[s] - 1;
+        if (alias_probs[b] < 1) {
+            smaller[n_s - 1] = b;
+            n_b--;
+        }
+        else {
+            n_s--;
+        }
+    }
+}
+
+
+void sample_alias(unsigned int *aliases, double *alias_probs, size_t n_states,
+                  unsigned int *samples, unsigned int n_samp, mt_struct *mt_ptr) {
+    unsigned int samp_idx, chosen_idx;
+    for (samp_idx = 0; samp_idx < n_samp; samp_idx++) {
+        chosen_idx = genrand_mt(mt_ptr) / (1. + UINT32_MAX) * n_states;
+        if (genrand_mt(mt_ptr) / (1. + UINT32_MAX) < alias_probs[chosen_idx]) {
+            samples[samp_idx] = chosen_idx;
+        }
+        else {
+            samples[samp_idx] = aliases[chosen_idx];
+        }
+    }
+}

@@ -234,4 +234,36 @@ size_t comp_sub(double *values, size_t count, unsigned int *n_div, size_t n_sub,
 void adjust_shift(double *shift, double one_norm, double *last_norm,
                   double target_norm, double damp_factor);
 
+
+/*! \brief Set-up for the alias method for multinomial sampling
+ *
+ * Calculates the alias for each state and the alternative probabilities
+ * according to the algorithm in Figure 4 of Holmes et al. (2016)
+ *
+ * \param [in] probs        Normalized probabilities of choosing each state
+ *                          (length \p n_states)
+ * \param [out] aliases     Alias for each state (length \p n_states)
+ * \param [out] alias_probs The probability of choosing the state i instead
+ *                          of its alias aliases[i] (length \p n_states)
+ * \param [in] n_states     The number of states
+ */
+void setup_alias(double *probs, unsigned int *aliases, double *alias_probs,
+                 size_t n_states);
+
+
+/*! \brief Perform multinomial sampling using the alias method
+ *
+ * \param [in] aliases      Alias for each state, calculated using setup_alias()
+ *                          (length \p n_states)
+ * \param [in] alias_probs  Alias probabilities for each state, calculated using
+ *                          setup_alias(); need not be initialized
+ *                          (length \p n_states)
+ * \param [in] n_states     Number of states that can be sampled
+ * \param [out] samples     The sampled indices
+ * \param [in] n_samp       Number of samples to draw multinomially
+ */
+void sample_alias(unsigned int *aliases, double *alias_probs, size_t n_states,
+                  unsigned int *samples, unsigned int n_samp, mt_struct *mt_ptr);
+
+
 #endif /* compress_utils_h */
