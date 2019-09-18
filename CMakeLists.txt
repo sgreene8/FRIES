@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.6)
 
-project(FRIES LANGUAGES C)
+project(FRIES LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 14)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include(GNUInstallDirs)
@@ -30,3 +32,7 @@ install(
   )
 
 # To uninstall, run "xargs rm < install_manifest.txt" from the build directory
+
+#enable_testing()
+
+#add_subdirectory(tests)
