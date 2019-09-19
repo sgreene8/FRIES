@@ -196,7 +196,7 @@ double calc_u1_probs(hb_info *tens, double *prob_arr, unsigned char o1_orb,
 double calc_u2_probs(hb_info *tens, double *prob_arr, unsigned char o1_orb,
                      unsigned char o2_orb, unsigned char u1_orb,
                      unsigned char *lookup_mem, unsigned char *symm,
-                     unsigned int prob_len) {
+                     unsigned int *prob_len) {
     unsigned int n_orb = (unsigned int)tens->n_orb;
     unsigned char (*lookup_tabl)[n_orb + 1] = (unsigned char (*)[n_orb + 1])lookup_mem;
     unsigned char o2_spinless = o2_orb % n_orb;
@@ -204,6 +204,9 @@ double calc_u2_probs(hb_info *tens, double *prob_arr, unsigned char o1_orb,
     int same_spin = (o1_orb / n_orb) == (o2_orb / n_orb);
     unsigned char u2_irrep = symm[o1_orb % n_orb] ^ symm[o2_spinless] ^ symm[u1_spinless];
     unsigned int num_u2 = lookup_tabl[u2_irrep][0];
+    if (*prob_len == 0) {
+        *prob_len = num_u2;
+    }
     unsigned int orb_idx;
     unsigned char u2_orb;
     unsigned char min_o2_u2, max_o2_u2;
@@ -220,7 +223,7 @@ double calc_u2_probs(hb_info *tens, double *prob_arr, unsigned char o1_orb,
             prob_arr[orb_idx] = 0;
         }
     }
-    for (orb_idx = num_u2; orb_idx < prob_len; orb_idx++) {
+    for (orb_idx = num_u2; orb_idx < *prob_len; orb_idx++) {
         prob_arr[orb_idx] = 0;
     }
     if (norm != 0) {
@@ -391,4 +394,90 @@ double calc_norm_wt(hb_info *tens, unsigned char *orbs, unsigned char *occ,
         weight = (tens->s_tens[o1] * diff_tab[o1][o2] / d1_denom / e1_virt / e2_symm_no1 + tens->s_tens[o2] * diff_tab[o2][o1] / d2_denom / e2_virt / e1_symm_no2) * tens->exch_sqrt[o1u1tri] * tens->exch_sqrt[o2u2tri] / s_denom;
     }
     return weight;
+}
+
+
+unsigned int hb_doub_multi(long long det, unsigned char *occ_orbs,
+                           unsigned int num_elec, unsigned char *orb_symm,
+                           hb_info *tens, unsigned char *lookup_mem,
+                           unsigned int num_sampl, mt_struct *rn_ptr,
+                           unsigned char (* chosen_orbs)[4], double *prob_vec) {
+    unsigned int num_orb = (unsigned int) tens->n_orb;
+    unsigned int n_states = num_elec > num_orb ? num_elec : num_orb;
+    unsigned int alias_idx[n_states];
+    double alias_probs[n_states];
+    double probs[n_states];
+    unsigned int samples[num_sampl];
+    unsigned int samples2[num_sampl];
+    
+    unsigned char (*lookup_tabl)[num_orb + 1] = (unsigned char (*)[num_orb + 1]) lookup_mem;
+    
+    // Choose first occupied orbital
+    calc_o1_probs(tens, probs, num_elec, occ_orbs);
+    setup_alias(probs, alias_idx, alias_probs, num_elec);
+    sample_alias(alias_idx, alias_probs, num_elec, samples, num_sampl, rn_ptr);
+    
+    unsigned char o1_samples[num_elec];
+    unsigned int samp_idx, elec_idx;
+    for (elec_idx = 0; elec_idx < num_elec; elec_idx++) {
+        o1_samples[elec_idx] = 0;
+    }
+    for (samp_idx = 0; samp_idx < num_sampl; samp_idx++) {
+        o1_samples[samples[samp_idx]]++;
+    }
+    
+    unsigned int loc_n_samp;
+    unsigned int tot_sampled = 0;
+    for (elec_idx = 0; elec_idx < num_elec; elec_idx++) {
+        loc_n_samp = o1_samples[elec_idx];
+        if (loc_n_samp == 0) {
+            continue;
+        }
+        unsigned char o1 = elec_idx;
+        // Choose second occupied orbital
+        calc_o2_probs(tens, probs, num_elec, occ_orbs, &o1);
+        setup_alias(probs, alias_idx, alias_probs, num_elec);
+        sample_alias(alias_idx, alias_probs, num_elec, samples, loc_n_samp, rn_ptr);
+        
+        // Choose first virtual orbital
+        calc_u1_probs(tens, probs, o1, det);
+        setup_alias(probs, alias_idx, alias_probs, num_orb);
+        sample_alias(alias_idx, alias_probs, num_orb, samples2, loc_n_samp, rn_ptr);
+        
+        for (samp_idx = 0; samp_idx < loc_n_samp; samp_idx++) {
+            unsigned char o2 = occ_orbs[samples[samp_idx]];
+            unsigned char u1 = samples2[samp_idx] + num_orb * (o1 / num_orb);
+            unsigned char u2_symm = orb_symm[o1 % num_orb] ^ orb_symm[o2 % num_orb] ^ orb_symm[u1 % num_orb];
+            unsigned int num_u2 = 0;
+            double u2_norm = calc_u2_probs(tens, probs, o1, o2, u1, lookup_mem, orb_symm, &num_u2);
+            if (u2_norm != 0) {
+                setup_alias(probs, alias_idx, alias_probs, num_u2);
+                unsigned int u2;
+                sample_alias(alias_idx, alias_probs, num_u2, &u2, 1, rn_ptr);
+                u2 = lookup_tabl[u2_symm][u2 + 1] + num_orb * (o2 / num_orb);
+                if (det & (1LL << u2)) {
+                    continue;
+                }
+                if (o1 > o2) {
+                    chosen_orbs[tot_sampled][0] = o2;
+                    chosen_orbs[tot_sampled][1] = o1;
+                }
+                else {
+                    chosen_orbs[tot_sampled][0] = o1;
+                    chosen_orbs[tot_sampled][1] = o2;
+                }
+                if (u1 > u2) {
+                    chosen_orbs[tot_sampled][2] = u2;
+                    chosen_orbs[tot_sampled][3] = u1;
+                }
+                else {
+                    chosen_orbs[tot_sampled][2] = u1;
+                    chosen_orbs[tot_sampled][3] = u2;
+                }
+                prob_vec[tot_sampled] = calc_norm_wt(tens, &chosen_orbs[tot_sampled][0], occ_orbs, num_elec, det, lookup_mem, orb_symm);
+                tot_sampled++;
+            }
+        }
+    }
+    return tot_sampled;
 }

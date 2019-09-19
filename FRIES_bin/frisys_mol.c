@@ -396,7 +396,7 @@ int main(int argc, const char * argv[]) {
                 unsigned char u1_orb = comp_idx[samp_idx][1] + n_orb * (o1_orb / n_orb);
                 orb_indices2[samp_idx][3] = u1_orb;
 //                comp_vec1[samp_idx] *= calc_u2_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, o2_orb, u1_orb, (unsigned char *)symm_lookup, symm, max_n_symm); // not normalizing
-                double u2_norm = calc_u2_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, o2_orb, u1_orb, (unsigned char *)symm_lookup, symm, max_n_symm);
+                double u2_norm = calc_u2_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, o2_orb, u1_orb, (unsigned char *)symm_lookup, symm, &max_n_symm);
                 if (u2_norm == 0) {
                     comp_vec1[samp_idx] = 0;
                 }

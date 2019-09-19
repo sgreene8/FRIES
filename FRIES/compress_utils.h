@@ -261,6 +261,7 @@ void setup_alias(double *probs, unsigned int *aliases, double *alias_probs,
  * \param [in] n_states     Number of states that can be sampled
  * \param [out] samples     The sampled indices
  * \param [in] n_samp       Number of samples to draw multinomially
+ * \param [in] mt_ptr   Address to MT state object to use for RN generation
  */
 void sample_alias(unsigned int *aliases, double *alias_probs, size_t n_states,
                   unsigned int *samples, unsigned int n_samp, mt_struct *mt_ptr);

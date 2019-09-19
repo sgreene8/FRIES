@@ -253,7 +253,7 @@ int main(int argc, const char * argv[]) {
     unsigned char (*sing_orbs)[2];
     unsigned char (*doub_orbs)[4];
     
-    hb_info *hb_probs;
+    hb_info *hb_probs = NULL;
     if (qmc_dist == heat_bath) {
         hb_probs = set_up(tot_orb, n_orb, eris);
     }
@@ -302,7 +302,7 @@ int main(int argc, const char * argv[]) {
                 n_doub = doub_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_doub, rngen_ptr, doub_orbs, spawn_probs);
             }
             else if (qmc_dist == heat_bath) {
-                n_doub = 0;
+                n_doub = hb_doub_multi(curr_det, occ_orbs, n_elec_unf, symm, hb_probs, (unsigned char *)symm_lookup, n_doub, rngen_ptr, doub_orbs, spawn_probs);
             }
             
             for (walker_idx = 0; walker_idx < n_doub; walker_idx++) {
