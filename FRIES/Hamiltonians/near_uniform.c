@@ -26,6 +26,18 @@ void gen_symm_lookup(unsigned char *orb_symm, unsigned int n_orb, unsigned int n
     }
 }
 
+void print_symm_lookup(unsigned int n_orb, unsigned int n_symm,
+                       unsigned char lookup_tabl[][n_orb + 1]) {
+    unsigned int idx, orb_idx;
+    for (idx = 0; idx < n_symm; idx++) {
+        printf("%u: ", idx);
+        for (orb_idx = 0; orb_idx < lookup_tabl[idx][0]; orb_idx++) {
+            printf("%u, ", lookup_tabl[idx][1 + orb_idx]);
+        }
+        printf("\n");
+    }
+}
+
 void count_symm_virt(unsigned int counts[][2], unsigned char *occ_orbs,
                      unsigned int n_elec, unsigned int n_orb, unsigned int n_symm,
                      unsigned char symm_table[][n_orb + 1],
