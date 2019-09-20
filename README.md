@@ -15,4 +15,4 @@ Documentation is available at https://sgreene8.github.io/FRIES/
 
 ## Acknowledgments
 
-This work was supported by startup funding provided by the University of Chicago and the Flatiron Institute, a division of the Simons Foundation. Additional funding was provided by the Molecular Software Sciences Institute (MolSSI) through a software "seed" fellowship, the Advanced Scientific Computing Research program through award DE-SC0014205, NSF RTG awards 1547396 and 1646339, and a MacCracken Fellowship from New York University.
+This work was supported by startup funding provided by the University of Chicago and the Flatiron Institute, a division of the Simons Foundation. Additional funding was provided by the Molecular Software Sciences Institute (MolSSI) under U.S. National Science Foundation grant ACI-1547580 through a software "seed" fellowship, the Advanced Scientific Computing Research program through award DE-SC0014205, NSF RTG awards 1547396 and 1646339, and a MacCracken Fellowship from New York University.
