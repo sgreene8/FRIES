@@ -27,12 +27,12 @@ install(
     DESTINATION ${INSTALL_LIBDIR}
     COMPONENT lib
   PUBLIC_HEADER
-    DESTINATION ${INSTALL_INCLUDEDIR}
+    DESTINATION ${INSTALL_INCLUDEDIR}/FRIES
     COMPONENT dev
   )
 
 # To uninstall, run "xargs rm < install_manifest.txt" from the build directory
 
-#enable_testing()
+enable_testing()
 
-#add_subdirectory(tests)
+add_subdirectory(tests)
