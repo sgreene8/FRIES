@@ -15,6 +15,9 @@
 #include <FRIES/det_store.h>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*! \brief Round a non-integral number binomially.
  *
@@ -266,5 +269,8 @@ void setup_alias(double *probs, unsigned int *aliases, double *alias_probs,
 void sample_alias(unsigned int *aliases, double *alias_probs, size_t n_states,
                   unsigned int *samples, unsigned int n_samp, mt_struct *mt_ptr);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* compress_utils_h */

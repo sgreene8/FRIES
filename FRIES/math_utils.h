@@ -8,6 +8,11 @@
 
 #include <stdlib.h>
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*! \brief A table used to identify positions of 1's in binary representation of
  *  a number
  */
@@ -53,5 +58,9 @@ unsigned int count_bits(long long num, byte_table *tab);
  */
 unsigned int bits_between(long long bit_str, unsigned char a, unsigned char b);
 
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* math_utils_h */

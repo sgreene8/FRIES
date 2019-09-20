@@ -8,6 +8,11 @@
 #include <stdio.h>
 #include <FRIES/fci_utils.h>
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*! \brief Calculate a double excitation matrix element
  *
  * The parity of the excitation, i.e. from the ordering of the orbitals, is not
@@ -136,5 +141,9 @@ double diag_matrel(unsigned char *occ_orbs, unsigned int n_orbs,
                    double (* eris)[n_orbs][n_orbs][n_orbs], double (* h_core)[n_orbs],
                    unsigned int n_frozen, unsigned int n_elec);
 
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* molecule_h */

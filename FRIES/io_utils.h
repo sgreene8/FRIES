@@ -13,6 +13,11 @@
 #include <FRIES/mpi_switch.h>
 #include <FRIES/vec_utils.h>
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*! \brief Read an array of floating-point numbers from a .csv file
  *
  * \param [out] buf     Array in which read-in numbers are stored
@@ -126,5 +131,10 @@ void save_proc_hash(const char *path, unsigned int *proc_hash, size_t n_hash);
  * \param [out] proc_hash   Numbers loaded from disk
  */
 void load_proc_hash(const char *path, unsigned int *proc_hash);
+
+    
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* io_utils_h */

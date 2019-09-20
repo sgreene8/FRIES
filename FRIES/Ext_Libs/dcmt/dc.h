@@ -35,6 +35,11 @@
 
 #include <inttypes.h> /* C99 compiler */
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     uint32_t aaa;
     int mm,nn,rr,ww;
@@ -61,5 +66,10 @@ void free_mt_struct(mt_struct *mts);
 void free_mt_struct_array(mt_struct **mtss, int count);
 void sgenrand_mt(uint32_t seed, mt_struct *mts);
 uint32_t genrand_mt(mt_struct *mts);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

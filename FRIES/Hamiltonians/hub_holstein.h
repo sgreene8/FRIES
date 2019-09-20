@@ -12,6 +12,10 @@
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*! \brief Uniformly chooses num_sampl excitations from a column of the
  *  Hamiltonian using independent multinomial sampling.
  *
@@ -96,5 +100,9 @@ double calc_ref_ovlp(long long *dets, void *vals, size_t n_dets, long long ref_d
  */
 void idx_to_orbs(unsigned int chosen_idx, unsigned int n_elec,
                  unsigned char (*neighbors)[n_elec + 1], unsigned char *orbs);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* hub_holstein_h */

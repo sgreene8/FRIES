@@ -16,6 +16,10 @@
 #include <FRIES/compress_utils.h>
 
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*!
  * \brief Data structure used to store the elements defining the intermediate
  * matrices in the HB-PP factorization
@@ -208,5 +212,10 @@ unsigned int hb_doub_multi(long long det, unsigned char *occ_orbs,
                            hb_info *tens, unsigned char *lookup_mem,
                            unsigned int num_sampl, mt_struct *rn_ptr,
                            unsigned char (* chosen_orbs)[4], double *prob_vec);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* heat_bathPP_h */

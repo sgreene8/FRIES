@@ -10,6 +10,11 @@
 #include <stdlib.h>
 #include <FRIES/math_utils.h>
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*! \brief Generate the bit string representation of the Hartree-Fock
  * determinant
  *
@@ -70,5 +75,10 @@ int sing_det_parity(long long *det, unsigned char *orbs);
  * \return parity of the excitation (+1 or -1)
  */
 int excite_sign(unsigned char cre_op, unsigned char des_op, long long det);
+
+    
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* fci_utils_h */

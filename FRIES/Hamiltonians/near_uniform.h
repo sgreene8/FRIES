@@ -17,6 +17,10 @@
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*! \brief number of irreps in the supported point groups */
 #define n_irreps 8
 
@@ -250,5 +254,9 @@ void symm_pair_wt(unsigned char *occ_orbs, unsigned int num_elec,
 unsigned char virt_from_idx(long long det, unsigned char *lookup_row,
                             unsigned char spin_shift, unsigned int index);
  
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* near_uniform_h */

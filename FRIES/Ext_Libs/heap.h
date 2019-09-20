@@ -16,7 +16,17 @@
 #include <stdio.h>
 #include <math.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 void sift_down(double *a, size_t *indices, size_t start, size_t end);
 void heapify(double *a, size_t *indices, size_t count);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* heap_h */

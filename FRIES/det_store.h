@@ -12,6 +12,10 @@
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*! \brief Stack data structure used to keep track of unused indices in a
  * continuous array of sparse vector indices
  */
@@ -123,5 +127,9 @@ void del_ht(hash_table *table, long long det, unsigned long long hash_val);
  */
 unsigned long long hash_fxn(unsigned char *occ_orbs, unsigned int n_elec, unsigned int *rand_nums);
 
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* det_store_h */
