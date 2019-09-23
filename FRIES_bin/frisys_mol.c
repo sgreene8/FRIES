@@ -19,8 +19,8 @@
 #define max_iter 1000000
 
 static const char *const usage[] = {
-    "fri_sys [options] [[--] args]",
-    "fri_sys [options]",
+    "frisys_mol [options] [[--] args]",
+    "frisys_mol [options]",
     NULL,
 };
 

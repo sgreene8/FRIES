@@ -24,8 +24,8 @@
 #define max_iter 1000000
 
 static const char *const usage[] = {
-    "fciqmc [options] [[--] args]",
-    "fciqmc [options]",
+    "fciqmc_mol [options] [[--] args]",
+    "fciqmc_mol [options]",
     NULL,
 };
 
