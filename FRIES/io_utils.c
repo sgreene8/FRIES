@@ -53,6 +53,10 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     strcpy(buffer, hf_dir);
     strcat(buffer, "sys_params.txt");
     FILE *file_p = fopen(buffer, "r");
+    if (!file_p) {
+        fprintf(stderr, "Error: could not open file sys_params.txt\n");
+        return -1;
+    }
     
     char *str_p = fgets(buffer, sizeof(buffer), file_p);
     int success = strcmp(buffer, "n_elec");
