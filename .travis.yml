@@ -1,14 +1,23 @@
 language: c
-script: echo 'hi'
-after_success:
-- |-
-  if [[ "$TRAVIS_BRANCH" = "master" && -n "$TRAVIS_BUILD_DOCS" && "$TRAVIS_PULL_REQUEST" = "false" ]] ; then
-    source .ci/setup-ssh.sh || travis_terminate 1
-    source .ci/generateDocumentation.sh || travis_terminate 1
-  fi
+
 before_install:
 - openssl aes-256-cbc -K $encrypted_bc2b37132209_key -iv $encrypted_bc2b37132209_iv
   -in .ci/travis_deploy_key.enc -out .ci/travis_deploy_key -d
 - sudo apt-get install python-software-properties 
 - sudo apt-add-repository -y ppa:libreoffice/libreoffice-4-2
 - sudo apt-get install doxygen
+
+script: 
+- mkdir build
+- cd build
+- cmake ..
+- make install
+- ctest
+  
+
+after_success:
+- |-
+  if [[ "$TRAVIS_BRANCH" = "master" && -n "$TRAVIS_BUILD_DOCS" && "$TRAVIS_PULL_REQUEST" = "false" ]] ; then
+    source .ci/setup-ssh.sh || travis_terminate 1
+    source .ci/generateDocumentation.sh || travis_terminate 1
+  fi
