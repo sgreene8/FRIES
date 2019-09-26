@@ -444,15 +444,17 @@ void setup_alias(double *probs, unsigned int *aliases, double *alias_probs,
 
 
 void sample_alias(unsigned int *aliases, double *alias_probs, size_t n_states,
-                  unsigned int *samples, unsigned int n_samp, mt_struct *mt_ptr) {
-    unsigned int samp_idx, chosen_idx;
+                  unsigned char *samples, unsigned int n_samp, size_t samp_int,
+                  mt_struct *mt_ptr) {
+    unsigned int samp_idx;
+    unsigned char chosen_idx;
     for (samp_idx = 0; samp_idx < n_samp; samp_idx++) {
         chosen_idx = genrand_mt(mt_ptr) / (1. + UINT32_MAX) * n_states;
         if (genrand_mt(mt_ptr) / (1. + UINT32_MAX) < alias_probs[chosen_idx]) {
-            samples[samp_idx] = chosen_idx;
+            samples[samp_idx * samp_int] = chosen_idx;
         }
         else {
-            samples[samp_idx] = aliases[chosen_idx];
+            samples[samp_idx * samp_int] = aliases[chosen_idx];
         }
     }
 }
