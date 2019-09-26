@@ -14,6 +14,7 @@
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/compress_utils.h>
 #include <FRIES/Ext_Libs/argparse.h>
+#include <FRIES/Hamiltonians/heat_bathPP.h>
 #include <FRIES/Hamiltonians/molecule.h>
 #define max_iter 10000000
 
@@ -23,9 +24,15 @@ static const char *const usage[] = {
     NULL,
 };
 
+typedef enum {
+    near_uni,
+    heat_bath
+} h_dist;
+
 
 int main(int argc, const char * argv[]) {
     const char *hf_path = NULL;
+    const char *dist_str = NULL;
     const char *result_dir = "./";
     const char *load_dir = NULL;
     const char *ini_dir = NULL;
@@ -38,6 +45,7 @@ int main(int argc, const char * argv[]) {
         OPT_HELP(),
         OPT_STRING('d', "hf_path", &hf_path, "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt"),
         OPT_INTEGER('t', "target", &tmp_norm, "Target one-norm of solution vector"),
+        OPT_STRING('q', "distribution", &dist_str, "Distribution to use to compress the Hamiltonian, either near-uniform (NU) or heat-bath Power-Pitzer (HB)"),
         OPT_INTEGER('m', "vec_nonz", &target_nonz, "Target number of nonzero vector elements to keep after each iteration"),
         OPT_INTEGER('M', "mat_nonz", &matr_samp, "Target number of nonzero matrix elements to keep after each iteration"),
         OPT_STRING('y', "result_dir", &result_dir, "Directory in which to save output files"),
@@ -67,6 +75,17 @@ int main(int argc, const char * argv[]) {
     }
     if (max_n_dets == 0) {
         fprintf(stderr, "Error: maximum number of determinants expected on each processor not specified.\n");
+        return 0;
+    }
+    h_dist fri_dist;
+    if (strcmp(dist_str, "NU") == 0) {
+        fri_dist = near_uni;
+    }
+    else if (strcmp(dist_str, "HB") == 0) {
+        fri_dist = heat_bath;
+    }
+    else {
+        fprintf(stderr, "Error: specified distribution for compressing Hamiltonian (%s) is not supported.\n", dist_str);
         return 0;
     }
     
@@ -233,6 +252,11 @@ int main(int argc, const char * argv[]) {
     unsigned char (*sing_orbs)[2];
     unsigned char (*doub_orbs)[4];
     
+    hb_info *hb_probs = NULL;
+    if (fri_dist == heat_bath) {
+        hb_probs = set_up(tot_orb, n_orb, eris);
+    }
+    
     long long ini_flag;
     unsigned int n_walk, n_doub, n_sing;
     double last_one_norm = 0;
@@ -298,7 +322,13 @@ int main(int argc, const char * argv[]) {
                 spawn_probs = realloc(spawn_probs, sizeof(double) * max_spawn);
             }
             doub_orbs = (unsigned char (*)[4]) spawn_orbs;
-            n_doub = doub_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_doub, rngen_ptr, doub_orbs, spawn_probs);
+            
+            if (fri_dist == near_uni) {
+                n_doub = doub_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_doub, rngen_ptr, doub_orbs, spawn_probs);
+            }
+            else if (fri_dist == heat_bath) {
+                n_doub = hb_doub_multi(curr_det, occ_orbs, n_elec_unf, symm, hb_probs, (unsigned char *)symm_lookup, n_doub, rngen_ptr, doub_orbs, spawn_probs);
+            }
             
             size_t walker_idx;
             for (walker_idx = 0; walker_idx < n_doub; walker_idx++) {
