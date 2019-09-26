@@ -305,6 +305,10 @@ void save_proc_hash(const char *path, unsigned int *proc_hash, size_t n_hash) {
     if (my_rank == 0) {
         sprintf(buffer, "%shash.dat", path);
         FILE *file_p = fopen(buffer, "wb");
+        if (!file_p) {
+            fprintf(stderr, "Error: could not save file at path %s\n", buffer);
+            return;
+        }
         fwrite(proc_hash, sizeof(unsigned int), n_hash, file_p);
         fclose(file_p);
     }
