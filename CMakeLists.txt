@@ -12,25 +12,6 @@ add_subdirectory(FRIES_bin)
 
 message(STATUS "Project will be installed to ${CMAKE_INSTALL_PREFIX}")
 
-install(
-  TARGETS
-    fciqmc_mol
-    frimulti_mol
-    frisys_mol
-    fciqmc_hh
-    frisys_hh
-    fries
-  RUNTIME
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}
-    COMPONENT bin
-  LIBRARY
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}
-    COMPONENT lib
-  PUBLIC_HEADER
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_INCLUDEDIR}/fries
-    COMPONENT dev
-  )
-
 # To uninstall, run "xargs rm < install_manifest.txt" from the build directory
 
 enable_testing()

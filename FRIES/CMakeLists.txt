@@ -33,3 +33,19 @@ if(USE_MPI)
     target_link_libraries(fries PUBLIC MPI::MPI_CXX)
     target_compile_definitions(fries PUBLIC USE_MPI)
 endif()
+
+
+
+install(
+    TARGETS
+        fries
+    RUNTIME
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}
+        COMPONENT bin
+    LIBRARY
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}
+        COMPONENT lib
+    PUBLIC_HEADER
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_INCLUDEDIR}/FRIES
+        COMPONENT dev
+)
