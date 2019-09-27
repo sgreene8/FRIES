@@ -16,6 +16,8 @@ script:
 after_success:
 - |-
   if [[ "$TRAVIS_BRANCH" = "master" && -n "$TRAVIS_BUILD_DOCS" && "$TRAVIS_PULL_REQUEST" = "false" ]] ; then
+    pwd
+    ls .ci
     source .ci/setup-ssh.sh || travis_terminate 1
     source .ci/generateDocumentation.sh || travis_terminate 1
   fi
