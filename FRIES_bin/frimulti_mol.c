@@ -194,7 +194,7 @@ int main(int argc, const char * argv[]) {
     }
     else {
         if (hf_proc == proc_rank) {
-            add_doub(sol_vec, hf_det, 1, ini_bit);
+            add_doub(sol_vec, hf_det, 100, ini_bit);
         }
     }
     perform_add(sol_vec, ini_bit);
@@ -270,6 +270,9 @@ int main(int argc, const char * argv[]) {
     double weight;
     int glob_n_nonz; // Number of nonzero elements in whole vector (across all processors)
     size_t *srt_arr = malloc(sizeof(size_t) * max_n_dets);
+    for (det_idx = 0; det_idx < max_n_dets; det_idx++) {
+        srt_arr[det_idx] = det_idx;
+    }
     int *keep_exact = calloc(max_n_dets, sizeof(int));
     
     unsigned int iterat;
@@ -283,11 +286,12 @@ int main(int argc, const char * argv[]) {
 #ifdef USE_MPI
         MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
-        if (glob_n_nonz < matr_samp) {
-            lbound = seed_sys(loc_norms, &rn_sys, matr_samp - (unsigned int)glob_n_nonz);
+        unsigned int curr_mat_samp = (iterat < 10) ? matr_samp / 10 : matr_samp;
+        if (glob_n_nonz < curr_mat_samp) {
+            lbound = seed_sys(loc_norms, &rn_sys, curr_mat_samp - (unsigned int)glob_n_nonz);
         }
         else {
-            fprintf(stderr, "Warning: target number of matrix samples (%u) is less than number of nonzero vector elements (%d)\n", matr_samp, glob_n_nonz);
+            fprintf(stderr, "Warning: target number of matrix samples (%u) is less than number of nonzero vector elements (%d)\n", curr_mat_samp, glob_n_nonz);
             lbound = 0;
             rn_sys = INFINITY;
         }
@@ -302,7 +306,7 @@ int main(int argc, const char * argv[]) {
             lbound += weight;
             while (rn_sys < lbound) {
                 n_walk++;
-                rn_sys += glob_norm / (matr_samp - glob_n_nonz);
+                rn_sys += glob_norm / (curr_mat_samp - glob_n_nonz);
             }
             
             ini_flag = weight > init_thresh;

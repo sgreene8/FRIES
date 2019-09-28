@@ -180,7 +180,7 @@ int main(int argc, const char * argv[]) {
     }
     else {
         if (hf_proc == proc_rank) {
-            add_doub(sol_vec, hf_det, 1, ini_bit);
+            add_doub(sol_vec, hf_det, 100, ini_bit);
         }
     }
     perform_add(sol_vec, ini_bit);

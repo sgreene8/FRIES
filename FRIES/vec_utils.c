@@ -184,6 +184,8 @@ void add_int(dist_vec *vec, long long idx, int val, long long ini_flag) {
     int *count = &(tmp_adder->send_cts[proc_idx]);
     if (*count == tmp_adder->size) {
         expand_adder(tmp_adder);
+        idx_2D = (long long (*)[tmp_adder->size])tmp_adder->send_idx;
+        val_2D = (int (*)[tmp_adder->size])tmp_adder->send_vals;
     }
     idx_2D[proc_idx][*count] = idx | ini_flag;
     val_2D[proc_idx][*count] = val;
@@ -205,6 +207,8 @@ void add_doub(dist_vec *vec, long long idx, double val, long long ini_flag) {
     int *count = &(tmp_adder->send_cts[proc_idx]);
     if (*count == tmp_adder->size) {
         expand_adder(tmp_adder);
+        idx_2D = (long long (*)[tmp_adder->size])tmp_adder->send_idx;
+        val_2D = (double (*)[tmp_adder->size])tmp_adder->send_vals;
     }
     idx_2D[proc_idx][*count] = idx | ini_flag;
     val_2D[proc_idx][*count] = val;
