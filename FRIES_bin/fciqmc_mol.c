@@ -289,9 +289,16 @@ int main(int argc, const char * argv[]) {
             n_doub = bin_sample(n_walk, p_doub, rngen_ptr);
             n_sing = n_walk - n_doub;
             
-            if (n_doub > max_spawn || n_sing / 2 > max_spawn) {
+            if (n_doub > max_spawn) {
                 printf("Allocating more memory for spawning\n");
-                max_spawn *= 2;
+                max_spawn = n_doub * 3 / 2;
+                spawn_orbs = realloc(spawn_orbs, sizeof(unsigned char) * 4 * max_spawn);
+                spawn_probs = realloc(spawn_probs, sizeof(double) * max_spawn);
+            }
+            
+            if (n_sing / 2 > max_spawn) {
+                printf("Allocating more memory for spawning\n");
+                max_spawn = n_sing * 3;
                 spawn_orbs = realloc(spawn_orbs, sizeof(unsigned char) * 4 * max_spawn);
                 spawn_probs = realloc(spawn_probs, sizeof(double) * max_spawn);
             }
