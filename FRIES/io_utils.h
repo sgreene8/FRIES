@@ -22,16 +22,18 @@ extern "C" {
  *
  * \param [out] buf     Array in which read-in numbers are stored
  * \param [in] fname    Path of file
+ * \returns          Total number of values read from the file
  */
-void read_doub_csv(double *buf, char *fname);
+size_t read_doub_csv(double *buf, char *fname);
 
 
 /*! \brief Read an array of unsigned bytes from a .csv file
  *
  * \param [out] buf     Array in which read-in numbers are stored
  * \param [in] fname    Path of file
+ * \returns          Total number of values read from the file 
  */
-void read_uchar_csv(unsigned char *buf, char *fname);
+size_t read_uchar_csv(unsigned char *buf, char *fname);
 
 
 /*! \brief Data structure containing the output of a Hartree-Fock calculation */

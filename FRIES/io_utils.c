@@ -5,10 +5,11 @@
 
 #include "io_utils.h"
 
-void read_doub_csv(double *buf, char *fname) {
+size_t read_doub_csv(double *buf, char *fname) {
     int i =  0;
     size_t row_idx = 0;
     size_t n_col;
+    size_t n_read = 0;
     //                                   file, delimiter, first_line_is_header?
     CsvParser *csvparser = CsvParser_new(fname, ",", 0);
     CsvRow *row;
@@ -16,6 +17,7 @@ void read_doub_csv(double *buf, char *fname) {
     while ((row = CsvParser_getRow(csvparser)) ) {
         const char **rowFields = CsvParser_getFields(row);
         n_col = CsvParser_getNumFields(row);
+        n_read += n_col;
         for (i = 0 ; i < n_col ; i++) {
             sscanf(rowFields[i], "%lf", &buf[n_col * row_idx + i]);
         }
@@ -23,12 +25,14 @@ void read_doub_csv(double *buf, char *fname) {
         row_idx++;
     }
     CsvParser_destroy(csvparser);
+    return n_read;
 }
 
-void read_uchar_csv(unsigned char *buf, char *fname) {
+size_t read_uchar_csv(unsigned char *buf, char *fname) {
     int i =  0;
     size_t row_idx = 0;
     size_t n_col;
+    size_t n_read = 0;
     //                                   file, delimiter, first_line_is_header?
     CsvParser *csvparser = CsvParser_new(fname, " ", 0);
     CsvRow *row;
@@ -37,6 +41,7 @@ void read_uchar_csv(unsigned char *buf, char *fname) {
     while ((row = CsvParser_getRow(csvparser)) ) {
         const char **rowFields = CsvParser_getFields(row);
         n_col = CsvParser_getNumFields(row);
+        n_read += n_col;
         for (i = 0 ; i < n_col ; i++) {
             sscanf(rowFields[i], "%u", &scan_val);
             buf[n_col * row_idx + i] = scan_val;
@@ -45,6 +50,7 @@ void read_uchar_csv(unsigned char *buf, char *fname) {
         row_idx++;
     }
     CsvParser_destroy(csvparser);
+    return n_read;
 }
 
 
@@ -142,12 +148,20 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     strcpy(buffer, hf_dir);
     strcat(buffer, "hcore.txt");
     in_struct->hcore = malloc(sizeof(double) * tot_orb * tot_orb);
-    read_doub_csv(in_struct->hcore, buffer);
+    size_t n_read = read_doub_csv(in_struct->hcore, buffer);
+    if (n_read < tot_orb * tot_orb) {
+        fprintf(stderr, "Error reading values from %s\n", buffer);
+        return -1;
+    }
     
     strcpy(buffer, hf_dir);
     strcat(buffer, "eris.txt");
     in_struct->eris = malloc(sizeof(double) * tot_orb * tot_orb * tot_orb * tot_orb);
-    read_doub_csv(in_struct->eris, buffer);
+    n_read = read_doub_csv(in_struct->eris, buffer);
+    if (n_read < tot_orb * tot_orb * tot_orb * tot_orb) {
+        fprintf(stderr, "Error reading values from %s\n", buffer);
+        return -1;
+    }
     
     return 0;
 }
