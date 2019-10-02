@@ -195,6 +195,7 @@ int main(int argc, const char * argv[]) {
     FILE *den_file = NULL;
     FILE *shift_file = NULL;
     FILE *norm_file = NULL;
+    FILE *nkept_file = NULL;
     if (proc_rank == hf_proc) {
         // Setup output files
         strcpy(file_path, result_dir);
@@ -212,6 +213,9 @@ int main(int argc, const char * argv[]) {
         strcpy(file_path, result_dir);
         strcat(file_path, "norm.txt");
         norm_file = fopen(file_path, "a");
+        strcpy(file_path, result_dir);
+        strcat(file_path, "nkept.txt");
+        nkept_file = fopen(file_path, "a");
         
         strcpy(file_path, result_dir);
         strcat(file_path, "params.txt");
@@ -481,6 +485,9 @@ int main(int argc, const char * argv[]) {
         // Compression step
         unsigned int n_samp = target_nonz;
         loc_norms[proc_rank] = find_preserve(sol_vec->values, srt_arr, keep_exact, sol_vec->curr_size, &n_samp, &glob_norm);
+        if (proc_rank == hf_proc) {
+            fprintf(nkept_file, "%u\n", target_nonz - n_samp);
+        }
         
         // Adjust shift
         if ((iterat + 1) % shift_interval == 0) {
@@ -528,6 +535,7 @@ int main(int argc, const char * argv[]) {
                 fflush(num_file);
                 fflush(den_file);
                 fflush(shift_file);
+                fflush(nkept_file);
             }
         }
     }
