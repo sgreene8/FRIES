@@ -1,6 +1,7 @@
 B2/
 B2_res/
 build/
+build_examples/
 FRIes_old/main.c
 Hubbard/
 N2_results/
@@ -8,3 +9,6 @@ Ne
 Ne_results
 FRIes.xcodeproj/
 C2/
+H2O/
+.ci/travis_deploy_key.pub
+.ci/travis_deploy_key
