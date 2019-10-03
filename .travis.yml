@@ -8,8 +8,8 @@ before_install:
 script: 
 - mkdir build
 - cd build
-- cmake ..
-- make install -DCMAKE_INSTALL_PREFIX=~/local
+- cmake .. -DCMAKE_INSTALL_PREFIX=~/local
+- make install
 - ctest
 - cd ..
 - mkdir build_examples
