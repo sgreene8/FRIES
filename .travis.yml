@@ -4,19 +4,17 @@ before_install:
 - openssl aes-256-cbc -K $encrypted_bc2b37132209_key -iv $encrypted_bc2b37132209_iv
   -in .ci/travis_deploy_key.enc -out .ci/travis_deploy_key -d
 - sudo apt-get install doxygen libopenmpi-dev
-- which clang
 
 script: 
 - mkdir build
 - cd build
-- cmake .. -DCMAKE_INSTALL_PREFIX=~/local
-#- /usr/bin/c++ --version
+- cmake .. -DCMAKE_INSTALL_PREFIX=~/local -DCMAKE_CXX_COMPILER=/usr/local/clang-7.0.0/bin/clang++ -DCMAKE_C_COMPILER=/usr/local/clang-7.0.0/bin/clang
 - make install
 - ctest
 - cd ..
 - mkdir build_examples
 - cd build_examples
-- cmake ../examples -DCMAKE_INSTALL_PREFIX=~/local
+- cmake ../examples -DCMAKE_INSTALL_PREFIX=~/local -DCMAKE_CXX_COMPILER=/usr/local/clang-7.0.0/bin/clang++ -DCMAKE_C_COMPILER=/usr/local/clang-7.0.0/bin/clang
 - make
 - ./compress_1D
 - cd ..
