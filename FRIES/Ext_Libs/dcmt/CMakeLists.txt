@@ -13,3 +13,11 @@ install(
     DESTINATION
     ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_INCLUDEDIR}/FRIES/Ext_Libs/dcmt
     )
+
+install(
+    TARGETS
+        dcmt
+    LIBRARY
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}
+        COMPONENT lib
+)

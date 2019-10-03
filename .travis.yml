@@ -9,14 +9,20 @@ script:
 - mkdir build
 - cd build
 - cmake ..
-- sudo make install
+- make install -DCMAKE_INSTALL_PREFIX=~/local
 - ctest
+- cd ..
+- mkdir build_examples
+- cd build_examples
+- cmake ../examples -DCMAKE_INSTALL_PREFIX=~/local
+- make
+- ./compress_1D
+- cd ..
   
 
 after_success:
 - |-
   if [[ "$TRAVIS_BRANCH" = "master" && -n "$TRAVIS_BUILD_DOCS" && "$TRAVIS_PULL_REQUEST" = "false" ]] ; then
-    cd ..
     source .ci/setup-ssh.sh || travis_terminate 1
     source .ci/generateDocumentation.sh || travis_terminate 1
   fi

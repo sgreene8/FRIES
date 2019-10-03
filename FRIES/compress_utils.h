@@ -142,7 +142,7 @@ double seed_sys(double *norms, double *rn, unsigned int n_samp);
  * preserved exactly
  */
 double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
-                     double (*sub_weights)[n_sub], int (*keep_idx)[n_sub],
+                     double sub_weights[][n_sub], int keep_idx[][n_sub],
                      size_t count, unsigned int *n_samp, double *wt_remain);
 
 
@@ -179,10 +179,10 @@ double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
  * \return Number of elements in compressed vector
  */
 size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
-               double (*sub_weights)[n_sub], int (*keep_idx)[n_sub],
+               double sub_weights[][n_sub], int keep_idx[][n_sub],
                size_t count, unsigned int n_samp, double *wt_remain,
                double *loc_norms, double rand_num, double *new_vals,
-               size_t (*new_idx)[2]);
+               size_t new_idx[][2]);
 
 
 /*! \brief Perform systematic compression with exact preservation on a vector
@@ -216,9 +216,9 @@ size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
  * \return number of elements in the compressed array (at most n_samp)
  */
 size_t comp_sub(double *values, size_t count, unsigned int *n_div, size_t n_sub,
-                double (*sub_weights)[n_sub], int (*keep_idx)[n_sub],
+                double sub_weights[][n_sub], int keep_idx[][n_sub],
                 unsigned int n_samp, double *wt_remain, double rand_num,
-                double *new_vals, size_t (*new_idx)[2]);
+                double *new_vals, size_t new_idx[][2]);
 
 
 /*! \brief Adjust energy shift to maintain one-norm of solution vector in DMC
