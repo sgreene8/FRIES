@@ -83,8 +83,10 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct);
  * total number of electrons
  * number of sites along one dimension of the lattice
  * dimensionality of the lattice
- * electron-electron interaction term, U
  * imaginary time step (eps)
+ * electron-electron interaction term, U
+ * phonon energy, omega
+ * electron-phonon coupling, lambda
  * HF electronic energy
  *
  * \param [in] hh_path      Path to the file containing the Hubbard-Holstein
@@ -97,17 +99,15 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct);
 
 /*! \brief Load a sparse vector in .txt format from disk
  *
- * This function can read from a number of files that is <= the number of MPI
- * processes
+ * The vector is loaded only onto the 0th MPI process
  *
  * \param [in] prefix       prefix of files containing the vector, including the
  *                          directory. File names should be in the format
- *                          [prefix]dets[i].txt and [prefix]vals[i].txt, where i
- *                          is an index starting at 00
+ *                          [prefix]dets and [prefix]vals
  * \param [out] dets        Array of element indices read in
  * \param [out] vals        Array of element values read in
  * \param [in] type         Data type of the vector
- * \return total number of elements in the vector
+ * \return total number of elements in the vector on this MPI process
  */
 size_t load_vec_txt(const char *prefix, long long *dets, void *vals, dtype type);
 

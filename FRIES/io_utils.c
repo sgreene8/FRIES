@@ -268,44 +268,49 @@ size_t load_vec_txt(const char *prefix, long long *dets, void *vals, dtype type)
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 #endif
     
-    char buffer[100];
-    sprintf(buffer, "%sdets%02d", prefix, my_rank);
-    FILE *file_d = fopen(buffer, "r");
-    if (!file_d) {
-        fprintf(stderr, "Warning: could not find file: %s\n", buffer);
-    }
-    sprintf(buffer, "%svals%02d", prefix, my_rank);
-    FILE *file_v = fopen(buffer, "r");
-    if (!file_v) {
-        fprintf(stderr, "Warning: could not find file: %s\n", buffer);
-    }
-    if (!file_d || !file_v) {
-        return 0;
-    }
-    int num_read_d = 1;
-    int num_read_v = 1;
-    size_t n_dets = 0;
-    
-    if (type == DOUB) {
-        double *val_arr = vals;
-        while (num_read_d == 1 && num_read_v == 1) {
-            num_read_d = fscanf(file_d, "%lld\n", &dets[n_dets]);
-            num_read_v = fscanf(file_v, "%lf\n", &val_arr[n_dets]);
-            n_dets++;
+    if (my_rank == 0) {
+        char buffer[100];
+        sprintf(buffer, "%sdets", prefix);
+        FILE *file_d = fopen(buffer, "r");
+        if (!file_d) {
+            fprintf(stderr, "Warning: could not find file: %s\n", buffer);
         }
-    }
-    else if (type == INT) {
-        int *val_arr = vals;
-        while (num_read_d == 1 && num_read_v == 1) {
-            num_read_d = fscanf(file_d, "%lld\n", &dets[n_dets]);
-            num_read_v = fscanf(file_v, "%d\n", &val_arr[n_dets]);
-            n_dets++;
+        sprintf(buffer, "%svals", prefix);
+        FILE *file_v = fopen(buffer, "r");
+        if (!file_v) {
+            fprintf(stderr, "Warning: could not find file: %s\n", buffer);
         }
+        if (!file_d || !file_v) {
+            return 0;
+        }
+        int num_read_d = 1;
+        int num_read_v = 1;
+        size_t n_dets = 0;
+        
+        if (type == DOUB) {
+            double *val_arr = vals;
+            while (num_read_d == 1 && num_read_v == 1) {
+                num_read_d = fscanf(file_d, "%lld\n", &dets[n_dets]);
+                num_read_v = fscanf(file_v, "%lf\n", &val_arr[n_dets]);
+                n_dets++;
+            }
+        }
+        else if (type == INT) {
+            int *val_arr = vals;
+            while (num_read_d == 1 && num_read_v == 1) {
+                num_read_d = fscanf(file_d, "%lld\n", &dets[n_dets]);
+                num_read_v = fscanf(file_v, "%d\n", &val_arr[n_dets]);
+                n_dets++;
+            }
+        }
+        else {
+            fprintf(stderr, "Error: data type %d not supported in function load_vec_txt.\n", type);
+        }
+        return --n_dets;
     }
     else {
-        fprintf(stderr, "Error: data type %d not supported in function load_vec_txt.\n", type);
+        return 0;
     }
-    return --n_dets;
 }
 
 
