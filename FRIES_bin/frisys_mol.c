@@ -28,7 +28,8 @@ int main(int argc, const char * argv[]) {
     const char *hf_path = NULL;
     const char *result_dir = "./";
     const char *load_dir = NULL;
-    const char *ini_dir = NULL;
+    const char *ini_path = NULL;
+    const char *trial_path = NULL;
     unsigned int target_nonz = 0;
     unsigned int matr_samp = 0;
     unsigned int max_n_dets = 0;
@@ -44,7 +45,8 @@ int main(int argc, const char * argv[]) {
         OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
         OPT_INTEGER('i', "initiator", &init_thresh, "Magnitude of vector element required to make the corresponding determinant an initiator."),
         OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous systematic FRI calculation (in binary format, see documentation for save_vec())."),
-        OPT_STRING('n', "ini_dir", &ini_dir, "Directory from which to read the initial vector for a new calculation (see documentation for load_vec_txt())."),
+        OPT_STRING('n', "ini_vec", &ini_path, "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets00 and <ini_vec>vals00 and be text files)."),
+        OPT_STRING('t', "trial_vec", &trial_path, "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets00 and <trial_vec>vals00 and be text files)."),
         OPT_END(),
     };
     
@@ -109,8 +111,9 @@ int main(int argc, const char * argv[]) {
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
     
     // Solution vector
-    unsigned int spawn_length = matr_samp * 2 / n_procs;
-    dist_vec *sol_vec = init_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
+    unsigned int spawn_length = matr_samp * 5 / n_procs;
+    size_t adder_size = spawn_length > 1000000 ? 1000000 : spawn_length;
+    dist_vec *sol_vec = init_vec(max_n_dets, adder_size, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
     size_t det_idx;
     
     unsigned char symm_lookup[n_irreps][n_orb + 1];
@@ -166,13 +169,11 @@ int main(int argc, const char * argv[]) {
     if (load_dir) {
         load_vec(sol_vec, load_dir);
     }
-    else if (ini_dir) {
+    else if (ini_path) {
         long long *load_dets = sol_vec->indices;
         double *load_vals = sol_vec->values;
         
-        char buf[100];
-        sprintf(buf, "%sfri_", ini_dir);
-        size_t n_dets = load_vec_txt(buf, load_dets, load_vals, DOUB);
+        size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, DOUB);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
             add_doub(sol_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
@@ -224,8 +225,8 @@ int main(int argc, const char * argv[]) {
         if (load_dir) {
             fprintf(param_f, "Restarting calculation from %s\n", load_dir);
         }
-        else if (ini_dir) {
-            fprintf(param_f, "Initializing calculation from vector at path %s\n", ini_dir);
+        else if (ini_path) {
+            fprintf(param_f, "Initializing calculation from vector files with prefix %s\n", ini_path);
         }
         else {
             fprintf(param_f, "Initializing calculation from HF unit vector\n");
@@ -239,8 +240,8 @@ int main(int argc, const char * argv[]) {
     double *comp_vec2 = malloc(sizeof(double) * spawn_length);
     size_t (*comp_idx)[2] = malloc(sizeof(size_t) * 2 * spawn_length);
     size_t comp_len;
-    size_t *det_indices1 = malloc(sizeof(size_t) * spawn_length);
-    size_t *det_indices2 = malloc(sizeof(size_t) * spawn_length);
+    size_t *det_indices1 = malloc(sizeof(size_t) * 2 * spawn_length);
+    size_t *det_indices2 = &det_indices1[spawn_length];
     unsigned char (*orb_indices1)[4] = malloc(sizeof(char) * 4 * spawn_length);
     unsigned char (*orb_indices2)[4] = malloc(sizeof(char) * 4 * spawn_length);
     unsigned int unocc_symm_cts[n_irreps][2];
@@ -415,13 +416,30 @@ int main(int argc, const char * argv[]) {
         }
         comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, n_subwt, (double (*)[n_subwt])subwt_mem, (int (*)[n_subwt])keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
         
+        // Death/cloning step
+        for (det_idx = 0; det_idx < sol_vec->curr_size; det_idx++) {
+            double *curr_el = doub_at_pos(sol_vec, det_idx);
+            if (*curr_el != 0) {
+                double *diag_el = &(sol_vec->matr_el[det_idx]);
+                unsigned char *occ_orbs = orbs_at_pos(sol_vec, det_idx);
+                if (isnan(*diag_el)) {
+                    *diag_el = diag_matrel(occ_orbs, tot_orb, eris, h_core, n_frz, n_elec) - hf_en;
+                }
+                *curr_el *= 1 - eps * (*diag_el - en_shift);
+                if ((1 - eps * (*diag_el - en_shift)) < 0) {
+                    fprintf(stderr, "Sign flip in diagonal multiplication: eps must be decreased\n");
+                }
+            }
+        }
+        
+        long long *spawn_dets = (long long *)det_indices1;
+        size_t num_added = 0;
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
             weight_idx = comp_idx[samp_idx][0];
             det_idx = det_indices2[weight_idx];
             long long curr_det = sol_vec->indices[det_idx];
             double *curr_el = doub_at_pos(sol_vec, det_idx);
-            long long ini_flag = fabs(*curr_el) > init_thresh;
-            ini_flag <<= 2 * n_orb;
+            int ini_flag = fabs(*curr_el) > init_thresh;
             int el_sign = 1 - 2 * (*curr_el < 0);
             unsigned char *occ_orbs = orbs_at_pos(sol_vec, det_idx);
             if (orb_indices2[weight_idx][0] == 0) { // double excitation
@@ -449,7 +467,10 @@ int main(int argc, const char * argv[]) {
 //                    matr_el *= -eps / p_doub / calc_unnorm_wt(hb_probs, doub_orbs) * el_sign * par_sign * comp_vec2[samp_idx];
                     matr_el *= -eps / p_doub / calc_norm_wt(hb_probs, doub_orbs, occ_orbs, n_elec_unf, curr_det, (unsigned char *)symm_lookup, symm) * el_sign * comp_vec2[samp_idx];
                     matr_el *= doub_det_parity(&curr_det, doub_orbs);
-                    add_doub(sol_vec, curr_det, matr_el, ini_flag);
+                    comp_vec1[num_added] = matr_el;
+                    spawn_dets[num_added] = curr_det;
+                    keep_idx[num_added] = ini_flag;
+                    num_added++;
                 }
             }
             else { // single excitation
@@ -463,24 +484,43 @@ int main(int argc, const char * argv[]) {
                     count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf, n_orb, n_irreps, symm_lookup, symm);
                     unsigned int n_occ = count_sing_allowed(occ_orbs, n_elec_unf, symm, n_orb, unocc_symm_cts);
                     matr_el *= -eps / (1 - p_doub) * n_occ * orb_indices2[weight_idx][3] * el_sign * sing_det_parity(&curr_det, sing_orbs) * comp_vec2[samp_idx];
-                    add_doub(sol_vec, curr_det, matr_el, ini_flag);
+                    comp_vec1[num_added] = matr_el;
+                    spawn_dets[num_added] = curr_det;
+                    keep_idx[num_added] = ini_flag;
+                    num_added++;
                 }
             }
         }
         
-        // Death/cloning step
-        for (det_idx = 0; det_idx < sol_vec->curr_size; det_idx++) {
-            double *curr_el = doub_at_pos(sol_vec, det_idx);
-            if (*curr_el != 0) {
-                double *diag_el = &(sol_vec->matr_el[det_idx]);
-                unsigned char *occ_orbs = orbs_at_pos(sol_vec, det_idx);
-                if (isnan(*diag_el)) {
-                    *diag_el = diag_matrel(occ_orbs, tot_orb, eris, h_core, n_frz, n_elec) - hf_en;
+        comp_len = num_added;
+        num_added = 0;
+        int glob_adding = 1;
+        samp_idx = 0;
+        while (glob_adding) {
+            while (samp_idx < comp_len) {
+                if (num_added >= adder_size) {
+                    break;
                 }
-                *curr_el *= 1 - eps * (*diag_el - en_shift);
+                long long ini_flag = keep_idx[num_added] << 2 * n_orb;
+                keep_idx[num_added] = 0;
+                add_doub(sol_vec, spawn_dets[samp_idx], comp_vec1[samp_idx], ini_flag);
+                num_added++;
+                samp_idx++;
             }
+            perform_add(sol_vec, ini_bit);
+            loc_norms[proc_rank] = num_added;
+#ifdef USE_MPI
+            MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+#endif
+            glob_adding = 0;
+            for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+                if (loc_norms[proc_idx] > 0) {
+                    glob_adding = 1;
+                    break;
+                }
+            }
+            num_added = 0;
         }
-        perform_add(sol_vec, ini_bit);
         
         // Compression step
         unsigned int n_samp = target_nonz;
