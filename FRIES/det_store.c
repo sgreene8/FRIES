@@ -21,14 +21,9 @@ void push(stack_s *buf, size_t val) {
     size_t curr_size = buf->buf_size;
     if (idx == curr_size) {
         // Reallocate storage
-        size_t *new_arr = malloc(sizeof(size_t) * 2 * curr_size);
+        printf("Doubling size of stack\n");
+        buf->storage = realloc(buf->storage, 2 * curr_size);
         buf->buf_size = 2 * curr_size;
-        size_t j;
-        for (j = 0; j < curr_size; j++) {
-            new_arr[j] = buf->storage[j];
-        }
-        free(buf->storage);
-        buf->storage = new_arr;
     }
     buf->storage[idx] = val;
     buf->curr_idx = idx + 1;
