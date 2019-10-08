@@ -72,6 +72,12 @@ hb_info *set_up(unsigned int tot_orb, unsigned int n_orb,
         }
     }
     hb_obj->exch_sqrt = exch_mat;
+    
+    double *diag_part = malloc(sizeof(double) * n_orb);
+    for (j = 0; j < n_orb; j++) {
+        diag_part[j] = sqrt(fabs(eris[j + half_frz][j + half_frz][j + half_frz][j + half_frz]));
+    }
+    hb_obj->diag_sqrt = diag_part;
     return hb_obj;
 }
 
@@ -214,9 +220,14 @@ double calc_u2_probs(hb_info *tens, double *prob_arr, unsigned char o1_orb,
     for (orb_idx = 0; orb_idx < num_u2; orb_idx++) {
         u2_orb = lookup_tabl[u2_irrep][orb_idx + 1];
         if ((same_spin && u2_orb != u1_spinless) || !same_spin) {
-            min_o2_u2 = (o2_spinless < u2_orb) ? o2_spinless : u2_orb;
-            max_o2_u2 = (o2_spinless > u2_orb) ? o2_spinless : u2_orb;
-            prob_arr[orb_idx] = tens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)];
+            if (o2_spinless == u2_orb) {
+                prob_arr[orb_idx] = tens->diag_sqrt[o2_spinless];
+            }
+            else {
+                min_o2_u2 = (o2_spinless < u2_orb) ? o2_spinless : u2_orb;
+                max_o2_u2 = (o2_spinless > u2_orb) ? o2_spinless : u2_orb;
+                prob_arr[orb_idx] = tens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)];
+            }
             norm += prob_arr[orb_idx];
         }
         else {
@@ -350,28 +361,48 @@ double calc_norm_wt(hb_info *tens, unsigned char *orbs, unsigned char *occ,
     for (orb_idx = 0; orb_idx < lookup_tabl[u2_irrep][0]; orb_idx++) {
         symm_orb = lookup_tabl[u2_irrep][orb_idx + 1];
         if ((same_sp && symm_orb != u1) || !same_sp) {
-            min_orb = (o2 < symm_orb) ? o2 : symm_orb;
-            max_orb = (o2 > symm_orb) ? o2 : symm_orb;
-            e2_symm_no1 += tens->exch_sqrt[I_J_TO_TRI(min_orb, max_orb)];
+            if (o2 == symm_orb) {
+                e2_symm_no1 += tens->diag_sqrt[o2];
+            }
+            else {
+                min_orb = (o2 < symm_orb) ? o2 : symm_orb;
+                max_orb = (o2 > symm_orb) ? o2 : symm_orb;
+                e2_symm_no1 += tens->exch_sqrt[I_J_TO_TRI(min_orb, max_orb)];
+            }
         }
         if ((same_sp && symm_orb != u1) || !same_sp) {
-            min_orb = (o1 < symm_orb) ? o1 : symm_orb;
-            max_orb = (o1 > symm_orb) ? o1 : symm_orb;
-            e1_symm_no1 += tens->exch_sqrt[I_J_TO_TRI(min_orb, max_orb)];
+            if (o1 == symm_orb) {
+                e1_symm_no1 += tens->diag_sqrt[o1];
+            }
+            else {
+                min_orb = (o1 < symm_orb) ? o1 : symm_orb;
+                max_orb = (o1 > symm_orb) ? o1 : symm_orb;
+                e1_symm_no1 += tens->exch_sqrt[I_J_TO_TRI(min_orb, max_orb)];
+            }
         }
     }
     
     for (orb_idx = 0; orb_idx < lookup_tabl[u1_irrep][0]; orb_idx++) {
         symm_orb = lookup_tabl[u1_irrep][orb_idx + 1];
         if ((same_sp && symm_orb != u2) || !same_sp) {
-            min_orb = (o2 < symm_orb) ? o2 : symm_orb;
-            max_orb = (o2 > symm_orb) ? o2 : symm_orb;
-            e2_symm_no2 += tens->exch_sqrt[I_J_TO_TRI(min_orb, max_orb)];
+            if (o2 == symm_orb) {
+                e2_symm_no2 += tens->diag_sqrt[o2];
+            }
+            else {
+                min_orb = (o2 < symm_orb) ? o2 : symm_orb;
+                max_orb = (o2 > symm_orb) ? o2 : symm_orb;
+                e2_symm_no2 += tens->exch_sqrt[I_J_TO_TRI(min_orb, max_orb)];
+            }
         }
         if ((same_sp && symm_orb != u2) || !same_sp) {
-            min_orb = (o1 < symm_orb) ? o1 : symm_orb;
-            max_orb = (o1 > symm_orb) ? o1 : symm_orb;
-            e1_symm_no2 += tens->exch_sqrt[I_J_TO_TRI(min_orb, max_orb)];
+            if (o1 == symm_orb) {
+                e1_symm_no2 += tens->diag_sqrt[o1];
+            }
+            else {
+                min_orb = (o1 < symm_orb) ? o1 : symm_orb;
+                max_orb = (o1 > symm_orb) ? o1 : symm_orb;
+                e1_symm_no2 += tens->exch_sqrt[I_J_TO_TRI(min_orb, max_orb)];
+            }
         }
     }
     

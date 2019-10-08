@@ -30,6 +30,7 @@ typedef struct {
     double *d_same; ///< Double-electron components of HB-PP factorization for same spins, stored as a 1-D array of length (n_orb choose 2)
     double *d_diff; ///< Double-electron components of HB-PP factorization for different spins, stored as a 2-D array of dimensions (n_orb x n_orb)
     double *exch_sqrt; ///< Square roots of exchange integrals <ia|ai>, stored as a 1-D array of length (n_orb choose 2)
+    double *diag_sqrt; ///< Square roots of diagonal eris <p p | p p>, length n_orb
 } hb_info;
 
 
