@@ -388,7 +388,7 @@ int main(int argc, const char * argv[]) {
                 unsigned char *occ_tmp = orbs_at_pos(sol_vec, det_idx);
                 orb_indices1[samp_idx][2] = occ_tmp[orb_indices1[samp_idx][2]];
 //                comp_vec2[samp_idx] *= calc_u1_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, sol_vec->indices[det_indices1[samp_idx]]);
-                calc_u1_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, sol_vec->indices[det_indices1[samp_idx]]);
+                calc_u1_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, sol_vec->indices[det_idx]);
             }
             else { // single excitation
                 orb_indices1[samp_idx][3] = orb_indices2[weight_idx][3];
@@ -430,22 +430,6 @@ int main(int argc, const char * argv[]) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
         comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, n_subwt, (double (*)[n_subwt])subwt_mem, (int (*)[n_subwt])keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
-        
-        // Death/cloning step
-        for (det_idx = 0; det_idx < sol_vec->curr_size; det_idx++) {
-            double *curr_el = doub_at_pos(sol_vec, det_idx);
-            if (*curr_el != 0) {
-                double *diag_el = &(sol_vec->matr_el[det_idx]);
-                unsigned char *occ_orbs = orbs_at_pos(sol_vec, det_idx);
-                if (isnan(*diag_el)) {
-                    *diag_el = diag_matrel(occ_orbs, tot_orb, eris, h_core, n_frz, n_elec) - hf_en;
-                }
-                *curr_el *= 1 - eps * (*diag_el - en_shift);
-                if ((1 - eps * (*diag_el - en_shift)) < 0) {
-                    fprintf(stderr, "Sign flip in diagonal multiplication: eps must be decreased\n");
-                }
-            }
-        }
         
         long long *spawn_dets = (long long *)det_indices1;
         size_t num_added = 0;
@@ -507,6 +491,19 @@ int main(int argc, const char * argv[]) {
             }
         }
         
+        // Death/cloning step
+        for (det_idx = 0; det_idx < sol_vec->curr_size; det_idx++) {
+            double *curr_el = doub_at_pos(sol_vec, det_idx);
+            if (*curr_el != 0) {
+                double *diag_el = &(sol_vec->matr_el[det_idx]);
+                unsigned char *occ_orbs = orbs_at_pos(sol_vec, det_idx);
+                if (isnan(*diag_el)) {
+                    *diag_el = diag_matrel(occ_orbs, tot_orb, eris, h_core, n_frz, n_elec) - hf_en;
+                }
+                *curr_el *= 1 - eps * (*diag_el - en_shift);
+            }
+        }
+        
         comp_len = num_added;
         num_added = 0;
         int glob_adding = 1;
@@ -516,8 +513,9 @@ int main(int argc, const char * argv[]) {
                 if (num_added >= adder_size) {
                     break;
                 }
-                long long ini_flag = keep_idx[num_added] << 2 * n_orb;
-                keep_idx[num_added] = 0;
+                long long ini_flag = keep_idx[num_added];
+                ini_flag <<= 2 * n_orb;
+                keep_idx[samp_idx] = 0;
                 add_doub(sol_vec, spawn_dets[samp_idx], comp_vec1[samp_idx], ini_flag);
                 num_added++;
                 samp_idx++;
