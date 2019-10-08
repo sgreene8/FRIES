@@ -333,6 +333,10 @@ void load_proc_hash(const char *path, unsigned int *proc_hash) {
     char buffer[100];
     sprintf(buffer, "%shash.dat", path);
     FILE *file_p = fopen(buffer, "rb");
+    if (!file_p) {
+        fprintf(stderr, "Error: could not open saved hash scrambler at %s\n", buffer);
+        return;
+    }
     fread(proc_hash, sizeof(unsigned int), 1000, file_p);
     fclose(file_p);
 }
