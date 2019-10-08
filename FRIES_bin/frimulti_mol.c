@@ -35,7 +35,8 @@ int main(int argc, const char * argv[]) {
     const char *dist_str = NULL;
     const char *result_dir = "./";
     const char *load_dir = NULL;
-    const char *ini_dir = NULL;
+    const char *trial_path = NULL;
+    const char *ini_path = NULL;
     unsigned int target_nonz = 0;
     unsigned int matr_samp = 0;
     unsigned int max_n_dets = 0;
@@ -52,7 +53,8 @@ int main(int argc, const char * argv[]) {
         OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
         OPT_INTEGER('i', "initiator", &init_thresh, "Magnitude of vector element required to make the corresponding determinant an initiator."),
         OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for save_vec())."),
-        OPT_STRING('n', "ini_dir", &ini_dir, "Directory from which to read the initial vector for a new calculation (see documentation for load_vec_txt())."),
+        OPT_STRING('n', "ini_vec", &ini_path, "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)."),
+        OPT_STRING('t', "trial_vec", &trial_path, "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text files)."),
         OPT_END(),
     };
     
@@ -175,18 +177,36 @@ int main(int argc, const char * argv[]) {
     for (det_idx = 0; det_idx < n_hf_doub; det_idx++) {
         hf_hashes[det_idx] = idx_to_hash(sol_vec, hf_dets[det_idx]);
     }
+    char file_path[100];
+    FILE *num_file = NULL;
+    FILE *den_file = NULL;
+    FILE *shift_file = NULL;
+    FILE *norm_file = NULL;
     
     // Initialize solution vector
     if (load_dir) {
         load_vec(sol_vec, load_dir);
+        
+        // load energy shift (see https://stackoverflow.com/questions/13790662/c-read-only-last-line-of-a-file-no-loops)
+        static const long max_len = 20;
+        sprintf(file_path, "%sS.txt", load_dir);
+        shift_file = fopen(file_path, "rb");
+        fseek(shift_file, -max_len, SEEK_END);
+        fread(file_path, max_len, 1, shift_file);
+        fclose(shift_file);
+        shift_file = NULL;
+        
+        file_path[max_len - 1] = '\0';
+        char *last_newline = strrchr(file_path, '\n');
+        char *last_line = last_newline + 1;
+        
+        sscanf(last_line, "%lf", &en_shift);
     }
-    else if (ini_dir) {
+    else if (ini_path) {
         long long *load_dets = sol_vec->indices;
         double *load_vals = sol_vec->values;
         
-        char buf[100];
-        sprintf(buf, "%sfri_", ini_dir);
-        long long n_dets = load_vec_txt(buf, load_dets, load_vals, DOUB);
+        size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, DOUB);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
             add_doub(sol_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
@@ -207,11 +227,6 @@ int main(int argc, const char * argv[]) {
         glob_norm += loc_norms[proc_idx];
     }
     
-    char file_path[100];
-    FILE *num_file = NULL;
-    FILE *den_file = NULL;
-    FILE *shift_file = NULL;
-    FILE *norm_file = NULL;
     if (proc_rank == hf_proc) {
         // Setup output files
         strcpy(file_path, result_dir);
@@ -237,8 +252,8 @@ int main(int argc, const char * argv[]) {
         if (load_dir) {
             fprintf(param_f, "Restarting calculation from %s\n", load_dir);
         }
-        else if (ini_dir) {
-            fprintf(param_f, "Initializing calculation from vector at path %s\n", ini_dir);
+        else if (ini_path) {
+            fprintf(param_f, "Initializing calculation from vector files with prefix %s\n", ini_path);
         }
         else {
             fprintf(param_f, "Initializing calculation from HF unit vector\n");
