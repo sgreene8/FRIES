@@ -1,8 +1,10 @@
 //#define CATCH_CONFIG_MAIN // automatically provideds a main() function
 #define CATCH_CONFIG_RUNNER
 #include "catch.hpp"
+#include "inputs.hpp"
 #include <iostream>
 #include <string>
+#include <string.h>
 
 int main( int argc, char* argv[] )
 {
@@ -28,6 +30,8 @@ int main( int argc, char* argv[] )
     
     if(hf_path.size() > 0)
         std::cout << "hf_path: " << hf_path << std::endl;
+    
+    test_inputs::hf_path = hf_path;
     
     return session.run();
 }
