@@ -409,11 +409,19 @@ void load_vec(dist_vec *vec, const char *path) {
     char buffer[100];
     sprintf(buffer, "%sdets%d.dat", path, my_rank);
     FILE *file_p = fopen(buffer, "rb");
+    if (!file_p) {
+        fprintf(stderr, "Error: could not open saved binary vector file at %s\n", buffer);
+        return;
+    }
     n_dets = fread(vec->indices, sizeof(long long), 10000000, file_p);
     fclose(file_p);
     
     sprintf(buffer, "%svals%d.dat", path, my_rank);
     file_p = fopen(buffer, "rb");
+    if (!file_p) {
+        fprintf(stderr, "Error: could not open saved binary vector file at %s\n", buffer);
+        return;
+    }
     fread(vec->values, el_size, n_dets, file_p);
     fclose(file_p);
     
