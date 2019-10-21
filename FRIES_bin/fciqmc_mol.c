@@ -149,7 +149,7 @@ int main(int argc, const char * argv[]) {
             save_proc_hash(result_dir, proc_scrambler, 2 * n_orb);
         }
 #ifdef USE_MPI
-        MPI_Bcast(&proc_scrambler, 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+        MPI_Bcast(proc_scrambler, 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 #endif
     }
     sol_vec->proc_scrambler = proc_scrambler;

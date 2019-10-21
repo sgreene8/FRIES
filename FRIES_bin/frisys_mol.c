@@ -141,7 +141,7 @@ int main(int argc, const char * argv[]) {
             save_proc_hash(result_dir, proc_scrambler, 2 * n_orb);
         }
 #ifdef USE_MPI
-        MPI_Bcast(&proc_scrambler, 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+        MPI_Bcast(proc_scrambler, 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 #endif
     }
     sol_vec->proc_scrambler = proc_scrambler;
@@ -412,13 +412,18 @@ int main(int argc, const char * argv[]) {
             unsigned char o2_orb = orb_indices1[weight_idx][2];
             orb_indices2[samp_idx][2] = o2_orb; // 2nd occupied orbital (doubles); unoccupied orbital index (singles)
             if (orb_indices2[samp_idx][0] == 0) { // double excitation
-                ndiv_vec[samp_idx] = 0;
                 unsigned char u1_orb = comp_idx[samp_idx][1] + n_orb * (o1_orb / n_orb);
-                orb_indices2[samp_idx][3] = u1_orb;
-//                comp_vec1[samp_idx] *= calc_u2_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, o2_orb, u1_orb, (unsigned char *)symm_lookup, symm, max_n_symm); // not normalizing
-                double u2_norm = calc_u2_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, o2_orb, u1_orb, (unsigned char *)symm_lookup, symm, &max_n_symm);
-                if (u2_norm == 0) {
+                if (sol_vec->indices[det_idx] & (1LL << u1_orb)) {
                     comp_vec1[samp_idx] = 0;
+                }
+                else {
+                    ndiv_vec[samp_idx] = 0;
+                    orb_indices2[samp_idx][3] = u1_orb;
+//                comp_vec1[samp_idx] *= calc_u2_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, o2_orb, u1_orb, (unsigned char *)symm_lookup, symm, max_n_symm); // not normalizing
+                    double u2_norm = calc_u2_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, o2_orb, u1_orb, (unsigned char *)symm_lookup, symm, &max_n_symm);
+                    if (u2_norm == 0) {
+                        comp_vec1[samp_idx] = 0;
+                    }
                 }
             }
             else {
@@ -513,7 +518,7 @@ int main(int argc, const char * argv[]) {
                 if (num_added >= adder_size) {
                     break;
                 }
-                long long ini_flag = keep_idx[num_added];
+                long long ini_flag = keep_idx[samp_idx];
                 ini_flag <<= 2 * n_orb;
                 keep_idx[samp_idx] = 0;
                 add_doub(sol_vec, spawn_dets[samp_idx], comp_vec1[samp_idx], ini_flag);
