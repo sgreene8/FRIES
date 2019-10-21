@@ -16,40 +16,6 @@ unsigned long long hash_fxn(unsigned char *occ_orbs, unsigned int n_elec, unsign
 }
 
 
-void push(stack_s *buf, size_t val) {
-    size_t idx = buf->curr_idx;
-    size_t curr_size = buf->buf_size;
-    if (idx == curr_size) {
-        // Reallocate storage
-        printf("Doubling size of stack\n");
-        buf->storage = realloc(buf->storage, 2 * curr_size);
-        buf->buf_size = 2 * curr_size;
-    }
-    buf->storage[idx] = val;
-    buf->curr_idx = idx + 1;
-}
-
-
-ssize_t pop(stack_s *buf) {
-    size_t idx = buf->curr_idx;
-    if (idx == 0) {
-        return -1;
-    }
-    idx--;
-    buf->curr_idx = idx;
-    return buf->storage[idx];
-}
-
-
-stack_s *setup_stack(size_t buf_size) {
-    stack_s *ret_stack = malloc(sizeof(stack_s));
-    ret_stack->buf_size = buf_size;
-    ret_stack->curr_idx = 0;
-    ret_stack->storage = malloc(sizeof(size_t) * buf_size);
-    return ret_stack;
-}
-
-
 hash_table *setup_ht(size_t table_size, mt_struct *rn_gen, unsigned int rn_len) {
     hash_table *table = malloc(sizeof(hash_table));
     table->length = table_size;

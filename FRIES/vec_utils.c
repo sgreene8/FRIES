@@ -114,7 +114,7 @@ dist_vec *init_vec(size_t size, size_t add_size, mt_struct *rn_ptr, unsigned int
     rt_ptr->max_size = size;
     rt_ptr->curr_size = 0;
     rt_ptr->vec_hash = setup_ht(size, rn_ptr, 2 * n_orb);
-    rt_ptr->vec_stack = setup_stack(1000);
+    rt_ptr->vec_stack = NULL; //setup_stack(1000);
     rt_ptr->tabl = gen_byte_table();
     rt_ptr->n_elec = n_elec;
     rt_ptr->occ_orbs = malloc(sizeof(unsigned char) * size * n_elec);
@@ -267,7 +267,7 @@ void perform_add(dist_vec *vec, long long ini_bit) {
             unsigned long long hash_val = idx_to_hash(vec, new_idx);
             ssize_t *idx_ptr = read_ht(vec->vec_hash, new_idx, hash_val, ini_flag);
             if (idx_ptr && *idx_ptr == -1) {
-                *idx_ptr = pop(vec->vec_stack);
+                *idx_ptr = pop_stack(vec);
                 if (*idx_ptr == -1) {
                     if (vec->curr_size >= vec->max_size) {
                         expand_vector(vec);
@@ -310,7 +310,7 @@ void perform_add(dist_vec *vec, long long ini_bit) {
                 }
             }
             if (delete == 1) {
-                push(vec->vec_stack, *idx_ptr);
+                push_stack(vec, *idx_ptr);
                 del_ht(vec->vec_hash, new_idx, hash_val);
                 vec->n_nonz--;
             }
@@ -321,7 +321,7 @@ void perform_add(dist_vec *vec, long long ini_bit) {
 void del_at_pos(dist_vec *vec, size_t pos) {
     long long idx = vec->indices[pos];
     unsigned long long hash_val = idx_to_hash(vec, idx);
-    push(vec->vec_stack, pos);
+    push_stack(vec, pos);
     del_ht(vec->vec_hash, idx, hash_val);
     vec->n_nonz--;
 }
@@ -487,4 +487,56 @@ void find_neighbors_1D(long long det, unsigned int n_sites, byte_table *table,
     mask ^= (1LL << n_sites);
     neib_bits &= mask; // open boundary conditions
     neighbors[1][0] = gen_orb_list(neib_bits, table, &neighbors[1][1]);
+}
+
+
+void push_stack(dist_vec *vec, size_t idx) {
+    stack_entry *new_entry = malloc(sizeof(stack_entry));
+    new_entry->idx = idx;
+    new_entry->next = vec->vec_stack;
+    vec->vec_stack = new_entry;
+}
+
+ssize_t pop_stack(dist_vec *vec) {
+    if (!vec->vec_stack) {
+        return -1;
+    }
+    stack_entry *head = vec->vec_stack;
+    ssize_t ret_idx = head->idx;
+    vec->vec_stack = head->next;
+    free(head);
+    return ret_idx;
+}
+
+
+void collect_procs(dist_vec *vec) {
+    int n_procs = 1;
+    int proc_idx;
+    int my_rank = 0;
+#ifdef USE_MPI
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+#endif
+    size_t vec_sizes[n_procs];
+    vec_sizes[my_rank] = vec->curr_size;
+#ifdef USE_MPI
+    MPI_Allgather(MPI_IN_PLACE, 0, MPI_UNSIGNED_LONG, vec_sizes, 1, MPI_UNSIGNED_LONG, MPI_COMM_WORLD);
+#endif
+    size_t tot_size = 0;
+    for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        tot_size += vec_sizes[proc_idx];
+    }
+    long long *new_idx;
+    if (tot_size > vec->curr_size) {
+        new_idx = malloc(sizeof(long long) * tot_size);
+    }
+    void *new_vals;
+    unsigned int mpi_type;
+    if (vec->type == DOUB) {
+        new_vals = malloc(sizeof(double) * tot_size);
+        
+    }
+//#ifdef USE_MPI
+    MPI_Allgatherv(vec->indices, vec->curr_size, MPI_LONG_LONG, )
+//#endif
 }

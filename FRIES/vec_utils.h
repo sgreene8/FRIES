@@ -55,7 +55,7 @@ typedef struct {
     size_t max_size; ///< Maximum number of vector elements that can be stored
     size_t curr_size; ///< Current number of vector elements stored
     hash_table *vec_hash; ///< Hash table for quickly finding indices in the \p indices array
-    stack_s *vec_stack; ///< Pointer to stack struct for managing available positions in the indices array
+    stack_entry *vec_stack; ///< Pointer to stack struct for managing available positions in the indices array
     unsigned int *proc_scrambler; ///< Array of random numbers used in the hash function for assigning vector indices to MPI processes
     byte_table *tabl; ///< Struct used to decompose determinant indices into lists of occupied orbitals
     unsigned int n_elec; ///< Number of electrons represented by determinant bit-string indices
@@ -66,6 +66,9 @@ typedef struct {
     adder *my_adder; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
     int n_nonz; /// Current number of nonzero elements in vector
 } dist_vec;
+
+void push_stack(dist_vec *vec, size_t idx);
+ssize_t pop_stack(dist_vec *vec);
 
 
 /*! \brief Set up a dist_vec struct

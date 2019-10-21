@@ -16,39 +16,11 @@
 extern "C" {
 #endif
 
-/*! \brief Stack data structure used to keep track of unused indices in a
- * continuous array of sparse vector indices
- */
-typedef struct {
-    size_t *storage; ///< Array used to store the contents of the stack
-    size_t buf_size; ///< Size of the \p storage array
-    size_t curr_idx; ///< Current number of elements in the stack
-} stack_s;
-
-
-/*! \brief Allocate memory and initialize variables within a stack structure.
- *
- * \param [in] buf_size     Maximum number of elements that can be stored in the
- *                          stack.
- * \return pointer to newly allocated stack structure
- */
-stack_s *setup_stack(size_t buf_size);
-
-
-/*! \brief Insert element into stack
- *
- * \param [in] buf          Stack structure in which to insert
- * \param [in] val          Element to be written
- */
-void push(stack_s *buf, size_t val);
-
-
-/*! \brief Read element from stack
- *
- * \param [in] buf          Stack structure to be read from
- * \return value read from stack, or -1 if stack is empty
- */
-ssize_t pop(stack_s *buf);
+struct stack_entry {
+    size_t idx;
+    struct stack_entry *next;
+};
+typedef struct stack_entry stack_entry;
 
 
 /*! \brief Data structure used to store entries in the hash table
