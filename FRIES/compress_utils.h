@@ -176,7 +176,7 @@ double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
  *                      original (input) vector. The 0th column gives the index
  *                      in the values array, and the 1st gives the index of the
  *                      subdivided element
- * \return Number of elements in compressed vector
+ * \return Number of elements in compressed vector on this processor
  */
 size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
                double sub_weights[][n_sub], int keep_idx[][n_sub],
