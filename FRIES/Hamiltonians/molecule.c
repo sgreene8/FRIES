@@ -126,6 +126,82 @@ size_t doub_ex_symm(long long det, unsigned char *occ_orbs, unsigned int num_ele
 }
 
 
+size_t sing_ex_symm(long long det, unsigned char *occ_orbs, unsigned int num_elec,
+                    unsigned int num_orb, unsigned char res_arr[][2], unsigned char *symm) {
+    unsigned char i, i_orb, a;
+    unsigned int idx = 0;
+    for (i = 0; i < num_elec / 2; i++) { // spin-up excitations
+        i_orb = occ_orbs[i];
+        for (a = 0; a < num_orb; a++) {
+            if (!(det & (1LL << a)) && (symm[i_orb] == symm[a])) {
+                res_arr[idx][0] = i_orb;
+                res_arr[idx][1] = a;
+                idx++;
+            }
+        }
+    }
+    for (i = num_elec / 2; i < num_elec; i++) { // spin-down excitations
+        i_orb = occ_orbs[i];
+        for (a = num_orb; a < 2 * num_orb; a++) {
+            if (!(det & (1LL << a)) && symm[i_orb - num_orb] == symm[a - num_orb]) {
+                res_arr[idx][0] = i_orb;
+                res_arr[idx][1] = a;
+                idx++;
+            }
+        }
+    }
+    return idx;
+}
+
+
+void h_op(dist_vec *vec, unsigned char *symm, unsigned int n_orbs,
+          double (* eris)[n_orbs][n_orbs][n_orbs], double (* h_core)[n_orbs],
+          unsigned char orbs_scratch[][4], unsigned int n_frozen,
+          unsigned int n_elec, double id_fac, double h_fac, double hf_en) {
+    size_t det_idx, ex_idx;
+    unsigned int unf_orbs = n_orbs - n_frozen / 2;
+    long long ini_flag = 1LL << 2 * unf_orbs;
+    if (vec->type != DOUB) {
+        fprintf(stderr, "Error: the h_op() function requires a dist_vec of type DOUB\n");
+        return;
+    }
+    for (det_idx = 0; det_idx < vec->curr_size; det_idx++) {
+        double *curr_el = doub_at_pos(vec, det_idx);
+        long long curr_det = vec->indices[det_idx];
+        if (*curr_el == 0) {
+            continue;
+        }
+        
+        unsigned char *occ_orbs = orbs_at_pos(vec, det_idx);
+        unsigned char (*sing_ex_orbs)[2] = (unsigned char (*)[2])orbs_scratch;
+        size_t n_sing = sing_ex_symm(curr_det, occ_orbs, n_elec, unf_orbs, sing_ex_orbs, symm);
+        for (ex_idx = 0; ex_idx < n_sing; ex_idx++) {
+            double matr_el = sing_matr_el_nosgn(sing_ex_orbs[ex_idx], occ_orbs, n_orbs, eris, h_core, n_frozen, n_elec);
+            long long new_det = curr_det;
+            matr_el *= sing_det_parity(&new_det, sing_ex_orbs[ex_idx]);
+            matr_el *= *curr_el * h_fac;
+            add_doub(vec, new_det, matr_el, ini_flag);
+        }
+        
+        size_t n_doub = doub_ex_symm(curr_det, occ_orbs, n_elec, unf_orbs, orbs_scratch, symm);
+        for (ex_idx = 0; ex_idx < n_doub; ex_idx++) {
+            double matr_el = doub_matr_el_nosgn(orbs_scratch[ex_idx], n_orbs, eris, n_frozen);
+            long long new_det = curr_det;
+            matr_el *= doub_det_parity(&new_det, orbs_scratch[ex_idx]);
+            matr_el *= *curr_el * h_fac ;
+            add_doub(vec, new_det, matr_el, ini_flag);
+        }
+
+        double *diag_el = &(vec->matr_el[det_idx]);
+        if (isnan(*diag_el)) {
+            *diag_el = diag_matrel(occ_orbs, n_orbs, eris, h_core, n_frozen, n_elec) - hf_en;
+        }
+        *curr_el *= (id_fac + h_fac * (*diag_el));
+    }
+    perform_add(vec, ini_flag);
+}
+
+
 size_t count_doub_nosymm(unsigned int num_elec, unsigned int num_orb) {
     unsigned int num_unocc = num_orb - num_elec / 2;
     return num_elec * (num_elec / 2 - 1) * num_unocc * (num_unocc - 1) / 2 +

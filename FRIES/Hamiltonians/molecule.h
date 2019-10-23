@@ -7,7 +7,7 @@
 
 #include <stdio.h>
 #include <FRIES/fci_utils.h>
-
+#include <FRIES/vec_utils.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -71,6 +71,46 @@ double sing_matr_el_nosgn(unsigned char *chosen_orbs, unsigned char *occ_orbs,
  */
 size_t doub_ex_symm(long long det, unsigned char *occ_orbs, unsigned int num_elec,
                     unsigned int num_orb, unsigned char res_arr[][4], unsigned char *symm);
+
+
+/*! \brief Generate all spin- and symmetry-allowed single excitations from a
+ * Slater determinant.
+ *
+ * \param [in] det          Bit string representation of the origin determinant
+ * \param [in] occ_orbs     Array of occupied orbitals in \p det
+ *                          (length \p num_elec)
+ * \param [in] num_elec     Number of occupied orbitals in the determinant
+ * \param [in] num_orb      Number of unfrozen spatial HF orbitals in the basis
+ * \param [out] res_arr     2-d array containing the occupied (0th) and
+ *                          unoccupied (1st) orbitals defining each
+ *                          excitation
+ * \param [in] symm         irrep of each of the orbitals in the HF basis
+ * \return total number of excitations generated
+ */
+size_t sing_ex_symm(long long det, unsigned char *occ_orbs, unsigned int num_elec,
+                    unsigned int num_orb, unsigned char res_arr[][2], unsigned char *symm);
+
+
+/*! \brief Calculate the matrix-vector product (a * I + b * H)v deterministicaly, where I is the identity matrix and a and b are scalars
+ *
+ * \param [in,out] vec      upon return, contains the vector obtained by multiplying by H
+ * \param [in] symm         irrep of each of the orbitals in the HF basis
+ * \param [in] n_orbs       Number of HF spatial orbitals (including frozen)
+ *                          in the basis
+ * \param [in] eris         4-D array of 2-electron integrals in spatial basis
+ * \param [in] h_core       2-D array of 1-electron integrals in spatial basis
+ * \param [in] orbs_scratch     Scratch array for storing the orbitals involved in the excitation
+ *                      (row dimension must be at least max number of excitations from one determinant)
+ * \param [in] n_frozen     Number of core electrons frozen in the calculation
+ * \param [in] n_elec       Number of unfrozen electrons in the system
+ * \param [in] id_fac     The multiple of the identity a in the above formula
+ * \param [in] h_fac    The multiple of the Hamiltonian b in the above formula
+ * \param [in] hf_en    The Hartree-Fock energy to be subtracted off from diagonal elements of the Hamiltonian
+ */
+void h_op(dist_vec *vec, unsigned char *symm, unsigned int n_orbs,
+          double (* eris)[n_orbs][n_orbs][n_orbs], double (* h_core)[n_orbs],
+          unsigned char orbs_scratch[][4], unsigned int n_frozen,
+          unsigned int n_elec, double id_fac, double h_fac, double hf_en);
 
 
 /*! \brief Calculate the HF column of the FCI Hamiltonian

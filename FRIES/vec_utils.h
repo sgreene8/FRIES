@@ -90,6 +90,12 @@ ssize_t pop_stack(dist_vec *vec);
 dist_vec *init_vec(size_t size, size_t add_size, mt_struct *rn_ptr, unsigned int n_orb,
                    unsigned int n_elec, dtype vec_type, int n_sites);
 
+/*! \brief Collect all of the vector elements from other MPI processes and accumulate them in the vectors on all processes
+ *
+ * \param [in, out] vec     A pointer to the dist_vec object on which to perform this operation
+ */
+void collect_procs(dist_vec *vec);
+
 
 /*! \brief Calculate dot product
  *
