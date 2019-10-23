@@ -158,41 +158,47 @@ int main(int argc, const char * argv[]) {
     hf_proc = idx_to_proc(sol_vec, hf_det);
     
     unsigned char tmp_orbs[n_elec_unf];
+    unsigned int max_spawn = 500000; // should scale as max expected # on one determinant
+    unsigned char *spawn_orbs = malloc(sizeof(unsigned char) * 4 * max_spawn);
+    double *spawn_probs = malloc(sizeof(double) * max_spawn);
+    unsigned char (*sing_orbs)[2] = (unsigned char (*)[2]) spawn_orbs;
+    unsigned char (*doub_orbs)[4] = (unsigned char (*)[4]) spawn_orbs;
     
-    long long *trial_dets;
-    double *trial_vals;
+    dist_vec *trial_vec;
     size_t n_trial;
+    size_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
     if (trial_path) { // load trial vector from file
         long long *load_dets = sol_vec->indices;
         double *load_vals = (double *)sol_vec->values;
         
         n_trial = load_vec_txt(trial_path, load_dets, load_vals, DOUB);
-        trial_dets = malloc(sizeof(long long) * n_trial);
+        trial_vec = init_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
+        trial_vec->proc_scrambler = proc_scrambler;
         for (det_idx = 0; det_idx < n_trial; det_idx++) {
-            trial_dets[det_idx] = load_dets[det_idx];
+            add_doub(trial_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
         }
     }
-    else {
-        trial_dets = malloc(sizeof(long long));
-        trial_vals = malloc(sizeof(double));
-        trial_dets[0] = hf_det;
-        trial_vals[0] = 1;
-        n_trial = 1;
+    else { // Otherwise, use HF as trial vector
+        trial_vec = init_vec(n_ex / n_procs, n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
+        trial_vec->proc_scrambler = proc_scrambler;
+        add_doub(trial_vec, hf_det, 1, ini_bit);
+    }
+    perform_add(trial_vec, ini_bit);
+    
+    // Calculate H * trial vector, and accumulate results on each processor
+    h_op(trial_vec, symm, tot_orb, eris, h_core, doub_orbs, n_frz, n_elec_unf, 0, 1, hf_en);
+    collect_procs(trial_vec);
+    unsigned long long htrial_hashes[trial_vec->curr_size];
+    for (det_idx = 0; det_idx < trial_vec->curr_size; det_idx++) {
+        htrial_hashes[det_idx] = idx_to_hash(sol_vec, trial_vec->indices[det_idx]);
     }
     
-    // Calculate HF column vector for energy estimator, and count # single/double excitations
+    // Count # single/double excitations from HF
     gen_orb_list(hf_det, sol_vec->tabl, tmp_orbs);
-    size_t max_num_doub = count_doub_nosymm(n_elec_unf, n_orb);
-    long long *hf_dets = malloc(max_num_doub * sizeof(long long));
-    double *hf_mel = malloc(max_num_doub * sizeof(double));
-    size_t n_hf_doub = gen_hf_ex(hf_det, tmp_orbs, n_elec_unf, tot_orb, symm, eris, n_frz, hf_dets, hf_mel);
+    size_t n_hf_doub = doub_ex_symm(hf_det, tmp_orbs, n_elec_unf, n_orb, doub_orbs, symm);
     size_t n_hf_sing = count_singex(hf_det, tmp_orbs, symm, n_orb, symm_lookup, n_elec_unf);
     double p_doub = (double) n_hf_doub / (n_hf_sing + n_hf_doub);
     
-    unsigned long long hf_hashes[n_hf_doub];
-    for (det_idx = 0; det_idx < n_hf_doub; det_idx++) {
-        hf_hashes[det_idx] = idx_to_hash(sol_vec, hf_dets[det_idx]);
-    }
     size_t walker_idx;
     char file_path[100];
     FILE *walk_file = NULL;
@@ -283,12 +289,6 @@ int main(int argc, const char * argv[]) {
         fclose(param_f);
     }
     
-    unsigned int max_spawn = 500000; // should scale as max expected # on one determinant
-    unsigned char *spawn_orbs = malloc(sizeof(unsigned char) * 4 * max_spawn);
-    double *spawn_probs = malloc(sizeof(double) * max_spawn);
-    unsigned char (*sing_orbs)[2];
-    unsigned char (*doub_orbs)[4];
-    
     hb_info *hb_probs = NULL;
     if (qmc_dist == heat_bath) {
         hb_probs = set_up(tot_orb, n_orb, eris);
@@ -339,8 +339,6 @@ int main(int argc, const char * argv[]) {
                 spawn_probs = realloc(spawn_probs, sizeof(double) * max_spawn);
             }
             
-            doub_orbs = (unsigned char (*)[4]) spawn_orbs;
-            
             if (qmc_dist == near_uni) {
                 n_doub = doub_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_doub, rngen_ptr, doub_orbs, spawn_probs);
             }
@@ -360,7 +358,6 @@ int main(int argc, const char * argv[]) {
                 }
             }
             
-            sing_orbs = (unsigned char (*)[2]) spawn_orbs;
             n_sing = sing_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_sing, rngen_ptr, sing_orbs, spawn_probs);
             
             for (walker_idx = 0; walker_idx < n_sing; walker_idx++) {
@@ -403,7 +400,7 @@ int main(int argc, const char * argv[]) {
         }
         
         // Calculate energy estimate
-        matr_el = vec_dot(sol_vec, hf_dets, hf_mel, n_hf_doub, hf_hashes);
+        matr_el = vec_dot(sol_vec, trial_vec->indices, trial_vec->values, n_hf_doub, htrial_hashes);
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
 #else
