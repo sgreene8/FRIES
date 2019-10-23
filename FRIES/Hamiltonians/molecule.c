@@ -194,7 +194,7 @@ void h_op(dist_vec *vec, unsigned char *symm, unsigned int n_orbs,
 
         double *diag_el = &(vec->matr_el[det_idx]);
         if (isnan(*diag_el)) {
-            *diag_el = diag_matrel(occ_orbs, n_orbs, eris, h_core, n_frozen, n_elec) - hf_en;
+            *diag_el = diag_matrel(occ_orbs, n_orbs, eris, h_core, n_frozen, n_elec + n_frozen) - hf_en;
         }
         *curr_el *= (id_fac + h_fac * (*diag_el));
     }
