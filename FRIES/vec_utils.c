@@ -517,34 +517,42 @@ ssize_t pop_stack(dist_vec *vec) {
 }
 
 
-void collect_procs(dist_vec *vec) {
-    int n_procs = 1;
-    int proc_idx;
-    int my_rank = 0;
-#ifdef USE_MPI
-    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-#endif
-    size_t vec_sizes[n_procs];
-    vec_sizes[my_rank] = vec->curr_size;
-#ifdef USE_MPI
-    MPI_Allgather(MPI_IN_PLACE, 0, MPI_UNSIGNED_LONG, vec_sizes, 1, MPI_UNSIGNED_LONG, MPI_COMM_WORLD);
-#endif
-    size_t tot_size = 0;
-    for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-        tot_size += vec_sizes[proc_idx];
-    }
-    long long *new_idx;
-    if (tot_size > vec->curr_size) {
-        new_idx = malloc(sizeof(long long) * tot_size);
-    }
-    void *new_vals;
-    unsigned int mpi_type;
-    if (vec->type == DOUB) {
-        new_vals = malloc(sizeof(double) * tot_size);
-        
-    }
+//void collect_procs(dist_vec *vec) {
+//    int n_procs = 1;
+//    int proc_idx;
+//    int my_rank = 0;
 //#ifdef USE_MPI
-    MPI_Allgatherv(vec->indices, vec->curr_size, MPI_LONG_LONG, )
+//    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+//    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 //#endif
-}
+//    size_t vec_sizes[n_procs];
+//    vec_sizes[my_rank] = vec->curr_size;
+//#ifdef USE_MPI
+//    MPI_Allgather(MPI_IN_PLACE, 0, MPI_UNSIGNED_LONG, vec_sizes, 1, MPI_UNSIGNED_LONG, MPI_COMM_WORLD);
+//#endif
+//    size_t tot_size = 0;
+//    for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+//        tot_size += vec_sizes[proc_idx];
+//    }
+//    size_t el_size;
+//    unsigned int mpi_type;
+//    if (vec->type == DOUB) {
+//        el_size = sizeof(double);
+//#ifdef USE_MPI
+//        mpi_type = MPI_DOUBLE;
+//#endif
+//    }
+//    else if (vec->type == INT) {
+//        el_size = sizeof(int);
+//#ifdef USE_MPI
+//        mpi_type = MPI_INT;
+//#endif
+//    }
+//    if (tot_size > vec->max_size) {
+//        vec->indices = realloc(vec->indices, sizeof(long long) * tot_size);
+//        vec->values = realloc(vec->values, el_size * tot_size);
+//    }
+////#ifdef USE_MPI
+//    MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, )
+////#endif
+//}
