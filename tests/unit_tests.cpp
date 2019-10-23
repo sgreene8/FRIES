@@ -6,6 +6,8 @@
 #include <string>
 #include <string.h>
 
+std::string test_inputs::hf_path;
+
 int main( int argc, char* argv[] )
 {
     Catch::Session session; // There must be exactly one instance
