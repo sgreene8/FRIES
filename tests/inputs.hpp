@@ -5,6 +5,7 @@
 
 namespace test_inputs {
     extern std::string hf_path;
+    extern std::string out_path;
 }
 
 #endif /* inputs_hpp */

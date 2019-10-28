@@ -4,15 +4,17 @@
  */
 
 #include "catch.hpp"
+#include "inputs.hpp"
 #include <stdio.h>
-#include <FRIES/compress_utils.h>
+#include <FRIES/compress_utils.hpp>
 
 TEST_CASE("Test alias method", "[alias]") {
+    using namespace test_inputs;
     double probs[] = {0.10125, 0.05625, 0.0875 , 0.03   , 0.095  , 0.05375, 0.095  ,
         0.0875 , 0.0625 , 0.33125};
     unsigned int n_states = 10;
     unsigned int n_samp = 10;
-    unsigned int n_iter = 100;
+    unsigned int n_iter = 10000;
 
     double alias_probs[n_states];
     unsigned int aliases[n_states];
@@ -24,11 +26,10 @@ TEST_CASE("Test alias method", "[alias]") {
 
     unsigned int cumu_samp[n_states];
     unsigned int iter_idx, samp_idx;
-    FILE *cumu_f = fopen("test_results/alias.txt", "w");
+    char buf[200];
+    sprintf(buf, "%s/alias.txt", out_path.c_str());
+    FILE *cumu_f = fopen(buf, "w");
     REQUIRE(cumu_f != NULL);
-    if (cumu_f == NULL) {
-        return;
-    }
     for (samp_idx = 0; samp_idx < n_states; samp_idx++) {
         cumu_samp[samp_idx] = 0;
     }
@@ -39,7 +40,7 @@ TEST_CASE("Test alias method", "[alias]") {
             cumu_samp[samples[samp_idx]]++;
         }
         for (samp_idx = 0; samp_idx < n_states; samp_idx++) {
-            fprintf(cumu_f, "%lf,", cumu_samp[samp_idx] / (iter_idx + 1.) - probs[samp_idx]);
+            fprintf(cumu_f, "%lf,", cumu_samp[samp_idx] / (iter_idx + 1.) / n_samp - probs[samp_idx]);
         }
         fprintf(cumu_f, "\n");
     }
@@ -47,7 +48,7 @@ TEST_CASE("Test alias method", "[alias]") {
     double max_diff = 0;
     double difference;
     for (samp_idx = 0; samp_idx < n_states; samp_idx++) {
-        difference = fabs(cumu_samp[samp_idx] / 1. / n_iter - probs[samp_idx]);
+        difference = fabs(cumu_samp[samp_idx] / 1. / n_samp / n_iter - probs[samp_idx]);
         if (difference > max_diff) {
             max_diff = difference;
         }
