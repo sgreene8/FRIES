@@ -32,7 +32,7 @@ void print_symm_lookup(unsigned int n_orb, unsigned int n_symm,
     for (idx = 0; idx < n_symm; idx++) {
         printf("%u: ", idx);
         for (orb_idx = 0; orb_idx < lookup_tabl(idx, 0); orb_idx++) {
-            printf("%u, ", lookup_tabl(idx, 1 + orb_idx);
+            printf("%u, ", lookup_tabl(idx, 1 + orb_idx));
         }
         printf("\n");
     }
