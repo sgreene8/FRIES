@@ -8,13 +8,13 @@ before_install:
 script: 
 - mkdir build
 - cd build
-- cmake .. -DCMAKE_INSTALL_PREFIX=~/local -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang
+- cmake .. -DCMAKE_INSTALL_PREFIX=~/local
 - make install
 - ctest
 - cd ..
 - mkdir build_examples
 - cd build_examples
-- cmake ../examples -DCMAKE_INSTALL_PREFIX=~/local -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang
+- cmake ../examples -DCMAKE_INSTALL_PREFIX=~/local
 - make
 - ./compress_1D
 - cd ..
