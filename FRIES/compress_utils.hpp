@@ -14,10 +14,11 @@
 #include <FRIES/mpi_switch.h>
 #include <FRIES/det_store.h>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
+#include <FRIES/ndarr.hpp>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+//#ifdef __cplusplus
+//extern "C" {
+//#endif
 
 /*! \brief Round a non-integral number binomially.
  *
@@ -142,7 +143,7 @@ double seed_sys(double *norms, double *rn, unsigned int n_samp);
  * preserved exactly
  */
 double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
-                     double sub_weights[][n_sub], int keep_idx[][n_sub],
+                     const Matrix<double> &sub_weights, Matrix<int> &keep_idx,
                      size_t count, unsigned int *n_samp, double *wt_remain);
 
 
@@ -179,7 +180,7 @@ double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
  * \return Number of elements in compressed vector on this processor
  */
 size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
-               double sub_weights[][n_sub], int keep_idx[][n_sub],
+               const Matrix<double> &sub_weights, Matrix<int> &keep_idx,
                size_t count, unsigned int n_samp, double *wt_remain,
                double *loc_norms, double rand_num, double *new_vals,
                size_t new_idx[][2]);
@@ -216,7 +217,7 @@ size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
  * \return number of elements in the compressed array (at most n_samp)
  */
 size_t comp_sub(double *values, size_t count, unsigned int *n_div, size_t n_sub,
-                double sub_weights[][n_sub], int keep_idx[][n_sub],
+                Matrix<double> &sub_weights, Matrix<int> &keep_idx,
                 unsigned int n_samp, double *wt_remain, double rand_num,
                 double *new_vals, size_t new_idx[][2]);
 
@@ -273,8 +274,8 @@ void sample_alias(unsigned int *aliases, double *alias_probs, size_t n_states,
                   unsigned char *samples, unsigned int n_samp, size_t samp_int,
                   mt_struct *mt_ptr);
 
-#ifdef __cplusplus
-}
-#endif
+//#ifdef __cplusplus
+//}
+//#endif
 
 #endif /* compress_utils_h */

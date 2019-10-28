@@ -3,7 +3,7 @@
  * \brief Utilities for reading/writing data from/to disk.
  */
 
-#include "io_utils.h"
+#include "io_utils.hpp"
 
 size_t read_doub_csv(double *buf, char *fname) {
     int i =  0;
@@ -141,14 +141,15 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     unsigned int tot_orb = in_struct->n_orb + n_frz / 2;
     strcpy(buffer, hf_dir);
     strcat(buffer, "symm.txt");
-    in_struct->symm = malloc(sizeof(unsigned char) * tot_orb);
+    in_struct->symm = (unsigned char *)malloc(sizeof(unsigned char) * tot_orb);
     read_uchar_csv(in_struct->symm, buffer);
     in_struct->symm = &(in_struct->symm[n_frz / 2]);
     
     strcpy(buffer, hf_dir);
     strcat(buffer, "hcore.txt");
-    in_struct->hcore = malloc(sizeof(double) * tot_orb * tot_orb);
-    size_t n_read = read_doub_csv(in_struct->hcore, buffer);
+//    in_struct->hcore = malloc(sizeof(double) * tot_orb * tot_orb);
+    in_struct->hcore = new Matrix<double>(tot_orb, tot_orb);
+    size_t n_read = read_doub_csv(in_struct->hcore->data(), buffer);
     if (n_read < tot_orb * tot_orb) {
         fprintf(stderr, "Error reading values from %s\n", buffer);
         return -1;
@@ -156,8 +157,9 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     
     strcpy(buffer, hf_dir);
     strcat(buffer, "eris.txt");
-    in_struct->eris = malloc(sizeof(double) * tot_orb * tot_orb * tot_orb * tot_orb);
-    n_read = read_doub_csv(in_struct->eris, buffer);
+//    in_struct->eris = (double *) malloc(sizeof(double) * tot_orb * tot_orb * tot_orb * tot_orb);
+    in_struct->eris = new FourDArr(tot_orb, tot_orb, tot_orb, tot_orb);
+    n_read = read_doub_csv(in_struct->eris->data(), buffer);
     if (n_read < tot_orb * tot_orb * tot_orb * tot_orb) {
         fprintf(stderr, "Error reading values from %s\n", buffer);
         return -1;
@@ -288,7 +290,7 @@ size_t load_vec_txt(const char *prefix, long long *dets, void *vals, dtype type)
         size_t n_dets = 0;
         
         if (type == DOUB) {
-            double *val_arr = vals;
+            double *val_arr = (double *)vals;
             while (num_read_d == 1 && num_read_v == 1) {
                 num_read_d = fscanf(file_d, "%lld\n", &dets[n_dets]);
                 num_read_v = fscanf(file_v, "%lf\n", &val_arr[n_dets]);
@@ -296,7 +298,7 @@ size_t load_vec_txt(const char *prefix, long long *dets, void *vals, dtype type)
             }
         }
         else if (type == INT) {
-            int *val_arr = vals;
+            int *val_arr = (int *) vals;
             while (num_read_d == 1 && num_read_v == 1) {
                 num_read_d = fscanf(file_d, "%lld\n", &dets[n_dets]);
                 num_read_v = fscanf(file_v, "%d\n", &val_arr[n_dets]);

@@ -4,7 +4,7 @@
  * framework
  */
 
-#include "compress_utils.h"
+#include "compress_utils.hpp"
 
 
 int round_binomially(double p, unsigned int n, mt_struct *mt_ptr) {
@@ -140,7 +140,7 @@ double seed_sys(double *norms, double *rn, unsigned int n_samp) {
 
 
 double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
-                     double sub_weights[][n_sub], int keep_idx[][n_sub],
+                     const Matrix<double> &sub_weights, Matrix<int> &keep_idx,
                      size_t count, unsigned int *n_samp, double *wt_remain) {
     double loc_one_norm = 0;
     double glob_one_norm = 0;
@@ -298,7 +298,7 @@ void adjust_shift(double *shift, double one_norm, double *last_norm,
 }
 
 size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
-               double sub_weights[][n_sub], int keep_idx[][n_sub],
+               const Matrix<double> &sub_weights, Matrix<int> &keep_idx,
                size_t count, unsigned int n_samp, double *wt_remain,
                double *loc_norms, double rand_num, double *new_vals,
                size_t new_idx[][2]) {
@@ -386,7 +386,7 @@ size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
 
 
 size_t comp_sub(double *values, size_t count, unsigned int *n_div, size_t n_sub,
-                double sub_weights[][n_sub], int keep_idx[][n_sub],
+                Matrix<double> &sub_weights, Matrix<int> &keep_idx,
                 unsigned int n_samp, double *wt_remain, double rand_num,
                 double *new_vals, size_t new_idx[][2]) {
     int proc_rank = 0;

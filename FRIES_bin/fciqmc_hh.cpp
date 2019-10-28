@@ -15,9 +15,9 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
-#include <FRIES/io_utils.h>
+#include <FRIES/io_utils.hpp>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
-#include <FRIES/compress_utils.h>
+#include <FRIES/compress_utils.hpp>
 #include <FRIES/Ext_Libs/argparse.h>
 #define max_iter 1000000
 
@@ -49,7 +49,7 @@ int main(int argc, const char * argv[]) {
     const char *params_path = NULL;
     const char *result_dir = "./";
     const char *load_dir = NULL;
-    const char *ini_dir = NULL;
+    const char *ini_path = NULL;
     unsigned int target_walkers = 0;
     unsigned int max_n_dets = 0;
     unsigned int init_thresh = 0;
@@ -61,7 +61,7 @@ int main(int argc, const char * argv[]) {
         OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
         OPT_INTEGER('i', "initiator", &init_thresh, "Number of walkers on a determinant required to make it an initiator."),
         OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous fciqmc calculation (in binary format, see documentation for save_vec())."),
-        OPT_STRING('n', "ini_dir", &ini_dir, "Directory from which to read the initial vector for a new calculation (vector elements must be integers, see documentation for load_vec_txt())."),
+        OPT_STRING('n', "ini_vec", &ini_path, "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)."),
         OPT_END(),
     };
     
@@ -136,36 +136,36 @@ int main(int argc, const char * argv[]) {
     
     // Solution vector
     unsigned int spawn_length = target_walkers / n_procs / n_procs;
-    dist_vec *sol_vec = init_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec, INT, hub_len);
-    sol_vec->proc_scrambler = proc_scrambler;
+//    dist_vec *sol_vec = init_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec, INT, hub_len);
+    DistVec<int> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec, hub_len, n_procs, INT);
+    sol_vec.proc_scrambler_ = proc_scrambler;
     
     long long neel_det = gen_neel_det_1D(n_orb, n_elec, hub_dim);
-    ref_proc = idx_to_proc(sol_vec, neel_det);
+    ref_proc = sol_vec.idx_to_proc(neel_det);
     size_t walker_idx;
     
     // Initialize solution vector
     if (load_dir) {
-        load_vec(sol_vec, load_dir);
+        sol_vec.load(load_dir);
     }
-    else if (ini_dir) {
-        long long *load_dets = sol_vec->indices;
-        int *load_vals = sol_vec->values;
+    else if (ini_path) {
+        long long *load_dets = sol_vec.indices();
+        int *load_vals = sol_vec[0];
         
-        char buf[100];
-        sprintf(buf, "%sqmc_", ini_dir);
-        size_t n_dets = load_vec_txt(buf, load_dets, load_vals, INT);
+        size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, INT);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
-            add_int(sol_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
+//            add_int(sol_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
+            sol_vec.add(load_dets[det_idx], load_vals[det_idx], ini_bit);
         }
     }
     else {
         if (ref_proc == proc_rank) {
-            add_int(sol_vec, neel_det, 100, ini_bit);
+            sol_vec.add(neel_det, 100, ini_bit);
         }
     }
-    perform_add(sol_vec, ini_bit);
-    loc_norm = local_norm(sol_vec);
+    sol_vec.perform_add(ini_bit);
+    loc_norm = sol_vec.local_norm();
     sum_mpi_d(loc_norm, &glob_norm, proc_rank, n_procs);
     if (load_dir) {
         last_norm = glob_norm;
@@ -206,8 +206,8 @@ int main(int argc, const char * argv[]) {
         if (load_dir) {
             fprintf(param_f, "Restarting calculation from %s\n", load_dir);
         }
-        else if (ini_dir) {
-            fprintf(param_f, "Initializing calculation from vector at path %s\n", ini_dir);
+        else if (ini_path) {
+            fprintf(param_f, "Initializing calculation from vector at path %s\n", ini_path);
         }
         else {
             fprintf(param_f, "Initializing calculation from HF unit vector\n");
@@ -216,7 +216,7 @@ int main(int argc, const char * argv[]) {
     }
     
     unsigned int max_spawn = 500000; // should scale as max expected # on one determinant
-    unsigned char (*spawn_orbs)[2] = malloc(sizeof(unsigned char) * 2 * max_spawn);
+    unsigned char (*spawn_orbs)[2] = (unsigned char (*)[2])malloc(sizeof(unsigned char) * 2 * max_spawn);
     
     long long ini_flag;
     unsigned int n_walk, n_success;
@@ -230,9 +230,9 @@ int main(int argc, const char * argv[]) {
     int n_nonz;
     for (iterat = 0; iterat < max_iter; iterat++) {
         n_nonz = 0;
-        for (det_idx = 0; det_idx < sol_vec->curr_size; det_idx++) {
-            int *curr_el = int_at_pos(sol_vec, det_idx);
-            long long curr_det = sol_vec->indices[det_idx];
+        for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
+            int *curr_el = sol_vec[det_idx];
+            long long curr_det = sol_vec.indices()[det_idx];
             n_walk = abs(*curr_el);
             if (n_walk == 0) {
                 continue;
@@ -243,14 +243,16 @@ int main(int argc, const char * argv[]) {
             walk_sign = 1 - ((*curr_el >> (sizeof(int) * 8 - 1)) & 2);
             
             // spawning step
-            unsigned char (*neighb_orbs)[2][n_elec + 1] = (unsigned char (*)[2][n_elec + 1])sol_vec->neighb;
-            matr_el = eps * hub_t * (neighb_orbs[det_idx][0][0] + neighb_orbs[det_idx][1][0]);
+//            unsigned char (*neighb_orbs)[2][n_elec + 1] = (unsigned char (*)[2][n_elec + 1])sol_vec->neighb;
+            const Matrix<unsigned char> &neighb_orbs = sol_vec.neighb();
+//            matr_el = eps * hub_t * (neighb_orbs[det_idx][0][0] + neighb_orbs[det_idx][1][0]);
+            matr_el = eps * hub_t * (neighb_orbs(det_idx, 0) + neighb_orbs(det_idx, n_elec + 1));
             n_success = round_binomially(matr_el, n_walk, rngen_ptr);
             
             if (n_success > max_spawn) {
                 printf("Allocating more memory for spawning\n");
                 max_spawn *= 2;
-                spawn_orbs = realloc(spawn_orbs, sizeof(unsigned char) * 2 * max_spawn);
+                spawn_orbs = (unsigned char (*)[2])realloc(spawn_orbs, sizeof(unsigned char) * 2 * max_spawn);
             }
             
             hub_multin(curr_det, n_elec, neighb_orbs[det_idx], n_success, rngen_ptr, spawn_orbs);
@@ -258,26 +260,27 @@ int main(int argc, const char * argv[]) {
             for (walker_idx = 0; walker_idx < n_success; walker_idx++) {
                 new_det = curr_det ^ (1LL << spawn_orbs[walker_idx][0]) ^ (1LL << spawn_orbs[walker_idx][1]);
                 spawn_walker = -walk_sign;
-                add_int(sol_vec, new_det, spawn_walker, ini_flag);
+                sol_vec.add(new_det, spawn_walker, ini_flag);
             }
             
             // Death/cloning step
-            double *diag_el = &(sol_vec->matr_el[det_idx]);
+//            double *diag_el = &(sol_vec->matr_el[det_idx]);
+            double *diag_el = sol_vec.matr_el_at_pos(det_idx);
             if (isnan(*diag_el)) {
-                *diag_el = hub_diag(curr_det, hub_len, sol_vec->tabl) * hub_u;
+                *diag_el = hub_diag(curr_det, hub_len, sol_vec.tabl()) * hub_u;
             }
             matr_el = (1 - eps * (*diag_el - en_shift - hf_en)) * walk_sign;
             new_val = round_binomially(matr_el, n_walk, rngen_ptr);
-            if (new_val == 0 && sol_vec->indices[det_idx] != neel_det) {
-                del_at_pos(sol_vec, det_idx);
+            if (new_val == 0 && sol_vec.indices()[det_idx] != neel_det) {
+                sol_vec.del_at_pos(det_idx);
             }
             *curr_el = new_val;
         }
-        perform_add(sol_vec, ini_bit);
+        sol_vec.perform_add(ini_bit);
         
         // Adjust shift
         if ((iterat + 1) % shift_interval == 0) {
-            loc_norm = local_norm(sol_vec);
+            loc_norm = sol_vec.local_norm();
             sum_mpi_d(loc_norm, &glob_norm, proc_rank, n_procs);
             adjust_shift(&en_shift, glob_norm, &last_norm, target_norm, shift_damping / eps / shift_interval);
             sum_mpi_i((int)n_nonz, &glob_nnonz, proc_rank, n_procs);
@@ -289,18 +292,19 @@ int main(int argc, const char * argv[]) {
         }
         
         // Calculate energy estimate
-        matr_el = calc_ref_ovlp(sol_vec->indices, sol_vec->values, sol_vec->curr_size, neel_det, sol_vec->tabl, sol_vec->type);
+        matr_el = calc_ref_ovlp(sol_vec.indices(), sol_vec[0], sol_vec.curr_size(), neel_det, sol_vec.tabl(), sol_vec.type());
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, ref_proc, MPI_COMM_WORLD);
 #else
         recv_nums[0] = matr_el;
 #endif
         if (proc_rank == ref_proc) {
-            double *diag_el = &(sol_vec->matr_el[0]);
+//            double *diag_el = &(sol_vec->matr_el[0]);
+            double *diag_el = sol_vec.matr_el_at_pos(0);
             if (isnan(*diag_el)) {
-                *diag_el = hub_diag(neel_det, hub_len, sol_vec->tabl) * hub_u;
+                *diag_el = hub_diag(neel_det, hub_len, sol_vec.tabl()) * hub_u;
             }
-            int ref_element = ((int *)sol_vec->values)[0];
+            int ref_element = sol_vec[0][0];
             matr_el = *diag_el * ref_element;
             for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
                 matr_el += recv_nums[proc_idx] * hub_t;
@@ -312,7 +316,7 @@ int main(int argc, const char * argv[]) {
         
         // Save vector snapshot to disk
         if ((iterat + 1) % save_interval == 0) {
-            save_vec(sol_vec, result_dir);
+            sol_vec.save(result_dir);
             if (proc_rank == ref_proc) {
                 fflush(num_file);
                 fflush(den_file);
@@ -321,7 +325,7 @@ int main(int argc, const char * argv[]) {
             }
         }
     }
-    save_vec(sol_vec, result_dir);
+    sol_vec.save(result_dir);
     if (proc_rank == ref_proc) {
         fclose(num_file);
         fclose(den_file);

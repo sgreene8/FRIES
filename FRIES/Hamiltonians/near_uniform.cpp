@@ -8,21 +8,21 @@
  * symmetry-allowed orbitals
  */
 
-#include "near_uniform.h"
+#include "near_uniform.hpp"
 
 void gen_symm_lookup(unsigned char *orb_symm, unsigned int n_orb, unsigned int n_symm,
-                     unsigned char lookup_tabl[][n_orb + 1]) {
+                     Matrix<unsigned char> &lookup_tabl) {
     unsigned int idx, count;
     unsigned char symm;
     for (idx = 0; idx < n_symm; idx++) {
-        lookup_tabl[idx][0] = 0;
+        lookup_tabl(idx, 0) = 0;
     }
     for (idx = 0; idx < n_orb; idx++) {
         symm = orb_symm[idx];
-        count = lookup_tabl[symm][0];
-        lookup_tabl[symm][1 + count] = idx;
+        count = lookup_tabl(symm, 0);
+        lookup_tabl(symm, 1 + count) = idx;
         count++;
-        lookup_tabl[symm][0] = count;
+        lookup_tabl(symm, 0) = count;
     }
 }
 
@@ -40,12 +40,12 @@ void print_symm_lookup(unsigned int n_orb, unsigned int n_symm,
 
 void count_symm_virt(unsigned int counts[][2], unsigned char *occ_orbs,
                      unsigned int n_elec, unsigned int n_orb, unsigned int n_symm,
-                     unsigned char symm_table[][n_orb + 1],
+                     const Matrix<unsigned char> &symm_table,
                      unsigned char *orb_irreps) {
     unsigned int i;
     for (i = 0; i < n_symm; i++) {
-        counts[i][0] = symm_table[i][0];
-        counts[i][1] = symm_table[i][0];
+        counts[i][0] = symm_table(i, 0);
+        counts[i][1] = symm_table(i, 0);
     }
     for (i = 0; i < n_elec / 2; i++) {
         counts[orb_irreps[occ_orbs[i]]][0] -= 1;
@@ -200,7 +200,7 @@ unsigned int _doub_choose_virt1(orb_pair occ, long long det,
 
 
 unsigned int _doub_choose_virt2(unsigned int spin_shift, long long det,
-                                unsigned char *symm_row,
+                                const unsigned char *symm_row,
                                 unsigned int virt1, unsigned int n_allow,
                                 mt_struct *mt_ptr) {
     // Choose the second virtual orbial uniformly
@@ -220,7 +220,7 @@ unsigned int _doub_choose_virt2(unsigned int spin_shift, long long det,
 
 
 unsigned int doub_multin(long long det, unsigned char *occ_orbs, unsigned int num_elec,
-                         unsigned char *orb_symm, unsigned int num_orb, unsigned char (* lookup_tabl)[num_orb + 1],
+                         unsigned char *orb_symm, unsigned int num_orb, const Matrix<unsigned char> &lookup_tabl,
                          unsigned int (* unocc_sym_counts)[2], unsigned int num_sampl,
                          mt_struct *rn_ptr, unsigned char (* chosen_orbs)[4], double *prob_vec) {
     unsigned int i, a_symm, b_symm, a_spin, b_spin, sym_prod;
@@ -247,7 +247,7 @@ unsigned int doub_multin(long long det, unsigned char *occ_orbs, unsigned int nu
         m_a_b_allow = (unocc_sym_counts[b_symm][b_spin] - (sym_prod == 0 && a_spin == b_spin));
         
         // Choose second unoccupied orbital
-        unocc2 = _doub_choose_virt2(b_spin * num_orb, det, &lookup_tabl[b_symm][0],
+        unocc2 = _doub_choose_virt2(b_spin * num_orb, det, lookup_tabl[b_symm],
                                     unocc1, m_a_b_allow, rn_ptr);
         
         // Calculate probability of choosing this excitation
@@ -284,7 +284,7 @@ unsigned int _sing_choose_occ(unsigned int *counts, unsigned int n_elec, mt_stru
 }
 
 
-unsigned int _sing_choose_virt(long long det, unsigned char *symm_row,
+unsigned int _sing_choose_virt(long long det, const unsigned char *symm_row,
                                unsigned int spin_shift, mt_struct *mt_ptr
                                ) {
 // Uniformly choose a virtual orbital with the specified symmetry
@@ -302,7 +302,7 @@ unsigned int _sing_choose_virt(long long det, unsigned char *symm_row,
 
 
 unsigned int sing_multin(long long det, unsigned char *occ_orbs, unsigned int num_elec,
-                         unsigned char *orb_symm, unsigned int num_orb, unsigned char (* lookup_tabl)[num_orb + 1],
+                         unsigned char *orb_symm, unsigned int num_orb, const Matrix<unsigned char> &lookup_tabl,
                          unsigned int (* unocc_sym_counts)[2], unsigned int num_sampl,
                          mt_struct *rn_ptr, unsigned char (* chosen_orbs)[2], double *prob_vec) {
     unsigned int j, delta_s, num_allowed, occ_orb, occ_symm, occ_spin;

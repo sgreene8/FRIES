@@ -7,11 +7,12 @@
 
 #include <stdio.h>
 #include <FRIES/fci_utils.h>
-#include <FRIES/vec_utils.h>
+#include <FRIES/vec_utils.hpp>
+#include <FRIES/ndarr.hpp>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+//#ifdef __cplusplus
+//extern "C" {
+//#endif
 
 /*! \brief Calculate a double excitation matrix element
  *
@@ -28,7 +29,7 @@ extern "C" {
  * \return calculated matrix element
  */
 double doub_matr_el_nosgn(unsigned char *chosen_orbs, unsigned int n_orbs,
-                          double (* eris)[n_orbs][n_orbs][n_orbs], unsigned int n_frozen);
+                          const FourDArr &eris, unsigned int n_frozen);
 
 
 /*! \brief Calculate a single excitation matrix element
@@ -50,8 +51,8 @@ double doub_matr_el_nosgn(unsigned char *chosen_orbs, unsigned int n_orbs,
  * \return calculated matrix element
  */
 double sing_matr_el_nosgn(unsigned char *chosen_orbs, unsigned char *occ_orbs,
-                          unsigned int n_orbs, double (* eris)[n_orbs][n_orbs][n_orbs],
-                          double (* h_core)[n_orbs], unsigned int n_frozen,
+                          unsigned int n_orbs, const FourDArr &eris,
+                          const Matrix<double> &h_core, unsigned int n_frozen,
                           unsigned int n_elec);
 
 
@@ -107,9 +108,9 @@ size_t sing_ex_symm(long long det, unsigned char *occ_orbs, unsigned int num_ele
  * \param [in] h_fac    The multiple of the Hamiltonian b in the above formula
  * \param [in] hf_en    The Hartree-Fock energy to be subtracted off from diagonal elements of the Hamiltonian
  */
-void h_op(dist_vec *vec, unsigned char *symm, unsigned int n_orbs,
-          double (* eris)[n_orbs][n_orbs][n_orbs], double (* h_core)[n_orbs],
-          unsigned char orbs_scratch[][4], unsigned int n_frozen,
+void h_op(DistVec<double> &vec, unsigned char *symm, unsigned int n_orbs,
+          const FourDArr &eris, const Matrix<double> &h_core,
+          unsigned char *orbs_scratch, unsigned int n_frozen,
           unsigned int n_elec, double id_fac, double h_fac, double hf_en);
 
 
@@ -130,7 +131,7 @@ void h_op(dist_vec *vec, unsigned char *symm, unsigned int n_orbs,
  * \return total number of nonzero elements
  */
 size_t gen_hf_ex(long long hf_det, unsigned char *hf_occ, unsigned int num_elec,
-                 unsigned int n_orb, unsigned char *orb_symm, double (*eris)[n_orb][n_orb][n_orb],
+                 unsigned int n_orb, unsigned char *orb_symm, const FourDArr &eris,
                  unsigned int n_frozen, long long *ex_dets, double *ex_mel);
 
 
@@ -158,7 +159,7 @@ size_t count_doub_nosymm(unsigned int num_elec, unsigned int num_orb);
  * \return number of symmetry-allowed single excitations
  */
 size_t count_singex(long long det, unsigned char *occ_orbs, unsigned char *orb_symm,
-                    unsigned int num_orb, unsigned char (* lookup_tabl)[num_orb + 1],
+                    unsigned int num_orb, const Matrix<unsigned char> &lookup_tabl,
                     unsigned int num_elec);
 
 
@@ -178,12 +179,12 @@ size_t count_singex(long long det, unsigned char *occ_orbs, unsigned char *orb_s
  * \return calculated matrix element
  */
 double diag_matrel(unsigned char *occ_orbs, unsigned int n_orbs,
-                   double (* eris)[n_orbs][n_orbs][n_orbs], double (* h_core)[n_orbs],
+                   const FourDArr &eris, const Matrix<double> &h_core,
                    unsigned int n_frozen, unsigned int n_elec);
 
 
-#ifdef __cplusplus
-}
-#endif
+//#ifdef __cplusplus
+//}
+//#endif
 
 #endif /* molecule_h */

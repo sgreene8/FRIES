@@ -15,11 +15,12 @@
 #include <math.h>
 #include <stdint.h>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
+#include <FRIES/ndarr.hpp>
 
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+//#ifdef __cplusplus
+//extern "C" {
+//#endif
 
 /*! \brief number of irreps in the supported point groups */
 #define n_irreps 8
@@ -47,7 +48,7 @@ typedef struct {
  */
 void gen_symm_lookup(unsigned char *orb_symm, unsigned int n_orb,
                      unsigned int n_symm,
-                     unsigned char lookup_tabl[][n_orb + 1]);
+                     Matrix<unsigned char> &lookup_tabl);
 
 /*! \brief Print the orbitals in the spatial basis with each irrep
  *
@@ -76,7 +77,7 @@ void print_symm_lookup(unsigned int n_orb, unsigned int n_symm,
  */
 void count_symm_virt(unsigned int counts[][2], unsigned char *occ_orbs,
                      unsigned int n_elec, unsigned int n_orb, unsigned int n_symm,
-                     unsigned char (* symm_table)[n_orb + 1],
+                     const Matrix<unsigned char> &symm_table,
                      unsigned char *orb_irreps);
 
 
@@ -124,7 +125,7 @@ unsigned int bin_sample(unsigned int n, double p, mt_struct *rn_ptr);
 unsigned int doub_multin(long long det, unsigned char *occ_orbs,
                          unsigned int num_elec, unsigned char *orb_symm,
                          unsigned int num_orb,
-                         unsigned char (* lookup_tabl)[num_orb + 1],
+                         const Matrix<unsigned char> &lookup_tabl,
                          unsigned int (* unocc_sym_counts)[2],
                          unsigned int num_sampl,
                          mt_struct *rn_ptr, unsigned char (* chosen_orbs)[4],
@@ -162,7 +163,7 @@ unsigned int doub_multin(long long det, unsigned char *occ_orbs,
  *  were null)
  */
 unsigned int sing_multin(long long det, unsigned char *occ_orbs, unsigned int num_elec,
-                         unsigned char *orb_symm, unsigned int num_orb, unsigned char (* lookup_tabl)[num_orb + 1],
+                         unsigned char *orb_symm, unsigned int num_orb, const Matrix<unsigned char> &lookup_tabl,
                          unsigned int (* unocc_sym_counts)[2], unsigned int num_sampl,
                          mt_struct *rn_ptr, unsigned char (* chosen_orbs)[2], double *prob_vec);
 
@@ -255,8 +256,8 @@ unsigned char virt_from_idx(long long det, unsigned char *lookup_row,
                             unsigned char spin_shift, unsigned int index);
  
 
-#ifdef __cplusplus
-}
-#endif
+//#ifdef __cplusplus
+//}
+//#endif
 
 #endif /* near_uniform_h */

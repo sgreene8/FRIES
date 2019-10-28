@@ -9,9 +9,9 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
-#include <FRIES/io_utils.h>
+#include <FRIES/io_utils.hpp>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
-#include <FRIES/compress_utils.h>
+#include <FRIES/compress_utils.hpp>
 #include <FRIES/Ext_Libs/argparse.h>
 #include <FRIES/Hamiltonians/hub_holstein.h>
 #define max_iter 10000
@@ -44,7 +44,7 @@ int main(int argc, const char * argv[]) {
     const char *params_path = NULL;
     const char *result_dir = "./";
     const char *load_dir = NULL;
-    const char *ini_dir = NULL;
+    const char *ini_path = NULL;
     unsigned int target_nonz = 0;
     unsigned int matr_samp = 0;
     unsigned int max_n_dets = 0;
@@ -60,7 +60,7 @@ int main(int argc, const char * argv[]) {
         OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
         OPT_INTEGER('i', "initiator", &init_thresh, "Number of walkers on a determinant required to make it an initiator."),
         OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for save_vec())."),
-        OPT_STRING('n', "ini_dir", &ini_dir, "Directory from which to read the initial vector for a new calculation (see documentation for load_vec_txt())."),
+        OPT_STRING('n', "ini_vec", &ini_path, "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)."),
         OPT_END(),
     };
     
@@ -140,35 +140,34 @@ int main(int argc, const char * argv[]) {
     
     // Solution vector
     unsigned int spawn_length = matr_samp * 2 / n_procs;
-    dist_vec *sol_vec = init_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec, DOUB, hub_len);
-    sol_vec->proc_scrambler = proc_scrambler;
+//    dist_vec *sol_vec = init_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec, DOUB, hub_len);
+    DistVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec, hub_len, n_procs, DOUB);
+    sol_vec.proc_scrambler_ = proc_scrambler;
     
     long long neel_det = gen_neel_det_1D(n_orb, n_elec, hub_dim);
-    ref_proc = idx_to_proc(sol_vec, neel_det);
+    ref_proc = sol_vec.idx_to_proc(neel_det);
     
     // Initialize solution vector
     if (load_dir) {
-        load_vec(sol_vec, load_dir);
+        sol_vec.load(load_dir);
     }
-    else if (ini_dir) {
-        long long *load_dets = sol_vec->indices;
-        int *load_vals = sol_vec->values;
+    else if (ini_path) {
+        long long *load_dets = sol_vec.indices();
+        double *load_vals = sol_vec[0];
         
-        char buf[100];
-        sprintf(buf, "%sfri_", ini_dir);
-        size_t n_dets = load_vec_txt(buf, load_dets, load_vals, INT);
+        size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, INT);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
-            add_doub(sol_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
+            sol_vec.add(load_dets[det_idx], load_vals[det_idx], ini_bit);
         }
     }
     else {
         if (ref_proc == proc_rank) {
-            add_doub(sol_vec, neel_det, 100, ini_bit);
+            sol_vec.add(neel_det, 100, ini_bit);
         }
     }
-    perform_add(sol_vec, ini_bit);
-    loc_norm = local_norm(sol_vec);
+    sol_vec.perform_add(ini_bit);
+    loc_norm = sol_vec.local_norm();
     sum_mpi_d(loc_norm, &glob_norm, proc_rank, n_procs);
     if (load_dir) {
         last_one_norm = glob_norm;
@@ -205,8 +204,8 @@ int main(int argc, const char * argv[]) {
         if (load_dir) {
             fprintf(param_f, "Restarting calculation from %s\n", load_dir);
         }
-        else if (ini_dir) {
-            fprintf(param_f, "Initializing calculation from vector at path %s\n", ini_dir);
+        else if (ini_path) {
+            fprintf(param_f, "Initializing calculation from vector at path %s\n", ini_path);
         }
         else {
             fprintf(param_f, "Initializing calculation from HF unit vector\n");
@@ -214,26 +213,28 @@ int main(int argc, const char * argv[]) {
         fclose(param_f);
     }
     
-    double *comp_vec1 = malloc(sizeof(double) * spawn_length);
-    double *comp_vec2 = malloc(sizeof(double) * spawn_length);
-    size_t (*comp_idx)[2] = malloc(sizeof(size_t) * 2 * spawn_length);
-    unsigned int *ndiv_vec = malloc(sizeof(unsigned int) * spawn_length);
-    int *keep_idx = calloc(spawn_length, sizeof(int));
-    double *wt_remain = calloc(spawn_length, sizeof(double));
+    double *comp_vec1 = (double *)malloc(sizeof(double) * spawn_length);
+    double *comp_vec2 = (double *)malloc(sizeof(double) * spawn_length);
+    size_t (*comp_idx)[2] = (size_t (*)[2])malloc(sizeof(size_t) * 2 * spawn_length);
+    unsigned int *ndiv_vec = (unsigned int *)malloc(sizeof(unsigned int) * spawn_length);
+//    int *keep_idx = calloc(spawn_length, sizeof(int));
+    Matrix<int> keep_idx(spawn_length, 2);
+    double *wt_remain = (double *)calloc(spawn_length, sizeof(double));
     size_t n_subwt;
     size_t comp_len;
     size_t samp_idx, weight_idx;
+    Matrix<double> subwt_mem(0, 0);
     
     // Parameters for systematic sampling
     double rn_sys = 0;
     double weight;
     int glob_n_nonz; // Number of nonzero elements in whole vector (across all processors)
     double loc_norms[n_procs];
-    size_t *srt_arr = malloc(sizeof(size_t) * max_n_dets);
+    size_t *srt_arr = (size_t *)malloc(sizeof(size_t) * max_n_dets);
     for (det_idx = 0; det_idx < max_n_dets; det_idx++) {
         srt_arr[det_idx] = det_idx;
     }
-    int *keep_exact = calloc(max_n_dets, sizeof(int));
+    int *keep_exact = (int *)calloc(max_n_dets, sizeof(int));
     
     long long ini_flag;
     long long new_det;
@@ -241,21 +242,23 @@ int main(int argc, const char * argv[]) {
     double recv_nums[n_procs];
     
     unsigned int iterat;
-    unsigned char (*neighb_orbs)[2][n_elec + 1] = (unsigned char (*)[2][n_elec + 1])sol_vec->neighb;
+//    unsigned char (*neighb_orbs)[2][n_elec + 1] = (unsigned char (*)[2][n_elec + 1])sol_vec->neighb;
+    const Matrix<unsigned char> &neighb_orbs = sol_vec.neighb();
     for (iterat = 0; iterat < max_iter; iterat++) {
-        sum_mpi_i(sol_vec->n_nonz, &glob_n_nonz, proc_rank, n_procs);
+        sum_mpi_i(sol_vec.n_nonz(), &glob_n_nonz, proc_rank, n_procs);
         
         // Systematic matrix compression
         if (glob_n_nonz > matr_samp) {
             fprintf(stderr, "Warning: target number of matrix samples (%u) is less than number of nonzero vector elements (%d)\n", matr_samp, glob_n_nonz);
         }
         n_subwt = 1;
-        for (det_idx = 0; det_idx < sol_vec->curr_size; det_idx++) {
-            double *curr_el = doub_at_pos(sol_vec, det_idx);
+        keep_idx.reshape(1);
+        for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
+            double *curr_el = sol_vec[det_idx];
             weight = fabs(*curr_el);
             comp_vec1[det_idx] = weight;
             if (weight > 0) {
-                ndiv_vec[det_idx] = neighb_orbs[det_idx][0][0] + neighb_orbs[det_idx][1][0];
+                ndiv_vec[det_idx] = neighb_orbs(det_idx, 0) + neighb_orbs(det_idx, n_elec + 1);
             }
             else {
                 ndiv_vec[det_idx] = 0;
@@ -264,41 +267,42 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec1, sol_vec->curr_size, ndiv_vec, n_subwt, NULL, (int (*)[n_subwt])keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
+        comp_len = comp_sub(comp_vec1, sol_vec.curr_size(), ndiv_vec, n_subwt, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
         
         unsigned char spawn_orbs[2];
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
             weight_idx = comp_idx[samp_idx][0];
             det_idx = comp_idx[samp_idx][0];
-            double *curr_el = doub_at_pos(sol_vec, det_idx);
-            long long curr_det = sol_vec->indices[det_idx];
+            double *curr_el = sol_vec[det_idx];
+            long long curr_det = sol_vec.indices()[det_idx];
             ini_flag = fabs(*curr_el) > init_thresh;
             ini_flag <<= 2 * n_orb;
             int el_sign = 1 - 2 * signbit(*curr_el);
             
-            matr_el = -eps * hub_t * (neighb_orbs[det_idx][0][0] + neighb_orbs[det_idx][1][0]) * comp_vec2[samp_idx] * el_sign;
+            matr_el = -eps * hub_t * (neighb_orbs(det_idx, 0) + neighb_orbs(det_idx, n_elec + 1)) * comp_vec2[samp_idx] * el_sign;
             idx_to_orbs((unsigned int) comp_idx[samp_idx][1], n_elec, neighb_orbs[det_idx], spawn_orbs);
             new_det = curr_det ^ (1LL << spawn_orbs[0]) ^ (1LL << spawn_orbs[1]);
-            add_doub(sol_vec, new_det, matr_el, ini_flag);
+            sol_vec.add(new_det, matr_el, ini_flag);
         }
         
         // Death/cloning step
-        for (det_idx = 0; det_idx < sol_vec->curr_size; det_idx++) {
-            double *curr_el = doub_at_pos(sol_vec, det_idx);
+        for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
+            double *curr_el = sol_vec[det_idx];
             if (*curr_el != 0) {
-                double *diag_el = &(sol_vec->matr_el[det_idx]);
+//                double *diag_el = &(sol_vec->matr_el[det_idx]);
+                double *diag_el = sol_vec.matr_el_at_pos(det_idx);
                 if (isnan(*diag_el)) {
-                    long long curr_det = sol_vec->indices[det_idx];
-                    *diag_el = hub_diag(curr_det, hub_len, sol_vec->tabl) * hub_u - hf_en;
+                    long long curr_det = sol_vec.indices()[det_idx];
+                    *diag_el = hub_diag(curr_det, hub_len, sol_vec.tabl()) * hub_u - hf_en;
                 }
                 *curr_el *= 1 - eps * (*diag_el - en_shift);
             }
         }
-        perform_add(sol_vec, ini_bit);
+        sol_vec.perform_add(ini_bit);
         
         // Compression step
         unsigned int n_samp = target_nonz;
-        loc_norms[proc_rank] = find_preserve(sol_vec->values, srt_arr, keep_exact, sol_vec->curr_size, &n_samp, &glob_norm);
+        loc_norms[proc_rank] = find_preserve(sol_vec[0], srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
         
         // Adjust shift
         if ((iterat + 1) % shift_interval == 0) {
@@ -310,18 +314,19 @@ int main(int argc, const char * argv[]) {
         }
         
         // Calculate energy estimate
-        matr_el = calc_ref_ovlp(sol_vec->indices, sol_vec->values, sol_vec->curr_size, neel_det, sol_vec->tabl, sol_vec->type);
+        matr_el = calc_ref_ovlp(sol_vec.indices(), sol_vec[0], sol_vec.curr_size(), neel_det, sol_vec.tabl(), sol_vec.type());
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, ref_proc, MPI_COMM_WORLD);
 #else
         recv_nums[0] = matr_el;
 #endif
         if (proc_rank == ref_proc) {
-            double *diag_el = &(sol_vec->matr_el[0]);
+//            double *diag_el = &(sol_vec->matr_el[0]);
+            double *diag_el = sol_vec.matr_el_at_pos(0);
             if (isnan(*diag_el)) {
-                *diag_el = hub_diag(neel_det, hub_len, sol_vec->tabl) * hub_u - hf_en;
+                *diag_el = hub_diag(neel_det, hub_len, sol_vec.tabl()) * hub_u - hf_en;
             }
-            double ref_element = ((double *)sol_vec->values)[0];
+            double ref_element = sol_vec[0][0];
             matr_el = *diag_el * ref_element;
             for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
                 matr_el += recv_nums[proc_idx] * hub_t;
@@ -333,7 +338,7 @@ int main(int argc, const char * argv[]) {
         
         // Save vector snapshot to disk
         if ((iterat + 1) % save_interval == 0) {
-            save_vec(sol_vec, result_dir);
+            sol_vec.save(result_dir);
             if (proc_rank == ref_proc) {
                 fflush(num_file);
                 fflush(den_file);
@@ -342,7 +347,7 @@ int main(int argc, const char * argv[]) {
             }
         }
     }
-    save_vec(sol_vec, result_dir);
+    sol_vec.save(result_dir);
     if (proc_rank == ref_proc) {
         fclose(num_file);
         fclose(den_file);

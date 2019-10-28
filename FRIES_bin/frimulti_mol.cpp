@@ -9,13 +9,13 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
-#include <FRIES/Hamiltonians/near_uniform.h>
-#include <FRIES/io_utils.h>
+#include <FRIES/Hamiltonians/near_uniform.hpp>
+#include <FRIES/io_utils.hpp>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
-#include <FRIES/compress_utils.h>
+#include <FRIES/compress_utils.hpp>
 #include <FRIES/Ext_Libs/argparse.h>
-#include <FRIES/Hamiltonians/heat_bathPP.h>
-#include <FRIES/Hamiltonians/molecule.h>
+#include <FRIES/Hamiltonians/heat_bathPP.hpp>
+#include <FRIES/Hamiltonians/molecule.hpp>
 #define max_iter 10000000
 
 static const char *const usage[] = {
@@ -122,8 +122,10 @@ int main(int argc, const char * argv[]) {
     long long ini_bit = 1LL << (2 * n_orb);
     
     unsigned char *symm = in_data.symm;
-    double (* h_core)[tot_orb] = (double (*)[tot_orb])in_data.hcore;
-    double (* eris)[tot_orb][tot_orb][tot_orb] = (double (*)[tot_orb][tot_orb][tot_orb])in_data.eris;
+//    double (* h_core)[tot_orb] = (double (*)[tot_orb])in_data.hcore;
+    Matrix<double> *h_core = in_data.hcore;
+//    double (* eris)[tot_orb][tot_orb][tot_orb] = (double (*)[tot_orb][tot_orb][tot_orb])in_data.eris;
+    FourDArr *eris = in_data.eris;
     
     // Rn generator
     mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 607, proc_rank, (unsigned int) time(NULL));
@@ -131,10 +133,12 @@ int main(int argc, const char * argv[]) {
     
     // Solution vector
     unsigned int spawn_length = matr_samp * 2 / n_procs / n_procs;
-    dist_vec *sol_vec = init_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
+//    dist_vec *sol_vec = init_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
+    DistVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec_unf, 0, n_procs, DOUB);
     size_t det_idx;
     
-    unsigned char symm_lookup[n_irreps][n_orb + 1];
+//    unsigned char symm_lookup[n_irreps][n_orb + 1];
+    Matrix<unsigned char> symm_lookup(n_irreps, n_orb + 1);
     gen_symm_lookup(symm, n_orb, n_irreps, symm_lookup);
     unsigned int unocc_symm_cts[n_irreps][2];
     
@@ -157,49 +161,53 @@ int main(int argc, const char * argv[]) {
         MPI_Bcast(proc_scrambler, 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 #endif
     }
-    sol_vec->proc_scrambler = proc_scrambler;
+    sol_vec.proc_scrambler_ = proc_scrambler;
     
     long long hf_det = gen_hf_bitstring(n_orb, n_elec - n_frz);
-    hf_proc = idx_to_proc(sol_vec, hf_det);
+    hf_proc = sol_vec.idx_to_proc(hf_det);
     
     unsigned char tmp_orbs[n_elec_unf];
     unsigned int max_spawn = matr_samp; // should scale as max expected # from one determinant
-    unsigned char *spawn_orbs = malloc(sizeof(unsigned char) * 4 * max_spawn);
-    double *spawn_probs = malloc(sizeof(double) * max_spawn);
+    unsigned char *spawn_orbs = (unsigned char *)malloc(sizeof(unsigned char) * 4 * max_spawn);
+//    Matrix<unsigned char> spawn_orbs(max_spawn, 4);
+    double *spawn_probs = (double *) malloc(sizeof(double) * max_spawn);
     unsigned char (*sing_orbs)[2] = (unsigned char (*)[2]) spawn_orbs;
     unsigned char (*doub_orbs)[4] = (unsigned char (*)[4]) spawn_orbs;
     
-    dist_vec *trial_vec;
+//    dist_vec *trial_vec;
     size_t n_trial;
     size_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
+    DistVec<double> trial_vec(n_ex / n_procs, n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, 0, n_procs, DOUB);
+    trial_vec.proc_scrambler_ = proc_scrambler;
     if (trial_path) { // load trial vector from file
-        long long *load_dets = sol_vec->indices;
-        double *load_vals = (double *)sol_vec->values;
+        long long *load_dets = sol_vec.indices();
+        double *load_vals = sol_vec[0];
         
         n_trial = load_vec_txt(trial_path, load_dets, load_vals, DOUB);
-        trial_vec = init_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
-        trial_vec->proc_scrambler = proc_scrambler;
+//        trial_vec = init_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
         for (det_idx = 0; det_idx < n_trial; det_idx++) {
-            add_doub(trial_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
+//            add_doub(trial_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
+            trial_vec.add(load_dets[det_idx], load_vals[det_idx], ini_bit);
         }
     }
     else { // Otherwise, use HF as trial vector
-        trial_vec = init_vec(n_ex / n_procs, n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
-        trial_vec->proc_scrambler = proc_scrambler;
-        add_doub(trial_vec, hf_det, 1, ini_bit);
+//        trial_vec = init_vec(n_ex / n_procs, n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
+        trial_vec.proc_scrambler_ = proc_scrambler;
+//        add_doub(trial_vec, hf_det, 1, ini_bit);
+        trial_vec.add(hf_det, 1, ini_bit);
     }
-    perform_add(trial_vec, ini_bit);
+    trial_vec.perform_add(ini_bit);
     
     // Calculate H * trial vector, and accumulate results on each processor
-    h_op(trial_vec, symm, tot_orb, eris, h_core, doub_orbs, n_frz, n_elec_unf, 0, 1, hf_en);
-    collect_procs(trial_vec);
-    unsigned long long htrial_hashes[trial_vec->curr_size];
-    for (det_idx = 0; det_idx < trial_vec->curr_size; det_idx++) {
-        htrial_hashes[det_idx] = idx_to_hash(sol_vec, trial_vec->indices[det_idx]);
+    h_op(trial_vec, symm, tot_orb, *eris, *h_core, spawn_orbs, n_frz, n_elec_unf, 0, 1, hf_en);
+    trial_vec.collect_procs();
+    unsigned long long htrial_hashes[trial_vec.curr_size()];
+    for (det_idx = 0; det_idx < trial_vec.curr_size(); det_idx++) {
+        htrial_hashes[det_idx] = sol_vec.idx_to_hash(trial_vec.indices()[det_idx]);
     }
     
     // Calculate HF column vector for energy estimator, and count # single/double excitations
-    gen_orb_list(hf_det, sol_vec->tabl, tmp_orbs);
+    gen_orb_list(hf_det, sol_vec.tabl(), tmp_orbs);
     size_t n_hf_doub = doub_ex_symm(hf_det, tmp_orbs, n_elec_unf, n_orb, doub_orbs, symm);
     size_t n_hf_sing = count_singex(hf_det, tmp_orbs, symm, n_orb, symm_lookup, n_elec_unf);
     double p_doub = (double) n_hf_doub / (n_hf_sing + n_hf_doub);
@@ -212,7 +220,7 @@ int main(int argc, const char * argv[]) {
     
     // Initialize solution vector
     if (load_dir) {
-        load_vec(sol_vec, load_dir);
+        sol_vec.load(load_dir);
         
         // load energy shift (see https://stackoverflow.com/questions/13790662/c-read-only-last-line-of-a-file-no-loops)
         static const long max_len = 20;
@@ -230,22 +238,23 @@ int main(int argc, const char * argv[]) {
         sscanf(last_line, "%lf", &en_shift);
     }
     else if (ini_path) {
-        long long *load_dets = sol_vec->indices;
-        double *load_vals = sol_vec->values;
+        long long *load_dets = sol_vec.indices();
+        double *load_vals = sol_vec[0];
         
         size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, DOUB);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
-            add_doub(sol_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
+//            add_doub(sol_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
+            sol_vec.add(load_dets[det_idx], load_vals[det_idx], ini_bit);
         }
     }
     else {
         if (hf_proc == proc_rank) {
-            add_doub(sol_vec, hf_det, 100, ini_bit);
+            sol_vec.add(hf_det, 100, ini_bit);
         }
     }
-    perform_add(sol_vec, ini_bit);
-    loc_norms[proc_rank] = local_norm(sol_vec);
+    sol_vec.perform_add(ini_bit);
+    loc_norms[proc_rank] = sol_vec.local_norm();
 #ifdef USE_MPI
     MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
 #endif
@@ -290,7 +299,7 @@ int main(int argc, const char * argv[]) {
     
     hb_info *hb_probs = NULL;
     if (fri_dist == heat_bath) {
-        hb_probs = set_up(tot_orb, n_orb, eris);
+        hb_probs = set_up(tot_orb, n_orb, *eris);
     }
     
     long long ini_flag;
@@ -305,15 +314,15 @@ int main(int argc, const char * argv[]) {
     double lbound;
     double weight;
     int glob_n_nonz; // Number of nonzero elements in whole vector (across all processors)
-    size_t *srt_arr = malloc(sizeof(size_t) * max_n_dets);
+    size_t *srt_arr = (size_t *)malloc(sizeof(size_t) * max_n_dets);
     for (det_idx = 0; det_idx < max_n_dets; det_idx++) {
         srt_arr[det_idx] = det_idx;
     }
-    int *keep_exact = calloc(max_n_dets, sizeof(int));
+    int *keep_exact = (int *)calloc(max_n_dets, sizeof(int));
     
     unsigned int iterat;
     for (iterat = 0; iterat < max_iter; iterat++) {
-        sum_mpi_i(sol_vec->n_nonz, &glob_n_nonz, proc_rank, n_procs);
+        sum_mpi_i(sol_vec.n_nonz(), &glob_n_nonz, proc_rank, n_procs);
         
         // Systematic sampling to determine number of samples for each column
         if (proc_rank == 0) {
@@ -331,9 +340,10 @@ int main(int argc, const char * argv[]) {
             lbound = 0;
             rn_sys = INFINITY;
         }
-        for (det_idx = 0; det_idx < sol_vec->curr_size; det_idx++) {
-            double *curr_el = doub_at_pos(sol_vec, det_idx);
-            long long curr_det = sol_vec->indices[det_idx];
+        for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
+//            double *curr_el = doub_at_pos(sol_vec, det_idx);
+            double *curr_el = sol_vec[det_idx];
+            long long curr_det = sol_vec.indices()[det_idx];
             weight = fabs(*curr_el);
             if (weight == 0) {
                 continue;
@@ -349,7 +359,7 @@ int main(int argc, const char * argv[]) {
             ini_flag <<= 2 * n_orb;
             
             // spawning step
-            unsigned char *occ_orbs = orbs_at_pos(sol_vec, det_idx);
+            unsigned char *occ_orbs = sol_vec.orbs_at_pos(det_idx);
             count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf,
                             n_orb, n_irreps, symm_lookup, symm);
             n_doub = bin_sample(n_walk, p_doub, rngen_ptr);
@@ -358,50 +368,54 @@ int main(int argc, const char * argv[]) {
             if (n_doub > max_spawn || n_sing / 2 > max_spawn) {
                 printf("Allocating more memory for spawning\n");
                 max_spawn *= 2;
-                spawn_orbs = realloc(spawn_orbs, sizeof(unsigned char) * 4 * max_spawn);
-                spawn_probs = realloc(spawn_probs, sizeof(double) * max_spawn);
+                spawn_orbs = (unsigned char *)realloc(spawn_orbs, sizeof(unsigned char) * 4 * max_spawn);
+//                spawn_orbs.enlarge(max_spawn);
+                spawn_probs = (double *)realloc(spawn_probs, sizeof(double) * max_spawn);
             }
             
+//            spawn_orbs.cols_ = 4;
             if (fri_dist == near_uni) {
                 n_doub = doub_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_doub, rngen_ptr, doub_orbs, spawn_probs);
             }
             else if (fri_dist == heat_bath) {
-                n_doub = hb_doub_multi(curr_det, occ_orbs, n_elec_unf, symm, hb_probs, (unsigned char *)symm_lookup, n_doub, rngen_ptr, doub_orbs, spawn_probs);
+                n_doub = hb_doub_multi(curr_det, occ_orbs, n_elec_unf, symm, hb_probs, symm_lookup, n_doub, rngen_ptr, doub_orbs, spawn_probs);
             }
             
             size_t walker_idx;
             for (walker_idx = 0; walker_idx < n_doub; walker_idx++) {
-                matr_el = doub_matr_el_nosgn(doub_orbs[walker_idx], tot_orb, eris, n_frz);
+                matr_el = doub_matr_el_nosgn(doub_orbs[walker_idx], tot_orb, *eris, n_frz);
                 if (fabs(matr_el) > 1e-9) {
                     new_det = curr_det;
                     matr_el *= -eps / spawn_probs[walker_idx] / p_doub / n_walk * (*curr_el) * doub_det_parity(&new_det, doub_orbs[walker_idx]);
-                    add_doub(sol_vec, new_det, matr_el, ini_flag);
+                    sol_vec.add(new_det, matr_el, ini_flag);
                 }
             }
             
+//            spawn_orbs.cols_ = 2;
             n_sing = sing_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_sing, rngen_ptr, sing_orbs, spawn_probs);
             
             for (walker_idx = 0; walker_idx < n_sing; walker_idx++) {
-                matr_el = sing_matr_el_nosgn(sing_orbs[walker_idx], occ_orbs, tot_orb, eris, h_core, n_frz, n_elec_unf);
+                matr_el = sing_matr_el_nosgn(sing_orbs[walker_idx], occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec_unf);
                 if (fabs(matr_el) > 1e-9) {
                     new_det = curr_det;
                     matr_el *= -eps / spawn_probs[walker_idx] / (1 - p_doub) / n_walk * (*curr_el) * sing_det_parity(&new_det, sing_orbs[walker_idx]);
-                    add_doub(sol_vec, new_det, matr_el, ini_flag);
+                    sol_vec.add(new_det, matr_el, ini_flag);
                 }
             }
             
             // Death/cloning step
-            double *diag_el = &(sol_vec->matr_el[det_idx]);
+//            double *diag_el = &(sol_vec->matr_el[det_idx]);
+            double *diag_el = sol_vec.matr_el_at_pos(det_idx);
             if (isnan(*diag_el)) {
-                *diag_el = diag_matrel(occ_orbs, tot_orb, eris, h_core, n_frz, n_elec) - hf_en;
+                *diag_el = diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
             }
             *curr_el *= 1 - eps * (*diag_el - en_shift);
         }
-        perform_add(sol_vec, ini_bit);
+        sol_vec.perform_add(ini_bit);
         
         // Compression step
         unsigned int n_samp = target_nonz;
-        loc_norms[proc_rank] = find_preserve((double *)sol_vec->values, srt_arr, keep_exact, sol_vec->curr_size, &n_samp, &glob_norm);
+        loc_norms[proc_rank] = find_preserve(sol_vec[0], srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
         
         // Adjust shift
         if ((iterat + 1) % shift_interval == 0) {
@@ -411,7 +425,7 @@ int main(int argc, const char * argv[]) {
                 fprintf(norm_file, "%lf\n", glob_norm);
             }
         }
-        matr_el = vec_dot(sol_vec, trial_vec->indices, trial_vec->values, n_hf_doub, hf_hashes);
+        matr_el = sol_vec.dot(trial_vec.indices(), trial_vec[0], trial_vec.curr_size(), htrial_hashes);
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
 #else
@@ -423,7 +437,7 @@ int main(int argc, const char * argv[]) {
                 matr_el += recv_nums[proc_idx];
             }
             fprintf(num_file, "%lf\n", matr_el);
-            double ref_element = ((double *)sol_vec->values)[0];
+            double ref_element = sol_vec[0][0];
             fprintf(den_file, "%lf\n", ref_element);
             printf("%6u, en est: %lf, shift: %lf, norm: %lf\n", iterat, matr_el / ref_element, en_shift, glob_norm);
         }
@@ -434,16 +448,16 @@ int main(int argc, const char * argv[]) {
 #ifdef USE_MPI
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
 #endif
-        sys_comp(sol_vec->values, sol_vec->curr_size, loc_norms, n_samp, keep_exact, rn_sys);
-        for (det_idx = 0; det_idx < sol_vec->curr_size; det_idx++) {
-            if (keep_exact[det_idx] && sol_vec->indices[det_idx] != hf_det) {
-                del_at_pos(sol_vec, det_idx);
+        sys_comp(sol_vec[0], sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
+        for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
+            if (keep_exact[det_idx] && sol_vec.indices()[det_idx] != hf_det) {
+                sol_vec.del_at_pos(det_idx);
                 keep_exact[det_idx] = 0;
             }
         }
         
         if ((iterat + 1) % save_interval == 0) {
-            save_vec(sol_vec, result_dir);
+            sol_vec.save(result_dir);
             if (proc_rank == hf_proc) {
                 fflush(num_file);
                 fflush(den_file);
@@ -451,7 +465,7 @@ int main(int argc, const char * argv[]) {
             }
         }
     }
-    save_vec(sol_vec, result_dir);
+    sol_vec.save(result_dir);
     if (proc_rank == hf_proc) {
         fclose(num_file);
         fclose(den_file);

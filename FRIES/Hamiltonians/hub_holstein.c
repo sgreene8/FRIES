@@ -8,12 +8,12 @@
 unsigned char gen_orb_list(long long det, byte_table *table, unsigned char *occ_orbs);
 
 
-void hub_multin(long long det, unsigned int n_elec, unsigned char (*neighbors)[n_elec + 1],
+void hub_multin(long long det, unsigned int n_elec, const unsigned char *neighbors,
                 unsigned int num_sampl, mt_struct *rn_ptr, unsigned char (* chosen_orbs)[2]) {
     unsigned int samp_idx, orb_idx;
     unsigned int n_choices;
     for (samp_idx = 0; samp_idx < num_sampl; samp_idx++) {
-        n_choices = neighbors[0][0] + neighbors[1][0];
+        n_choices = neighbors[0] + neighbors[n_elec + 1];
         orb_idx = genrand_mt(rn_ptr) / (1. + UINT32_MAX) * n_choices;
         idx_to_orbs(orb_idx, n_elec, neighbors, chosen_orbs[samp_idx]);
     }
@@ -21,15 +21,15 @@ void hub_multin(long long det, unsigned int n_elec, unsigned char (*neighbors)[n
 
 
 void idx_to_orbs(unsigned int chosen_idx, unsigned int n_elec,
-                 unsigned char (*neighbors)[n_elec + 1], unsigned char *orbs) {
-    if (chosen_idx < neighbors[0][0]) {
-        orbs[0] = neighbors[0][chosen_idx + 1];
-        orbs[1] = neighbors[0][chosen_idx + 1] + 1;
+                 const unsigned char *neighbors, unsigned char *orbs) {
+    if (chosen_idx < neighbors[0]) {
+        orbs[0] = neighbors[chosen_idx + 1];
+        orbs[1] = neighbors[chosen_idx + 1] + 1;
     }
-    else if (chosen_idx < neighbors[0][0] + neighbors[1][0]){
-        chosen_idx -= neighbors[0][0];
-        orbs[0] = neighbors[1][chosen_idx + 1];
-        orbs[1] = neighbors[1][chosen_idx + 1] - 1;
+    else if (chosen_idx < neighbors[0] + neighbors[n_elec + 1]){
+        chosen_idx -= neighbors[0];
+        orbs[0] = neighbors[n_elec + 1 + chosen_idx + 1];
+        orbs[1] = neighbors[n_elec + 1 + chosen_idx + 1] - 1;
     }
     else {
         fprintf(stderr, "Error: Excitation index selected for a Hubbard determinant exceeds the possible number of excitations from that determinant.");
@@ -37,18 +37,18 @@ void idx_to_orbs(unsigned int chosen_idx, unsigned int n_elec,
 }
 
 
-size_t hub_all(long long det, unsigned int n_elec, unsigned char (*neighbors)[n_elec + 1],
+size_t hub_all(long long det, unsigned int n_elec, unsigned char *neighbors,
                unsigned char (* chosen_orbs)[2]) {
     size_t n_ex = 0;
     unsigned int orb_idx;
-    for (orb_idx = 0; orb_idx < neighbors[0][0]; orb_idx++) {
-        chosen_orbs[n_ex][0] = neighbors[0][orb_idx + 1];
-        chosen_orbs[n_ex][1] = neighbors[0][orb_idx + 1] + 1;
+    for (orb_idx = 0; orb_idx < neighbors[0]; orb_idx++) {
+        chosen_orbs[n_ex][0] = neighbors[orb_idx + 1];
+        chosen_orbs[n_ex][1] = neighbors[orb_idx + 1] + 1;
         n_ex++;
     }
-    for (orb_idx = 0; orb_idx < neighbors[1][0]; orb_idx++) {
-        chosen_orbs[n_ex][0] = neighbors[1][orb_idx + 1];
-        chosen_orbs[n_ex][1] = neighbors[1][orb_idx + 1] - 1;
+    for (orb_idx = 0; orb_idx < neighbors[n_elec + 1]; orb_idx++) {
+        chosen_orbs[n_ex][0] = neighbors[n_elec + 1 + orb_idx + 1];
+        chosen_orbs[n_ex][1] = neighbors[n_elec + 1 + orb_idx + 1] - 1;
         n_ex++;
     }
     return n_ex;

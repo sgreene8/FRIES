@@ -2,11 +2,11 @@
  * \brief Utilities for a Hamiltonian describing a molecular system
  */
 
-#include "molecule.h"
+#include "molecule.hpp"
 
 
 double doub_matr_el_nosgn(unsigned char *chosen_orbs, unsigned int n_orbs,
-                          double (* eris)[n_orbs][n_orbs][n_orbs], unsigned int n_frozen) {
+                          const FourDArr &eris, unsigned int n_frozen) {
     unsigned char sp0, sp1, sp2, sp3;
     unsigned int adj_n_orb = n_orbs - n_frozen / 2;
     sp0 = chosen_orbs[0];
@@ -17,39 +17,39 @@ double doub_matr_el_nosgn(unsigned char *chosen_orbs, unsigned int n_orbs,
     sp2 = (chosen_orbs[2] % adj_n_orb) + n_frozen / 2;
     sp3 = (chosen_orbs[3] % adj_n_orb) + n_frozen / 2;
     
-    double mat_el = eris[sp0][sp1][sp2][sp3];
+    double mat_el = eris(sp0, sp1, sp2, sp3);
     if (same_sp)
-    mat_el -= eris[sp0][sp1][sp3][sp2];
+    mat_el -= eris(sp0, sp1, sp3, sp2);
     return mat_el;
 }
 
 
 double sing_matr_el_nosgn(unsigned char *chosen_orbs, unsigned char *occ_orbs,
-                          unsigned int n_orbs, double (* eris)[n_orbs][n_orbs][n_orbs],
-                          double (* h_core)[n_orbs], unsigned int n_frozen,
+                          unsigned int n_orbs, const FourDArr &eris,
+                          const Matrix<double> &h_core, unsigned int n_frozen,
                           unsigned int n_elec) {
     unsigned int half_frz = n_frozen / 2;
     unsigned char occ_spa = (chosen_orbs[0] % (n_orbs - half_frz)) + half_frz;
     unsigned char unocc_spa = (chosen_orbs[1] % (n_orbs - half_frz)) + half_frz;
     unsigned int occ_spin = chosen_orbs[0] / (n_orbs - half_frz);
-    double mat_el = h_core[occ_spa][unocc_spa];
+    double mat_el = h_core(occ_spa, unocc_spa);
     unsigned int j;
     
     for (j = 0; j < half_frz; j++) {
-        mat_el += eris[occ_spa][j][unocc_spa][j] * 2;
+        mat_el += eris(occ_spa, j, unocc_spa, j) * 2;
         // single-count exchange term
-        mat_el -= eris[occ_spa][j][j][unocc_spa];
+        mat_el -= eris(occ_spa, j, j, unocc_spa);
     }
     for (j = 0; j < n_elec / 2; j++) {
-        mat_el += eris[occ_spa][occ_orbs[j] + half_frz][unocc_spa][occ_orbs[j] + half_frz];
+        mat_el += eris(occ_spa, occ_orbs[j] + half_frz, unocc_spa, occ_orbs[j] + half_frz);
         if (occ_spin == 0) {
-            mat_el -= eris[occ_spa][occ_orbs[j] + half_frz][occ_orbs[j] + half_frz][unocc_spa];
+            mat_el -= eris(occ_spa, occ_orbs[j] + half_frz, occ_orbs[j] + half_frz, unocc_spa);
         }
     }
     for (j = n_elec / 2; j < n_elec; j++) {
-        mat_el += eris[occ_spa][occ_orbs[j] - n_orbs + half_frz * 2][unocc_spa][occ_orbs[j] - n_orbs + half_frz * 2];
+        mat_el += eris(occ_spa, occ_orbs[j] - n_orbs + half_frz * 2, unocc_spa, occ_orbs[j] - n_orbs + half_frz * 2);
         if (occ_spin == 1) {
-            mat_el -= eris[occ_spa][occ_orbs[j] - n_orbs + half_frz * 2][occ_orbs[j] - n_orbs + half_frz * 2][unocc_spa];
+            mat_el -= eris(occ_spa, occ_orbs[j] - n_orbs + half_frz * 2, occ_orbs[j] - n_orbs + half_frz * 2, unocc_spa);
         }
     }
     return mat_el;
@@ -154,25 +154,26 @@ size_t sing_ex_symm(long long det, unsigned char *occ_orbs, unsigned int num_ele
 }
 
 
-void h_op(dist_vec *vec, unsigned char *symm, unsigned int n_orbs,
-          double (* eris)[n_orbs][n_orbs][n_orbs], double (* h_core)[n_orbs],
-          unsigned char orbs_scratch[][4], unsigned int n_frozen,
+void h_op(DistVec<double> &vec, unsigned char *symm, unsigned int n_orbs,
+          const FourDArr &eris, const Matrix<double> &h_core,
+          unsigned char *orbs_scratch, unsigned int n_frozen,
           unsigned int n_elec, double id_fac, double h_fac, double hf_en) {
     size_t det_idx, ex_idx;
     unsigned int unf_orbs = n_orbs - n_frozen / 2;
     long long ini_flag = 1LL << 2 * unf_orbs;
-    if (vec->type != DOUB) {
-        fprintf(stderr, "Error: the h_op() function requires a dist_vec of type DOUB\n");
-        return;
-    }
-    for (det_idx = 0; det_idx < vec->curr_size; det_idx++) {
-        double *curr_el = doub_at_pos(vec, det_idx);
-        long long curr_det = vec->indices[det_idx];
+//    if (vec.type != DOUB) {
+//        fprintf(stderr, "Error: the h_op() function requires a dist_vec of type DOUB\n");
+//        return;
+//    }
+    for (det_idx = 0; det_idx < vec.curr_size(); det_idx++) {
+//        double *curr_el = doub_at_pos(vec, det_idx);
+        double *curr_el = vec[det_idx];
+        long long curr_det = vec.indices()[det_idx];
         if (*curr_el == 0) {
             continue;
         }
         
-        unsigned char *occ_orbs = orbs_at_pos(vec, det_idx);
+        unsigned char *occ_orbs = vec.orbs_at_pos(det_idx);
         unsigned char (*sing_ex_orbs)[2] = (unsigned char (*)[2])orbs_scratch;
         size_t n_sing = sing_ex_symm(curr_det, occ_orbs, n_elec, unf_orbs, sing_ex_orbs, symm);
         for (ex_idx = 0; ex_idx < n_sing; ex_idx++) {
@@ -180,25 +181,31 @@ void h_op(dist_vec *vec, unsigned char *symm, unsigned int n_orbs,
             long long new_det = curr_det;
             matr_el *= sing_det_parity(&new_det, sing_ex_orbs[ex_idx]);
             matr_el *= *curr_el * h_fac;
-            add_doub(vec, new_det, matr_el, ini_flag);
+//            add_doub(vec, new_det, matr_el, ini_flag);
+            vec.add(new_det, matr_el, ini_flag);
         }
         
-        size_t n_doub = doub_ex_symm(curr_det, occ_orbs, n_elec, unf_orbs, orbs_scratch, symm);
+//        orbs_scratch.cols_ = 4;
+        unsigned char (*doub_ex_orbs)[4] = (unsigned char (*)[4])orbs_scratch;
+        size_t n_doub = doub_ex_symm(curr_det, occ_orbs, n_elec, unf_orbs, doub_ex_orbs, symm);
         for (ex_idx = 0; ex_idx < n_doub; ex_idx++) {
-            double matr_el = doub_matr_el_nosgn(orbs_scratch[ex_idx], n_orbs, eris, n_frozen);
+            double matr_el = doub_matr_el_nosgn(doub_ex_orbs[ex_idx], n_orbs, eris, n_frozen);
             long long new_det = curr_det;
-            matr_el *= doub_det_parity(&new_det, orbs_scratch[ex_idx]);
-            matr_el *= *curr_el * h_fac ;
-            add_doub(vec, new_det, matr_el, ini_flag);
+            matr_el *= doub_det_parity(&new_det, doub_ex_orbs[ex_idx]);
+            matr_el *= *curr_el * h_fac;
+//            add_doub(vec, new_det, matr_el, ini_flag);
+            vec.add(new_det, matr_el, ini_flag);
         }
 
-        double *diag_el = &(vec->matr_el[det_idx]);
+//        double *diag_el = &(vec->matr_el[det_idx]);
+        double *diag_el = vec.matr_el_at_pos(det_idx);
         if (isnan(*diag_el)) {
             *diag_el = diag_matrel(occ_orbs, n_orbs, eris, h_core, n_frozen, n_elec + n_frozen) - hf_en;
         }
         *curr_el *= (id_fac + h_fac * (*diag_el));
     }
-    perform_add(vec, ini_flag);
+//    perform_add(vec, ini_flag);
+    vec.perform_add(ini_flag);
 }
 
 
@@ -210,18 +217,18 @@ size_t count_doub_nosymm(unsigned int num_elec, unsigned int num_orb) {
 
 
 size_t gen_hf_ex(long long hf_det, unsigned char *hf_occ, unsigned int num_elec,
-                 unsigned int n_orb, unsigned char *orb_symm, double (*eris)[n_orb][n_orb][n_orb],
+                 unsigned int n_orb, unsigned char *orb_symm, const FourDArr &eris,
                  unsigned int n_frozen, long long *ex_dets, double *ex_mel) {
     unsigned int num_unf_orb = n_orb - n_frozen / 2;
     size_t max_n_doub = count_doub_nosymm(num_elec, num_unf_orb);
     unsigned char ex_arr[max_n_doub][4];
+//    Matrix<unsigned char> ex_arr(max_n_doub, 4);
     size_t num_hf_doub = doub_ex_symm(hf_det, hf_occ, num_elec, num_unf_orb, ex_arr, orb_symm);
     size_t idx;
     double matr_el;
     long long new_det;
     for (idx = 0; idx < num_hf_doub; idx++) {
         new_det = hf_det;
-        //        matr_el = doub_matr_el_nosgn(&ex_arr[idx][0], eris, n_frozen, n_orb);
         matr_el = doub_matr_el_nosgn(&ex_arr[idx][0], n_orb, eris, n_frozen);
         matr_el *= doub_det_parity(&new_det, &ex_arr[idx][0]);
         ex_dets[idx] = new_det;
@@ -231,7 +238,7 @@ size_t gen_hf_ex(long long hf_det, unsigned char *hf_occ, unsigned int num_elec,
 }
 
 size_t count_singex(long long det, unsigned char *occ_orbs, unsigned char *orb_symm,
-                    unsigned int num_orb, unsigned char (* lookup_tabl)[num_orb + 1],
+                    unsigned int num_orb, const Matrix<unsigned char> &lookup_tabl,
                     unsigned int num_elec) {
     size_t num_ex = 0;
     unsigned int elec_idx, symm_idx;
@@ -251,48 +258,48 @@ size_t count_singex(long long det, unsigned char *occ_orbs, unsigned char *orb_s
 }
 
 double diag_matrel(unsigned char *occ_orbs, unsigned int n_orbs,
-                   double (* eris)[n_orbs][n_orbs][n_orbs], double (* h_core)[n_orbs],
+                   const FourDArr &eris, const Matrix<double> &h_core,
                    unsigned int n_frozen, unsigned int n_elec) {
     unsigned int j, k, elec_1, elec_2;
     double matr_sum = 0;
     unsigned int n_e_unf = n_elec - n_frozen;
     
     for (j = 0; j < n_frozen / 2; j++) {
-        matr_sum += h_core[j][j] * 2;
-        matr_sum += eris[j][j][j][j];
+        matr_sum += h_core(j, j) * 2;
+        matr_sum += eris(j, j, j, j);
         for (k = j + 1; k < n_frozen / 2; k++) {
-            matr_sum += eris[j][k][j][k] * 4;
-            matr_sum -= eris[j][k][k][j] * 2;
+            matr_sum += eris(j, k, j, k) * 4;
+            matr_sum -= eris(j, k, k, j) * 2;
         }
     }
     for (j = 0; j < n_e_unf / 2; j ++) {
         elec_1 = occ_orbs[j] + n_frozen / 2;
-        matr_sum += h_core[elec_1][elec_1];
+        matr_sum += h_core(elec_1, elec_1);
         for (k = 0; k < n_frozen / 2; k++) {
-            matr_sum += eris[elec_1][k][elec_1][k] * 2;
-            matr_sum -= eris[elec_1][k][k][elec_1];
+            matr_sum += eris(elec_1, k, elec_1, k) * 2;
+            matr_sum -= eris(elec_1, k, k, elec_1);
         }
         for (k = j + 1; k < n_e_unf / 2; k++) {
             elec_2 = occ_orbs[k] + n_frozen / 2;
-            matr_sum += eris[elec_1][elec_2][elec_1][elec_2];
-            matr_sum -= eris[elec_1][elec_2][elec_2][elec_1];
+            matr_sum += eris(elec_1, elec_2, elec_1, elec_2);
+            matr_sum -= eris(elec_1, elec_2, elec_2, elec_1);
         }
         for (k = n_e_unf / 2; k <  n_e_unf; k++) {
             elec_2 = occ_orbs[k] + n_frozen - n_orbs;
-            matr_sum += eris[elec_1][elec_2][elec_1][elec_2];
+            matr_sum += eris(elec_1, elec_2, elec_1, elec_2);
         }
     }
     for (j = n_e_unf / 2; j < n_e_unf; j++) {
         elec_1 = occ_orbs[j] + n_frozen - n_orbs;
-        matr_sum += h_core[elec_1][elec_1];
+        matr_sum += h_core(elec_1, elec_1);
         for (k = 0; k < n_frozen / 2; k++) {
-            matr_sum += eris[elec_1][k][elec_1][k] * 2;
-            matr_sum -= eris[elec_1][k][k][elec_1];
+            matr_sum += eris(elec_1, k, elec_1, k) * 2;
+            matr_sum -= eris(elec_1, k, k, elec_1);
         }
         for (k = j + 1; k < n_e_unf; k++) {
             elec_2 = occ_orbs[k] + n_frozen - n_orbs;
-            matr_sum += eris[elec_1][elec_2][elec_1][elec_2];
-            matr_sum -= eris[elec_1][elec_2][elec_2][elec_1];
+            matr_sum += eris(elec_1, elec_2, elec_1, elec_2);
+            matr_sum -= eris(elec_1, elec_2, elec_2, elec_1);
         }
     }
     return matr_sum;

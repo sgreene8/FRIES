@@ -30,7 +30,7 @@ extern "C" {
  *                          (dimensions \p num_sampl x 2)
  */
 void hub_multin(long long det, unsigned int n_elec,
-                unsigned char neighbors[][n_elec + 1],
+                const unsigned char *neighbors,
                 unsigned int num_sampl, mt_struct *rn_ptr,
                 unsigned char chosen_orbs[][2]);
 
@@ -47,7 +47,7 @@ void hub_multin(long long det, unsigned int n_elec,
  * \return number of excitations
  */
 size_t hub_all(long long det, unsigned int n_elec,
-               unsigned char neighbors[][n_elec + 1],
+               unsigned char *neighbors,
                unsigned char chosen_orbs[][2]);
 
 
@@ -99,7 +99,7 @@ double calc_ref_ovlp(long long *dets, void *vals, size_t n_dets, long long ref_d
  * \param [out] orbs        The orbitals defining the excitation
  */
 void idx_to_orbs(unsigned int chosen_idx, unsigned int n_elec,
-                 unsigned char (*neighbors)[n_elec + 1], unsigned char *orbs);
+                 const unsigned char *neighbors, unsigned char *orbs);
 
 #ifdef __cplusplus
 }

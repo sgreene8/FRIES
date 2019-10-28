@@ -9,13 +9,14 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
-#include <FRIES/Hamiltonians/near_uniform.h>
-#include <FRIES/io_utils.h>
+#include <FRIES/Hamiltonians/near_uniform.hpp>
+#include <FRIES/io_utils.hpp>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
-#include <FRIES/compress_utils.h>
+#include <FRIES/compress_utils.hpp>
 #include <FRIES/Ext_Libs/argparse.h>
-#include <FRIES/Hamiltonians/heat_bathPP.h>
-#include <FRIES/Hamiltonians/molecule.h>
+#include <FRIES/Hamiltonians/heat_bathPP.hpp>
+#include <FRIES/Hamiltonians/molecule.hpp>
+//#include <FRIES/vec_utils.hpp>
 #define max_iter 1000000
 
 static const char *const usage[] = {
@@ -103,8 +104,10 @@ int main(int argc, const char * argv[]) {
     long long ini_bit = 1LL << (2 * n_orb);
     
     unsigned char *symm = in_data.symm;
-    double (* h_core)[tot_orb] = (double (*)[tot_orb])in_data.hcore;
-    double (* eris)[tot_orb][tot_orb][tot_orb] = (double (*)[tot_orb][tot_orb][tot_orb])in_data.eris;
+//    double (* h_core)[tot_orb] = (double (*)[tot_orb])in_data.hcore;
+    Matrix<double> *h_core = in_data.hcore;
+//    double (* eris)[tot_orb][tot_orb][tot_orb] = (double (*)[tot_orb][tot_orb][tot_orb])in_data.eris;
+    FourDArr *eris = in_data.eris;
     
     // Rn generator
     mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, proc_rank, (unsigned int) time(NULL));
@@ -113,10 +116,12 @@ int main(int argc, const char * argv[]) {
     // Solution vector
     unsigned int spawn_length = matr_samp * 5 / n_procs;
     size_t adder_size = spawn_length > 1000000 ? 1000000 : spawn_length;
-    dist_vec *sol_vec = init_vec(max_n_dets, adder_size, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
+//    dist_vec *sol_vec = init_vec(max_n_dets, adder_size, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
+    DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb, n_elec_unf, 0, n_procs, DOUB);
     size_t det_idx;
     
-    unsigned char symm_lookup[n_irreps][n_orb + 1];
+//    unsigned char symm_lookup[n_irreps][n_orb + 1];
+    Matrix<unsigned char> symm_lookup(n_irreps, n_orb + 1);
     gen_symm_lookup(symm, n_orb, n_irreps, symm_lookup);
     unsigned int max_n_symm = 0;
     for (det_idx = 0; det_idx < n_irreps; det_idx++) {
@@ -144,45 +149,49 @@ int main(int argc, const char * argv[]) {
         MPI_Bcast(proc_scrambler, 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 #endif
     }
-    sol_vec->proc_scrambler = proc_scrambler;
+    sol_vec.proc_scrambler_ = proc_scrambler;
     
     long long hf_det = gen_hf_bitstring(n_orb, n_elec - n_frz);
-    hf_proc = idx_to_proc(sol_vec, hf_det);
+    hf_proc = sol_vec.idx_to_proc(hf_det);
     
     unsigned char tmp_orbs[n_elec_unf];
-    unsigned char (*orb_indices1)[4] = malloc(sizeof(char) * 4 * spawn_length);
+    unsigned char (*orb_indices1)[4] = (unsigned char (*)[4])malloc(sizeof(char) * 4 * spawn_length);
     
-    dist_vec *trial_vec;
+//    dist_vec *trial_vec;
     size_t n_trial;
     size_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
+    DistVec<double> trial_vec(n_ex / n_procs, n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, 0, n_procs, DOUB);
+    trial_vec.proc_scrambler_ = proc_scrambler;
     if (trial_path) { // load trial vector from file
-        long long *load_dets = sol_vec->indices;
-        double *load_vals = (double *)sol_vec->values;
+        long long *load_dets = sol_vec.indices();
+        double *load_vals = sol_vec[0];
         
         n_trial = load_vec_txt(trial_path, load_dets, load_vals, DOUB);
-        trial_vec = init_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
-        trial_vec->proc_scrambler = proc_scrambler;
+//        trial_vec = init_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
         for (det_idx = 0; det_idx < n_trial; det_idx++) {
-            add_doub(trial_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
+//            add_doub(trial_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
+            trial_vec.add(load_dets[det_idx], load_vals[det_idx], ini_bit);
         }
     }
     else { // Otherwise, use HF as trial vector
-        trial_vec = init_vec(n_ex / n_procs, n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
-        trial_vec->proc_scrambler = proc_scrambler;
-        add_doub(trial_vec, hf_det, 1, ini_bit);
+//        trial_vec = init_vec(n_ex / n_procs, n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
+//        trial_vec->proc_scrambler = proc_scrambler;
+//        add_doub(trial_vec, hf_det, 1, ini_bit);
+        trial_vec.add(hf_det, 1, ini_bit);
     }
-    perform_add(trial_vec, ini_bit);
+//    perform_add(trial_vec, ini_bit);
+    trial_vec.perform_add(ini_bit);
     
     // Calculate H * trial vector, and accumulate results on each processor
-    h_op(trial_vec, symm, tot_orb, eris, h_core, orb_indices1, n_frz, n_elec_unf, 0, 1, hf_en);
-    collect_procs(trial_vec);
-    unsigned long long htrial_hashes[trial_vec->curr_size];
-    for (det_idx = 0; det_idx < trial_vec->curr_size; det_idx++) {
-        htrial_hashes[det_idx] = idx_to_hash(sol_vec, trial_vec->indices[det_idx]);
+    h_op(trial_vec, symm, tot_orb, *eris, *h_core, (unsigned char *)orb_indices1, n_frz, n_elec_unf, 0, 1, hf_en);
+    trial_vec.collect_procs();
+    unsigned long long htrial_hashes[trial_vec.curr_size()];
+    for (det_idx = 0; det_idx < trial_vec.curr_size(); det_idx++) {
+        htrial_hashes[det_idx] = sol_vec.idx_to_hash(trial_vec.indices()[det_idx]);
     }
     
     // Calculate HF column vector for energy estimator, and count # single/double excitations
-    gen_orb_list(hf_det, sol_vec->tabl, tmp_orbs);
+    gen_orb_list(hf_det, sol_vec.tabl(), tmp_orbs);
     size_t n_hf_doub = doub_ex_symm(hf_det, tmp_orbs, n_elec_unf, n_orb, orb_indices1, symm);
     size_t n_hf_sing = count_singex(hf_det, tmp_orbs, symm, n_orb, symm_lookup, n_elec_unf);
     double p_doub = (double) n_hf_doub / (n_hf_sing + n_hf_doub);
@@ -196,7 +205,7 @@ int main(int argc, const char * argv[]) {
     
     // Initialize solution vector
     if (load_dir) {
-        load_vec(sol_vec, load_dir);
+        sol_vec.load(load_dir);
         
         // load energy shift (see https://stackoverflow.com/questions/13790662/c-read-only-last-line-of-a-file-no-loops)
         static const long max_len = 20;
@@ -214,22 +223,23 @@ int main(int argc, const char * argv[]) {
         sscanf(last_line, "%lf", &en_shift);
     }
     else if (ini_path) {
-        long long *load_dets = sol_vec->indices;
-        double *load_vals = sol_vec->values;
+        long long *load_dets = sol_vec.indices();
+        double *load_vals = (double *)sol_vec.values();
         
         size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, DOUB);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
-            add_doub(sol_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
+//            add_doub(sol_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
+            sol_vec.add(load_dets[det_idx], load_vals[det_idx], ini_bit);
         }
     }
     else {
         if (hf_proc == proc_rank) {
-            add_doub(sol_vec, hf_det, 100, ini_bit);
+            sol_vec.add(hf_det, 100, ini_bit);
         }
     }
-    perform_add(sol_vec, ini_bit);
-    loc_norm = local_norm(sol_vec);
+    sol_vec.perform_add(ini_bit);
+    loc_norm = sol_vec.local_norm();
     sum_mpi_d(loc_norm, &glob_norm, proc_rank, n_procs);
     if (load_dir) {
         last_norm = glob_norm;
@@ -272,21 +282,23 @@ int main(int argc, const char * argv[]) {
         fclose(param_f);
     }
     
-    double *subwt_mem = malloc(sizeof(double) * n_orb * spawn_length);
-    unsigned int *ndiv_vec = malloc(sizeof(unsigned int) * spawn_length);
-    double *comp_vec1 = malloc(sizeof(double) * spawn_length);
-    double *comp_vec2 = malloc(sizeof(double) * spawn_length);
-    size_t (*comp_idx)[2] = malloc(sizeof(size_t) * 2 * spawn_length);
+//    double *subwt_mem = (double *)malloc(sizeof(double) * n_orb * spawn_length);
+    Matrix<double> subwt_mem(spawn_length, n_orb);
+    unsigned int *ndiv_vec = (unsigned int *)malloc(sizeof(unsigned int) * spawn_length);
+    double *comp_vec1 = (double *)malloc(sizeof(double) * spawn_length);
+    double *comp_vec2 = (double *)malloc(sizeof(double) * spawn_length);
+    size_t (*comp_idx)[2] = (size_t (*)[2])malloc(sizeof(size_t) * 2 * spawn_length);
     size_t comp_len;
-    size_t *det_indices1 = malloc(sizeof(size_t) * 2 * spawn_length);
+    size_t *det_indices1 = (size_t *)malloc(sizeof(size_t) * 2 * spawn_length);
     size_t *det_indices2 = &det_indices1[spawn_length];
-    unsigned char (*orb_indices2)[4] = malloc(sizeof(char) * 4 * spawn_length);
+    unsigned char (*orb_indices2)[4] = (unsigned char (*)[4])malloc(sizeof(char) * 4 * spawn_length);
     unsigned int unocc_symm_cts[n_irreps][2];
-    int *keep_idx = calloc(n_orb * spawn_length, sizeof(int));
-    double *wt_remain = calloc(spawn_length, sizeof(double));
+//    int *keep_idx = (int *)calloc(n_orb * spawn_length, sizeof(int));
+    Matrix<int> keep_idx(spawn_length, n_orb);
+    double *wt_remain = (double *)calloc(spawn_length, sizeof(double));
     size_t samp_idx, weight_idx;
     
-    hb_info *hb_probs = set_up(tot_orb, n_orb, eris);
+    hb_info *hb_probs = set_up(tot_orb, n_orb, *eris);
     
     double last_one_norm = 0;
     double matr_el;
@@ -297,16 +309,16 @@ int main(int argc, const char * argv[]) {
     double weight;
     int glob_n_nonz; // Number of nonzero elements in whole vector (across all processors)
     double loc_norms[n_procs];
-    size_t *srt_arr = malloc(sizeof(size_t) * max_n_dets);
+    size_t *srt_arr = (size_t *)malloc(sizeof(size_t) * max_n_dets);
     for (det_idx = 0; det_idx < max_n_dets; det_idx++) {
         srt_arr[det_idx] = det_idx;
     }
-    int *keep_exact = calloc(max_n_dets, sizeof(int));
+    int *keep_exact = (int *)calloc(max_n_dets, sizeof(int));
     size_t n_subwt;
     
     unsigned int iterat;
     for (iterat = 0; iterat < max_iter; iterat++) {
-        sum_mpi_i(sol_vec->n_nonz, &glob_n_nonz, proc_rank, n_procs);
+        sum_mpi_i(sol_vec.n_nonz(), &glob_n_nonz, proc_rank, n_procs);
         
         // Systematic matrix compression
         if (glob_n_nonz > matr_samp) {
@@ -315,13 +327,16 @@ int main(int argc, const char * argv[]) {
         
         // Singles vs doubles
         n_subwt = 2;
-        for (det_idx = 0; det_idx < sol_vec->curr_size; det_idx++) {
-            double *curr_el = doub_at_pos(sol_vec, det_idx);
+        subwt_mem.reshape(2);
+        keep_idx.reshape(2);
+        for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
+//            double *curr_el = doub_at_pos(sol_vec, det_idx);
+            double *curr_el = sol_vec[det_idx];
             weight = fabs(*curr_el);
             comp_vec1[det_idx] = weight;
             if (weight > 0) {
-                subwt_mem[det_idx * n_subwt] = p_doub;
-                subwt_mem[det_idx * n_subwt + 1] = (1 - p_doub);
+                subwt_mem(det_idx, 0) = p_doub;
+                subwt_mem(det_idx, 1) = (1 - p_doub);
                 ndiv_vec[det_idx] = 0;
             }
             else {
@@ -331,21 +346,23 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec1, sol_vec->curr_size, ndiv_vec, n_subwt, (double (*)[n_subwt])subwt_mem, (int (*)[n_subwt])keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
+        comp_len = comp_sub(comp_vec1, sol_vec.curr_size(), ndiv_vec, n_subwt, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
         
         // First occupied orbital
         n_subwt = n_elec_unf;
+        subwt_mem.reshape(n_elec_unf);
+        keep_idx.reshape(n_elec_unf);
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
             det_idx = comp_idx[samp_idx][0];
             det_indices1[samp_idx] = det_idx;
             orb_indices1[samp_idx][0] = comp_idx[samp_idx][1];
             if (orb_indices1[samp_idx][0] == 0) { // double excitation
                 ndiv_vec[samp_idx] = 0;
-//                comp_vec2[samp_idx] *= calc_o1_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], n_elec_unf, orbs_at_pos(sol_vec, det_idx));
-                calc_o1_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], n_elec_unf, orbs_at_pos(sol_vec, det_idx));
+//                comp_vec2[samp_idx] *= calc_o1_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, orbs_at_pos(sol_vec, det_idx));
+                calc_o1_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, sol_vec.orbs_at_pos(det_idx));
             }
             else {
-                unsigned char *occ_orbs = orbs_at_pos(sol_vec, det_idx);
+                unsigned char *occ_orbs = sol_vec.orbs_at_pos(det_idx);
                 count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf, n_orb, n_irreps, symm_lookup, symm);
                 unsigned int n_occ = count_sing_allowed(occ_orbs, n_elec_unf, symm, n_orb, unocc_symm_cts);
                 if (n_occ == 0) {
@@ -361,7 +378,7 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, n_subwt, (double (*)[n_subwt])subwt_mem, (int (*)[n_subwt])keep_idx, matr_samp, wt_remain, rn_sys, comp_vec1, comp_idx);
+        comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, n_subwt, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec1, comp_idx);
         
         // Unoccupied orbital (single); 2nd occupied (double)
         n_subwt = n_elec_unf;
@@ -371,11 +388,11 @@ int main(int argc, const char * argv[]) {
             det_indices2[samp_idx] = det_idx;
             orb_indices2[samp_idx][0] = orb_indices1[weight_idx][0]; // single or double
             orb_indices2[samp_idx][1] = comp_idx[samp_idx][1]; // first occupied orbital index (converted to orbital below)
-            unsigned char *occ_orbs = orbs_at_pos(sol_vec, det_idx);
+            unsigned char *occ_orbs = sol_vec.orbs_at_pos(det_idx);
             if (orb_indices2[samp_idx][0] == 0) { // double excitation
                 ndiv_vec[samp_idx] = 0;
-//                comp_vec1[samp_idx] *= calc_o2_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], n_elec_unf, occ_orbs, &orb_indices2[samp_idx][1]);
-                calc_o2_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], n_elec_unf, occ_orbs, &orb_indices2[samp_idx][1]);
+//                comp_vec1[samp_idx] *= calc_o2_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs, &orb_indices2[samp_idx][1]);
+                calc_o2_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs, &orb_indices2[samp_idx][1]);
             }
             else { // single excitation
                 count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf, n_orb, n_irreps, symm_lookup, symm);
@@ -393,10 +410,12 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, n_subwt, (double (*)[n_subwt])subwt_mem, (int (*)[n_subwt])keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
+        comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, n_subwt, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
         
         // 1st unoccupied (double)
         n_subwt = n_orb;
+        subwt_mem.reshape(n_orb);
+        keep_idx.reshape(n_orb);
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
             weight_idx = comp_idx[samp_idx][0];
             det_idx = det_indices2[weight_idx];
@@ -407,10 +426,10 @@ int main(int argc, const char * argv[]) {
             orb_indices1[samp_idx][2] = comp_idx[samp_idx][1]; // 2nd occupied orbital index (doubles), converted to orbital below; unoccupied orbital index (singles)
             if (orb_indices1[samp_idx][0] == 0) { // double excitation
                 ndiv_vec[samp_idx] = 0;
-                unsigned char *occ_tmp = orbs_at_pos(sol_vec, det_idx);
+                unsigned char *occ_tmp = sol_vec.orbs_at_pos(det_idx);
                 orb_indices1[samp_idx][2] = occ_tmp[orb_indices1[samp_idx][2]];
-//                comp_vec2[samp_idx] *= calc_u1_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, sol_vec->indices[det_indices1[samp_idx]]);
-                calc_u1_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, sol_vec->indices[det_idx]);
+//                comp_vec2[samp_idx] *= calc_u1_probs(hb_probs, subwt_mem[samp_idx], o1_orb, sol_vec->indices[det_indices1[samp_idx]]);
+                calc_u1_probs(hb_probs, subwt_mem[samp_idx], o1_orb, sol_vec.indices()[det_idx]);
             }
             else { // single excitation
                 orb_indices1[samp_idx][3] = orb_indices2[weight_idx][3];
@@ -420,10 +439,12 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, n_subwt, (double (*)[n_subwt])subwt_mem, (int (*)[n_subwt])keep_idx, matr_samp, wt_remain, rn_sys, comp_vec1, comp_idx);
+        comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, n_subwt, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec1, comp_idx);
         
         // 2nd unoccupied (double)
         n_subwt = max_n_symm;
+        subwt_mem.reshape(max_n_symm);
+        keep_idx.reshape(max_n_symm);
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
             weight_idx = comp_idx[samp_idx][0];
             det_idx = det_indices1[weight_idx];
@@ -435,14 +456,14 @@ int main(int argc, const char * argv[]) {
             orb_indices2[samp_idx][2] = o2_orb; // 2nd occupied orbital (doubles); unoccupied orbital index (singles)
             if (orb_indices2[samp_idx][0] == 0) { // double excitation
                 unsigned char u1_orb = comp_idx[samp_idx][1] + n_orb * (o1_orb / n_orb);
-                if (sol_vec->indices[det_idx] & (1LL << u1_orb)) {
+                if (sol_vec.indices()[det_idx] & (1LL << u1_orb)) {
                     comp_vec1[samp_idx] = 0;
                 }
                 else {
                     ndiv_vec[samp_idx] = 0;
                     orb_indices2[samp_idx][3] = u1_orb;
-//                comp_vec1[samp_idx] *= calc_u2_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, o2_orb, u1_orb, (unsigned char *)symm_lookup, symm, max_n_symm); // not normalizing
-                    double u2_norm = calc_u2_probs(hb_probs, &subwt_mem[samp_idx * n_subwt], o1_orb, o2_orb, u1_orb, (unsigned char *)symm_lookup, symm, &max_n_symm);
+//                comp_vec1[samp_idx] *= calc_u2_probs(hb_probs, subwt_mem[samp_idx], o1_orb, o2_orb, u1_orb, (unsigned char *)symm_lookup, symm, max_n_symm); // not normalizing
+                    double u2_norm = calc_u2_probs(hb_probs, subwt_mem[samp_idx], o1_orb, o2_orb, u1_orb, symm_lookup, symm, &max_n_symm);
                     if (u2_norm == 0) {
                         comp_vec1[samp_idx] = 0;
                     }
@@ -456,18 +477,20 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, n_subwt, (double (*)[n_subwt])subwt_mem, (int (*)[n_subwt])keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
+        comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, n_subwt, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
         
         long long *spawn_dets = (long long *)det_indices1;
         size_t num_added = 0;
+        keep_idx.reshape(1);
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
             weight_idx = comp_idx[samp_idx][0];
             det_idx = det_indices2[weight_idx];
-            long long curr_det = sol_vec->indices[det_idx];
-            double *curr_el = doub_at_pos(sol_vec, det_idx);
+            long long curr_det = sol_vec.indices()[det_idx];
+//            double *curr_el = doub_at_pos(sol_vec, det_idx);
+            double *curr_el = sol_vec[det_idx];
             int ini_flag = fabs(*curr_el) > init_thresh;
             int el_sign = 1 - 2 * (*curr_el < 0);
-            unsigned char *occ_orbs = orbs_at_pos(sol_vec, det_idx);
+            unsigned char *occ_orbs = sol_vec.orbs_at_pos(det_idx);
             if (orb_indices2[weight_idx][0] == 0) { // double excitation
                 unsigned char doub_orbs[4];
                 doub_orbs[0] = orb_indices2[weight_idx][1];
@@ -488,14 +511,14 @@ int main(int argc, const char * argv[]) {
                     doub_orbs[1] = doub_orbs[0];
                     doub_orbs[0] = tmp;
                 }
-                matr_el = doub_matr_el_nosgn(doub_orbs, tot_orb, eris, n_frz);
+                matr_el = doub_matr_el_nosgn(doub_orbs, tot_orb, *eris, n_frz);
                 if (fabs(matr_el) > 1e-9 && comp_vec2[samp_idx] > 1e-9) {
 //                    matr_el *= -eps / p_doub / calc_unnorm_wt(hb_probs, doub_orbs) * el_sign * par_sign * comp_vec2[samp_idx];
-                    matr_el *= -eps / p_doub / calc_norm_wt(hb_probs, doub_orbs, occ_orbs, n_elec_unf, curr_det, (unsigned char *)symm_lookup, symm) * el_sign * comp_vec2[samp_idx];
+                    matr_el *= -eps / p_doub / calc_norm_wt(hb_probs, doub_orbs, occ_orbs, n_elec_unf, curr_det, symm_lookup, symm) * el_sign * comp_vec2[samp_idx];
                     matr_el *= doub_det_parity(&curr_det, doub_orbs);
                     comp_vec1[num_added] = matr_el;
                     spawn_dets[num_added] = curr_det;
-                    keep_idx[num_added] = ini_flag;
+                    keep_idx(num_added, 0) = ini_flag;
                     num_added++;
                 }
             }
@@ -505,27 +528,29 @@ int main(int argc, const char * argv[]) {
                 sing_orbs[0] = o1;
                 unsigned char u1_symm = symm[o1 % n_orb];
                 sing_orbs[1] = virt_from_idx(curr_det, symm_lookup[u1_symm], n_orb * (o1 / n_orb), orb_indices2[weight_idx][2]);
-                matr_el = sing_matr_el_nosgn(sing_orbs, occ_orbs, tot_orb, eris, h_core, n_frz, n_elec_unf);
+                matr_el = sing_matr_el_nosgn(sing_orbs, occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec_unf);
                 if (fabs(matr_el) > 1e-9 && comp_vec2[samp_idx] > 1e-9) {
                     count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf, n_orb, n_irreps, symm_lookup, symm);
                     unsigned int n_occ = count_sing_allowed(occ_orbs, n_elec_unf, symm, n_orb, unocc_symm_cts);
                     matr_el *= -eps / (1 - p_doub) * n_occ * orb_indices2[weight_idx][3] * el_sign * sing_det_parity(&curr_det, sing_orbs) * comp_vec2[samp_idx];
                     comp_vec1[num_added] = matr_el;
                     spawn_dets[num_added] = curr_det;
-                    keep_idx[num_added] = ini_flag;
+                    keep_idx(num_added, 0) = ini_flag;
                     num_added++;
                 }
             }
         }
         
         // Death/cloning step
-        for (det_idx = 0; det_idx < sol_vec->curr_size; det_idx++) {
-            double *curr_el = doub_at_pos(sol_vec, det_idx);
+        for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
+//            double *curr_el = doub_at_pos(sol_vec, det_idx);
+            double *curr_el = sol_vec[det_idx];
             if (*curr_el != 0) {
-                double *diag_el = &(sol_vec->matr_el[det_idx]);
-                unsigned char *occ_orbs = orbs_at_pos(sol_vec, det_idx);
+//                double *diag_el = &(sol_vec->matr_el[det_idx]);
+                double *diag_el = sol_vec.matr_el_at_pos(det_idx);
+                unsigned char *occ_orbs = sol_vec.orbs_at_pos(det_idx);
                 if (isnan(*diag_el)) {
-                    *diag_el = diag_matrel(occ_orbs, tot_orb, eris, h_core, n_frz, n_elec) - hf_en;
+                    *diag_el = diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
                 }
                 *curr_el *= 1 - eps * (*diag_el - en_shift);
             }
@@ -540,14 +565,15 @@ int main(int argc, const char * argv[]) {
                 if (num_added >= adder_size) {
                     break;
                 }
-                long long ini_flag = keep_idx[samp_idx];
+                long long ini_flag = keep_idx(samp_idx, 0);
                 ini_flag <<= 2 * n_orb;
-                keep_idx[samp_idx] = 0;
-                add_doub(sol_vec, spawn_dets[samp_idx], comp_vec1[samp_idx], ini_flag);
+                keep_idx(samp_idx, 0) = 0;
+//                add_doub(sol_vec, spawn_dets[samp_idx], comp_vec1[samp_idx], ini_flag);
+                sol_vec.add(spawn_dets[samp_idx], comp_vec1[samp_idx], ini_flag);
                 num_added++;
                 samp_idx++;
             }
-            perform_add(sol_vec, ini_bit);
+            sol_vec.perform_add(ini_bit);
             loc_norms[proc_rank] = num_added;
 #ifdef USE_MPI
             MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
@@ -564,7 +590,7 @@ int main(int argc, const char * argv[]) {
         
         // Compression step
         unsigned int n_samp = target_nonz;
-        loc_norms[proc_rank] = find_preserve(sol_vec->values, srt_arr, keep_exact, sol_vec->curr_size, &n_samp, &glob_norm);
+        loc_norms[proc_rank] = find_preserve(sol_vec[0], srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
         if (proc_rank == hf_proc) {
             fprintf(nkept_file, "%u\n", target_nonz - n_samp);
         }
@@ -577,7 +603,8 @@ int main(int argc, const char * argv[]) {
                 fprintf(norm_file, "%lf\n", glob_norm);
             }
         }
-        matr_el = vec_dot(sol_vec, trial_vec->indices, trial_vec->values, n_hf_doub, htrial_hashes);
+//        matr_el = vec_dot(sol_vec, trial_vec->indices, (double *)trial_vec->values, n_hf_doub, htrial_hashes);
+        matr_el = sol_vec.dot(trial_vec.indices(), trial_vec[0], trial_vec.curr_size(), htrial_hashes);
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
 #else
@@ -590,7 +617,7 @@ int main(int argc, const char * argv[]) {
             }
             
             fprintf(num_file, "%lf\n", matr_el);
-            double ref_element = ((double *)sol_vec->values)[0];
+            double ref_element = sol_vec[0][0];
             fprintf(den_file, "%lf\n", ref_element);
             printf("%6u, en est: %.9lf, shift: %lf, norm: %lf\n", iterat, matr_el / ref_element, en_shift, glob_norm);
         }
@@ -601,16 +628,16 @@ int main(int argc, const char * argv[]) {
 #ifdef USE_MPI
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
 #endif
-        sys_comp(sol_vec->values, sol_vec->curr_size, loc_norms, n_samp, keep_exact, rn_sys);
-        for (det_idx = 0; det_idx < sol_vec->curr_size; det_idx++) {
-            if (keep_exact[det_idx] && sol_vec->indices[det_idx] != hf_det) {
-                del_at_pos(sol_vec, det_idx);
+        sys_comp(sol_vec[0], sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
+        for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
+            if (keep_exact[det_idx] && sol_vec.indices()[det_idx] != hf_det) {
+                sol_vec.del_at_pos(det_idx);
                 keep_exact[det_idx] = 0;
             }
         }
         
         if ((iterat + 1) % save_interval == 0) {
-            save_vec(sol_vec, result_dir);
+            sol_vec.save(result_dir);
             if (proc_rank == hf_proc) {
                 fflush(num_file);
                 fflush(den_file);

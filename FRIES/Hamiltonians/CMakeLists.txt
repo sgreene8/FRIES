@@ -1,8 +1,8 @@
 install(
     FILES
-        heat_bathPP.h
-        near_uniform.h
+        heat_bathPP.hpp
+        near_uniform.hpp
         hub_holstein.h
-        molecule.h
+        molecule.hpp
     DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_INCLUDEDIR}/FRIES/Hamiltonians
 )
