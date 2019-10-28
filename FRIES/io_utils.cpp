@@ -55,7 +55,7 @@ size_t read_uchar_csv(unsigned char *buf, char *fname) {
 
 
 int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
-    char buffer[100];
+    char buffer[200];
     strcpy(buffer, hf_dir);
     strcat(buffer, "sys_params.txt");
     FILE *file_p = fopen(buffer, "r");
