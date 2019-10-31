@@ -34,7 +34,7 @@ void sift_down(double *a, size_t *indices, size_t start, size_t end) {
 void heapify(double *a, size_t *indices, size_t count) {
     // (start is assigned the index in 'a' of the last parent node)
     // (the last element in a 0-based array is at index count-1; find the parent of that element)
-    if (count == 1) {
+    if (count <= 1) {
         return;
     }
     ssize_t start = iParent(count - 1);

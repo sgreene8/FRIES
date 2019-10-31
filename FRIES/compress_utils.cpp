@@ -44,10 +44,10 @@ double find_preserve(double *values, size_t *srt_idx, int *keep_idx,
     while (glob_sampled > 0) {
         sum_mpi_d(loc_one_norm, &glob_one_norm, proc_rank, n_procs);
         loc_sampled = 0;
-        while (keep_going) {
+        while (keep_going && heap_count > 0) {
             max_idx = srt_idx[0];
             el_magn = fabs(values[max_idx]);
-            if (heap_count > 0 && el_magn >= glob_one_norm / (*n_samp - loc_sampled)) {
+            if (el_magn >= glob_one_norm / (*n_samp - loc_sampled)) {
                 keep_idx[max_idx] = 1;
                 loc_sampled++;
                 loc_one_norm -= el_magn;

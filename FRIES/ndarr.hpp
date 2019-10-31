@@ -54,8 +54,11 @@ public:
     }
     Matrix(const Matrix& m) = delete;               // Copy constructor
     Matrix& operator= (const Matrix& m) = delete;   // Assignment operator
-    size_t rows() {
+    size_t rows() const {
         return rows_;
+    }
+    size_t cols() const {
+        return cols_;
     }
 private:
     size_t rows_, cols_, tot_size_;

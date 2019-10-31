@@ -79,7 +79,7 @@ class DistVec;
 template <class el_type>
 class Adder {
 public:
-    Adder(size_t size, int n_procs, dtype type, DistVec<el_type> *vec) : send_idx_(size, n_procs), send_vals_(size, n_procs), recv_idx_(size, n_procs), recv_vals_(size, n_procs), type_(type), parent_vec_(vec) {
+    Adder(size_t size, int n_procs, dtype type, DistVec<el_type> *vec) : send_idx_(n_procs, size), send_vals_(n_procs, size), recv_idx_(n_procs, size), recv_vals_(n_procs, size), type_(type), parent_vec_(vec) {
         send_cts_ = (int *)malloc(sizeof(int) * n_procs);
         recv_cts_ = (int *) malloc(sizeof(int) * n_procs);
         displacements_ = (int *) malloc(sizeof(int) * n_procs);
@@ -113,10 +113,15 @@ private:
     void enlarge_() {
         printf("Increasing storage capacity in adder\n");
         size_t new_size = send_idx_.rows() * 2;
+        size_t new_cols = send_idx_.cols() * 2;
         send_idx_.enlarge(new_size);
+        send_idx_.reshape(new_cols);
         send_vals_.enlarge(new_size);
+        send_vals_.reshape(new_cols);
         recv_idx_.enlarge(new_size);
+        recv_idx_.reshape(new_cols);
         recv_vals_.enlarge(new_size);
+        recv_vals_.reshape(new_cols);
     }
 };
 
@@ -190,7 +195,9 @@ public:
     }
     
     int idx_to_proc(long long idx) {
-        unsigned long long hash_val = idx_to_hash(idx);
+        unsigned char orbs[n_elec_];
+        gen_orb_list(idx, tabl_, orbs);
+        unsigned long long hash_val = hash_fxn(orbs, n_elec_, proc_scrambler_);
         int n_procs = 1;
 #ifdef USE_MPI
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
@@ -459,7 +466,7 @@ template <class el_type>
 void Adder<el_type>::add(long long idx, el_type val, long long ini_flag) {
     int proc_idx = parent_vec_->idx_to_proc(idx);
     int *count = &send_cts_[proc_idx];
-    if (*count == send_idx_.rows()) {
+    if (*count == send_idx_.cols()) {
         enlarge_();
     }
     send_idx_(proc_idx, *count) = idx | ini_flag;
@@ -469,48 +476,48 @@ void Adder<el_type>::add(long long idx, el_type val, long long ini_flag) {
 
 template <class el_type>
 void Adder<el_type>::perform_add(long long ini_bit) {
-        int n_procs = 1;
-        int proc_idx;
-
-        size_t el_size = 0;
-        if (type_ == INT) {
-            el_size = sizeof(int);
-        }
-        else if (type_ == DOUB) {
-            el_size = sizeof(double);
-        }
-        else {
-            fprintf(stderr, "Error: type %d not supported in function perform_add.\n", type_);
-        }
-#ifdef USE_MPI
-        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-        MPI_Alltoall(send_cts_, 1, MPI_INT, recv_cts_, 1, MPI_INT, MPI_COMM_WORLD);
-        MPI_Alltoallv(send_idx_[0], send_cts_, displacements_, MPI_LONG_LONG, recv_idx_[0], recv_cts_, displacements_, MPI_LONG_LONG, MPI_COMM_WORLD);
-        MPI_Datatype mpi_type;
-        if (type_ == INT) {
-            mpi_type = MPI_INT;
-        }
-        else if (type_ == DOUB) {
-            mpi_type = MPI_DOUBLE;
-        }
-        else {
-            fprintf(stderr, "Error: type %d not supported in function perform_add.\n", type_);
-        }
-        MPI_Alltoallv(send_vals_[0], send_cts_, displacements_, mpi_type, recv_vals_[0], recv_cts_, displacements_, mpi_type, MPI_COMM_WORLD);
-#else
-        for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-            int cpy_size = send_cts_[proc_idx];
-            recv_cts_[proc_idx] = cpy_size;
-            memcpy(recv_idx_[proc_idx], send_idx_[proc_idx], cpy_size * sizeof(long long));
-            memcpy(recv_vals_[proc_idx], send_vals_[proc_idx], cpy_size * el_size);
-        }
-#endif
-        // Move elements from receiving buffers to vector
-        for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-            send_cts_[proc_idx] = 0;
-            parent_vec_->add_elements(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx], ini_bit);
-        }
+    int n_procs = 1;
+    int proc_idx;
+    
+    size_t el_size = 0;
+    if (type_ == INT) {
+        el_size = sizeof(int);
     }
+    else if (type_ == DOUB) {
+        el_size = sizeof(double);
+    }
+    else {
+        fprintf(stderr, "Error: type %d not supported in function perform_add.\n", type_);
+    }
+#ifdef USE_MPI
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+    MPI_Alltoall(send_cts_, 1, MPI_INT, recv_cts_, 1, MPI_INT, MPI_COMM_WORLD);
+    MPI_Alltoallv(send_idx_[0], send_cts_, displacements_, MPI_LONG_LONG, recv_idx_[0], recv_cts_, displacements_, MPI_LONG_LONG, MPI_COMM_WORLD);
+    MPI_Datatype mpi_type;
+    if (type_ == INT) {
+        mpi_type = MPI_INT;
+    }
+    else if (type_ == DOUB) {
+        mpi_type = MPI_DOUBLE;
+    }
+    else {
+        fprintf(stderr, "Error: type %d not supported in function perform_add.\n", type_);
+    }
+    MPI_Alltoallv(send_vals_[0], send_cts_, displacements_, mpi_type, recv_vals_[0], recv_cts_, displacements_, mpi_type, MPI_COMM_WORLD);
+#else
+    for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        int cpy_size = send_cts_[proc_idx];
+        recv_cts_[proc_idx] = cpy_size;
+        memcpy(recv_idx_[proc_idx], send_idx_[proc_idx], cpy_size * sizeof(long long));
+        memcpy(recv_vals_[proc_idx], send_vals_[proc_idx], cpy_size * el_size);
+    }
+#endif
+    // Move elements from receiving buffers to vector
+    for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        send_cts_[proc_idx] = 0;
+        parent_vec_->add_elements(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx], ini_bit);
+    }
+}
 
 /*! \brief Struct for storing a sparse vector */
 //typedef struct {
