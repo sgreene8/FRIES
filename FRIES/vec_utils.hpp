@@ -427,7 +427,7 @@ public:
         int vec_sizes[n_procs];
         vec_sizes[my_rank] = (int)curr_size_;
     #ifdef USE_MPI
-        MPI_Allgather(MPI_IN_PLACE, 0, MPI_UNSIGNED_LONG, vec_sizes, 1, MPI_UNSIGNED_LONG, MPI_COMM_WORLD);
+        MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, vec_sizes, 1, MPI_INT, MPI_COMM_WORLD);
         MPI_Datatype mpi_type;
     #endif
         int tot_size = 0;

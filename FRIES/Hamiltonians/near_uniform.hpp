@@ -13,7 +13,7 @@
 
 #include <stdio.h>
 #include <math.h>
-#include <stdint.h>
+#include <cstdint>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/ndarr.hpp>
 
