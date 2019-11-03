@@ -130,7 +130,7 @@ int main(int argc, const char * argv[]) {
     size_t det_idx;
     
     Matrix<unsigned char> symm_lookup(n_irreps, n_orb + 1);
-    gen_symm_lookup(symm, n_orb, n_irreps, symm_lookup);
+    gen_symm_lookup(symm, symm_lookup);
     unsigned int unocc_symm_cts[n_irreps][2];
     
     // Initialize hash function for processors and vector

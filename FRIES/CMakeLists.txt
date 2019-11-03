@@ -12,8 +12,7 @@ list(APPEND FRIES_FILELIST
         vec_utils.cpp
         Ext_Libs/argparse.c
         Ext_Libs/csvparser.c
-        Ext_Libs/heap.c
-        ndarr.cpp)
+        Ext_Libs/heap.c)
 
 add_library(fries SHARED ${FRIES_FILELIST})
 

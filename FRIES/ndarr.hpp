@@ -117,7 +117,9 @@ public:
     * \param [in] i4 Fourth index
      * \returns Reference to array element
      */
-    double& operator() (size_t i1, size_t i2, size_t i3, size_t i4);
+    double& operator() (size_t i1, size_t i2, size_t i3, size_t i4) {
+      return data_[i1 * len2_ * len3_ * len4_ + i2 * len3_ * len4_ + i3 * len4_ + i4];
+    }
     
     /*! \brief Access an element of the 4-D array
     * \param [in] i1 First index
@@ -126,7 +128,9 @@ public:
     * \param [in] i4 Fourth index
      * \returns Array element
      */
-    double  operator() (size_t i1, size_t i2, size_t i3, size_t i4) const;
+    double  operator() (size_t i1, size_t i2, size_t i3, size_t i4) const {
+        return data_[i1 * len2_ * len3_ * len4_ + i2 * len3_ * len4_ + i3 * len4_ + i4];
+    }
     
     /*! \brief Destructor*/
     ~FourDArr() {
