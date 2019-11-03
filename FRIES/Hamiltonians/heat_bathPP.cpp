@@ -111,34 +111,6 @@ double calc_o2_probs(hb_info *tens, double *prob_arr, unsigned int n_elec,
     int o1_spin = o1_orb / n_orb;
     
     double *diff_tab = tens->d_diff;
-//    if (o1_spin == 0) {
-//        for (orb_idx = 0; orb_idx < *o1; orb_idx++) {
-//            prob_arr[orb_idx] = tens->d_same[I_J_TO_TRI(occ_orbs[orb_idx], o1_orb)];
-//            norm += prob_arr[orb_idx];
-//        }
-//        for (orb_idx = *o1 + 1; orb_idx < n_elec / 2; orb_idx++) {
-//            prob_arr[orb_idx] = tens->d_same[I_J_TO_TRI(o1_orb, occ_orbs[orb_idx])];
-//            norm += prob_arr[orb_idx];
-//        }
-//        for (orb_idx = n_elec / 2; orb_idx < n_elec; orb_idx++) {
-//            prob_arr[orb_idx] = diff_tab[o1_orb][occ_orbs[orb_idx] - n_orb];
-//            norm += prob_arr[orb_idx];
-//        }
-//    }
-//    else {
-//        for (orb_idx = 0; orb_idx < n_elec / 2; orb_idx++) {
-//            prob_arr[orb_idx] = diff_tab[o1_orb % n_orb][occ_orbs[orb_idx]];
-//            norm += prob_arr[orb_idx];
-//        }
-//        for (orb_idx = n_elec / 2; orb_idx < *o1; orb_idx++) {
-//            prob_arr[orb_idx] = tens->d_same[I_J_TO_TRI(occ_orbs[orb_idx] - n_orb, o1_orb - n_orb)];
-//            norm += prob_arr[orb_idx];
-//        }
-//        for (orb_idx = *o1 + 1; orb_idx < n_elec; orb_idx++) {
-//            prob_arr[orb_idx] = tens->d_same[I_J_TO_TRI(o1_orb - n_orb, occ_orbs[orb_idx] - n_orb)];
-//            norm += prob_arr[orb_idx];
-//        }
-//    }
     unsigned int offset = (1 - o1_spin) * n_elec / 2;
     for (orb_idx = offset; orb_idx < (n_elec / 2 + offset); orb_idx++) {
         prob_arr[orb_idx] = diff_tab[(o1_orb % n_orb) * n_orb + occ_orbs[orb_idx] % n_orb];
@@ -204,7 +176,6 @@ double calc_u2_probs(hb_info *tens, double *prob_arr, unsigned char o1_orb,
                      const Matrix<unsigned char> &lookup_tabl, unsigned char *symm,
                      unsigned int *prob_len) {
     unsigned int n_orb = (unsigned int)tens->n_orb;
-//    unsigned char (*lookup_tabl)[n_orb + 1] = (unsigned char (*)[n_orb + 1])lookup_mem;
     unsigned char o2_spinless = o2_orb % n_orb;
     unsigned char u1_spinless = u1_orb % n_orb;
     int same_spin = (o1_orb / n_orb) == (o2_orb / n_orb);
@@ -349,7 +320,6 @@ double calc_norm_wt(hb_info *tens, unsigned char *orbs, unsigned char *occ,
         }
     }
     
-//    unsigned char (*lookup_tabl)[n_orb + 1] = (unsigned char (*)[n_orb + 1])lookup_mem;
     unsigned char u1_irrep = symm[u1];
     unsigned char u2_irrep = symm[u2];
     unsigned char symm_orb, min_orb, max_orb;
@@ -438,8 +408,6 @@ unsigned int hb_doub_multi(long long det, unsigned char *occ_orbs,
     unsigned int alias_idx[n_states];
     double alias_probs[n_states];
     double probs[n_states];
-    
-//    unsigned char (*lookup_tabl)[num_orb + 1] = (unsigned char (*)[num_orb + 1]) lookup_mem;
     
     // Choose first occupied orbital
     calc_o1_probs(tens, probs, num_elec, occ_orbs);

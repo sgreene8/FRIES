@@ -140,7 +140,6 @@ int main(int argc, const char * argv[]) {
     
     // Solution vector
     unsigned int spawn_length = matr_samp * 2 / n_procs;
-//    dist_vec *sol_vec = init_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec, DOUB, hub_len);
     DistVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec, hub_len, n_procs, DOUB);
     sol_vec.proc_scrambler_ = proc_scrambler;
     
@@ -217,7 +216,6 @@ int main(int argc, const char * argv[]) {
     double *comp_vec2 = (double *)malloc(sizeof(double) * spawn_length);
     size_t (*comp_idx)[2] = (size_t (*)[2])malloc(sizeof(size_t) * 2 * spawn_length);
     unsigned int *ndiv_vec = (unsigned int *)malloc(sizeof(unsigned int) * spawn_length);
-//    int *keep_idx = calloc(spawn_length, sizeof(int));
     Matrix<int> keep_idx(spawn_length, 2);
     double *wt_remain = (double *)calloc(spawn_length, sizeof(double));
     size_t n_subwt;
@@ -242,7 +240,6 @@ int main(int argc, const char * argv[]) {
     double recv_nums[n_procs];
     
     unsigned int iterat;
-//    unsigned char (*neighb_orbs)[2][n_elec + 1] = (unsigned char (*)[2][n_elec + 1])sol_vec->neighb;
     const Matrix<unsigned char> &neighb_orbs = sol_vec.neighb();
     for (iterat = 0; iterat < max_iter; iterat++) {
         sum_mpi_i(sol_vec.n_nonz(), &glob_n_nonz, proc_rank, n_procs);
@@ -289,7 +286,6 @@ int main(int argc, const char * argv[]) {
         for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
             double *curr_el = sol_vec[det_idx];
             if (*curr_el != 0) {
-//                double *diag_el = &(sol_vec->matr_el[det_idx]);
                 double *diag_el = sol_vec.matr_el_at_pos(det_idx);
                 if (isnan(*diag_el)) {
                     long long curr_det = sol_vec.indices()[det_idx];
@@ -321,7 +317,6 @@ int main(int argc, const char * argv[]) {
         recv_nums[0] = matr_el;
 #endif
         if (proc_rank == ref_proc) {
-//            double *diag_el = &(sol_vec->matr_el[0]);
             double *diag_el = sol_vec.matr_el_at_pos(0);
             if (isnan(*diag_el)) {
                 *diag_el = hub_diag(neel_det, hub_len, sol_vec.tabl()) * hub_u - hf_en;

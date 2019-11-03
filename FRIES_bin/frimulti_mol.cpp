@@ -122,9 +122,7 @@ int main(int argc, const char * argv[]) {
     long long ini_bit = 1LL << (2 * n_orb);
     
     unsigned char *symm = in_data.symm;
-//    double (* h_core)[tot_orb] = (double (*)[tot_orb])in_data.hcore;
     Matrix<double> *h_core = in_data.hcore;
-//    double (* eris)[tot_orb][tot_orb][tot_orb] = (double (*)[tot_orb][tot_orb][tot_orb])in_data.eris;
     FourDArr *eris = in_data.eris;
     
     // Rn generator
@@ -133,11 +131,9 @@ int main(int argc, const char * argv[]) {
     
     // Solution vector
     unsigned int spawn_length = matr_samp * 2 / n_procs / n_procs;
-//    dist_vec *sol_vec = init_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
     DistVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec_unf, 0, n_procs, DOUB);
     size_t det_idx;
     
-//    unsigned char symm_lookup[n_irreps][n_orb + 1];
     Matrix<unsigned char> symm_lookup(n_irreps, n_orb + 1);
     gen_symm_lookup(symm, n_orb, n_irreps, symm_lookup);
     unsigned int unocc_symm_cts[n_irreps][2];
@@ -169,12 +165,10 @@ int main(int argc, const char * argv[]) {
     unsigned char tmp_orbs[n_elec_unf];
     unsigned int max_spawn = matr_samp; // should scale as max expected # from one determinant
     unsigned char *spawn_orbs = (unsigned char *)malloc(sizeof(unsigned char) * 4 * max_spawn);
-//    Matrix<unsigned char> spawn_orbs(max_spawn, 4);
     double *spawn_probs = (double *) malloc(sizeof(double) * max_spawn);
     unsigned char (*sing_orbs)[2] = (unsigned char (*)[2]) spawn_orbs;
     unsigned char (*doub_orbs)[4] = (unsigned char (*)[4]) spawn_orbs;
     
-//    dist_vec *trial_vec;
     size_t n_trial;
     size_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
     DistVec<double> trial_vec(n_ex / n_procs, n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, 0, n_procs, DOUB);
@@ -184,16 +178,12 @@ int main(int argc, const char * argv[]) {
         double *load_vals = sol_vec[0];
         
         n_trial = load_vec_txt(trial_path, load_dets, load_vals, DOUB);
-//        trial_vec = init_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
         for (det_idx = 0; det_idx < n_trial; det_idx++) {
-//            add_doub(trial_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
             trial_vec.add(load_dets[det_idx], load_vals[det_idx], ini_bit);
         }
     }
     else { // Otherwise, use HF as trial vector
-//        trial_vec = init_vec(n_ex / n_procs, n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
         trial_vec.proc_scrambler_ = proc_scrambler;
-//        add_doub(trial_vec, hf_det, 1, ini_bit);
         trial_vec.add(hf_det, 1, ini_bit);
     }
     trial_vec.perform_add(ini_bit);
@@ -244,7 +234,6 @@ int main(int argc, const char * argv[]) {
         size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, DOUB);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
-//            add_doub(sol_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
             sol_vec.add(load_dets[det_idx], load_vals[det_idx], ini_bit);
         }
     }
@@ -341,7 +330,6 @@ int main(int argc, const char * argv[]) {
             rn_sys = INFINITY;
         }
         for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
-//            double *curr_el = doub_at_pos(sol_vec, det_idx);
             double *curr_el = sol_vec[det_idx];
             long long curr_det = sol_vec.indices()[det_idx];
             weight = fabs(*curr_el);
@@ -369,11 +357,9 @@ int main(int argc, const char * argv[]) {
                 printf("Allocating more memory for spawning\n");
                 max_spawn *= 2;
                 spawn_orbs = (unsigned char *)realloc(spawn_orbs, sizeof(unsigned char) * 4 * max_spawn);
-//                spawn_orbs.enlarge(max_spawn);
                 spawn_probs = (double *)realloc(spawn_probs, sizeof(double) * max_spawn);
             }
             
-//            spawn_orbs.cols_ = 4;
             if (fri_dist == near_uni) {
                 n_doub = doub_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_doub, rngen_ptr, doub_orbs, spawn_probs);
             }
@@ -391,7 +377,6 @@ int main(int argc, const char * argv[]) {
                 }
             }
             
-//            spawn_orbs.cols_ = 2;
             n_sing = sing_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_sing, rngen_ptr, sing_orbs, spawn_probs);
             
             for (walker_idx = 0; walker_idx < n_sing; walker_idx++) {
@@ -404,7 +389,6 @@ int main(int argc, const char * argv[]) {
             }
             
             // Death/cloning step
-//            double *diag_el = &(sol_vec->matr_el[det_idx]);
             double *diag_el = sol_vec.matr_el_at_pos(det_idx);
             if (isnan(*diag_el)) {
                 *diag_el = diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;

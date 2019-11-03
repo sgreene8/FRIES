@@ -117,9 +117,7 @@ int main(int argc, const char * argv[]) {
     long long ini_bit = 1LL << (2 * n_orb);
     
     unsigned char *symm = in_data.symm;
-//    double (* h_core)[tot_orb] = (double (*)[tot_orb])in_data.hcore;
     Matrix<double> *h_core = in_data.hcore;
-//    double (* eris)[tot_orb][tot_orb][tot_orb] = (double (*)[tot_orb][tot_orb][tot_orb])in_data.eris;
     FourDArr *eris = in_data.eris;
     
     // Rn generator
@@ -129,10 +127,8 @@ int main(int argc, const char * argv[]) {
     // Solution vector
     unsigned int spawn_length = target_walkers / n_procs / n_procs * 2;
     DistVec<int> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec_unf, 0, n_procs, INT);
-//    dist_vec *sol_vec = init_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec_unf, INT, 0);
     size_t det_idx;
     
-//    unsigned char symm_lookup[n_irreps][n_orb + 1];
     Matrix<unsigned char> symm_lookup(n_irreps, n_orb + 1);
     gen_symm_lookup(symm, n_orb, n_irreps, symm_lookup);
     unsigned int unocc_symm_cts[n_irreps][2];
@@ -160,17 +156,14 @@ int main(int argc, const char * argv[]) {
     
     long long hf_det = gen_hf_bitstring(n_orb, n_elec - n_frz);
     hf_proc = sol_vec.idx_to_proc(hf_det);
-//    hf_proc = idx_to_proc(sol_vec, hf_det);
     
     unsigned char tmp_orbs[n_elec_unf];
     unsigned int max_spawn = 500000; // should scale as max expected # on one determinant
     unsigned char *spawn_orbs = (unsigned char *) malloc(sizeof(unsigned char) * 4 * max_spawn);
-//    Matrix<unsigned char> spawn_orbs(max_spawn, 4);
     double *spawn_probs = (double *) malloc(sizeof(double) * max_spawn);
     unsigned char (*sing_orbs)[2] = (unsigned char (*)[2]) spawn_orbs;
     unsigned char (*doub_orbs)[4] = (unsigned char (*)[4]) spawn_orbs;
     
-//    dist_vec *trial_vec;
     size_t n_trial;
     size_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
     DistVec<double> trial_vec(n_ex / n_procs, n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, 0, n_procs, DOUB);
@@ -180,25 +173,18 @@ int main(int argc, const char * argv[]) {
         double *load_vals = (double *)sol_vec.values();
         
         n_trial = load_vec_txt(trial_path, load_dets, load_vals, DOUB);
-//        trial_vec = init_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
         for (det_idx = 0; det_idx < n_trial; det_idx++) {
-//            add_doub(trial_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
             trial_vec.add(load_dets[det_idx], load_vals[det_idx], ini_bit);
         }
     }
     else { // Otherwise, use HF as trial vector
-//        trial_vec = init_vec(n_ex / n_procs, n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
-//        add_doub(trial_vec, hf_det, 1, ini_bit);
         trial_vec.add(hf_det, 1, ini_bit);
     }
-//    perform_add(trial_vec, ini_bit);
     trial_vec.perform_add(ini_bit);
     
     // Calculate H * trial vector, and accumulate results on each processor
     h_op(trial_vec, symm, tot_orb, *eris, *h_core, spawn_orbs, n_frz, n_elec_unf, 0, 1, hf_en);
-//    collect_procs(trial_vec);
     trial_vec.collect_procs();
-//    unsigned long long htrial_hashes[trial_vec->curr_size];
     unsigned long long *htrial_hashes = (unsigned long long *)malloc(sizeof(long long) * trial_vec.curr_size());
     for (det_idx = 0; det_idx < trial_vec.curr_size(); det_idx++) {
         htrial_hashes[det_idx] = sol_vec.idx_to_hash(trial_vec.indices()[det_idx]);
@@ -221,7 +207,6 @@ int main(int argc, const char * argv[]) {
     // Initialize solution vector
     if (load_dir) {
         // from previous FCIQMC calculation
-//        load_vec(sol_vec, load_dir);
         sol_vec.load(load_dir);
         
         // load energy shift (see https://stackoverflow.com/questions/13790662/c-read-only-last-line-of-a-file-no-loops)
@@ -247,20 +232,16 @@ int main(int argc, const char * argv[]) {
         size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, INT);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
-//            add_int(sol_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
             sol_vec.add(load_dets[det_idx], load_vals[det_idx], ini_bit);
         }
     }
     else {
         // from Hartree-Fock
         if (hf_proc == proc_rank) {
-//            add_int(sol_vec, hf_det, 100, ini_bit);
             sol_vec.add(hf_det, 100, ini_bit);
         }
     }
-//    perform_add(sol_vec, ini_bit);
     sol_vec.perform_add(ini_bit);
-//    loc_norm = local_norm(sol_vec);
     loc_norm = sol_vec.local_norm();
     sum_mpi_d(loc_norm, &glob_norm, proc_rank, n_procs);
     if (load_dir) {
@@ -323,7 +304,6 @@ int main(int argc, const char * argv[]) {
     for (iterat = 0; iterat < max_iter; iterat++) {
         n_nonz = 0;
         for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
-//            int *curr_el = int_at_pos(sol_vec, det_idx);
             int *curr_el = sol_vec[det_idx];
             long long curr_det = sol_vec.indices()[det_idx];
             n_walk = abs(*curr_el);
@@ -346,7 +326,6 @@ int main(int argc, const char * argv[]) {
                 printf("Allocating more memory for spawning\n");
                 max_spawn = n_doub * 3 / 2;
                 spawn_orbs = (unsigned char *)realloc(spawn_orbs, sizeof(unsigned char) * 4 * max_spawn);
-//                spawn_orbs.enlarge(max_spawn);
                 spawn_probs = (double *) realloc(spawn_probs, sizeof(double) * max_spawn);
             }
             
@@ -354,11 +333,9 @@ int main(int argc, const char * argv[]) {
                 printf("Allocating more memory for spawning\n");
                 max_spawn = n_sing * 3;
                 spawn_orbs = (unsigned char *)realloc(spawn_orbs, sizeof(unsigned char) * 4 * max_spawn);
-//                spawn_orbs.enlarge(max_spawn);
                 spawn_probs = (double *) realloc(spawn_probs, sizeof(double) * max_spawn);
             }
             
-//            spawn_orbs.cols_ = 4;
             if (qmc_dist == near_uni) {
                 n_doub = doub_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_doub, rngen_ptr, (unsigned char (*)[4])spawn_orbs, spawn_probs);
             }
@@ -374,12 +351,10 @@ int main(int argc, const char * argv[]) {
                 if (spawn_walker != 0) {
                     new_det = curr_det;
                     spawn_walker *= -doub_det_parity(&new_det, doub_orbs[walker_idx]) * walk_sign;
-//                    add_int(sol_vec, new_det, spawn_walker, ini_flag);
                     sol_vec.add(new_det, spawn_walker, ini_flag);
                 }
             }
             
-//            spawn_orbs.cols_ = 2;
             n_sing = sing_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_sing, rngen_ptr, sing_orbs, spawn_probs);
             
             for (walker_idx = 0; walker_idx < n_sing; walker_idx++) {
@@ -390,13 +365,11 @@ int main(int argc, const char * argv[]) {
                 if (spawn_walker != 0) {
                     new_det = curr_det;
                     spawn_walker *= -sing_det_parity(&new_det, sing_orbs[walker_idx]) * walk_sign;
-//                    add_int(sol_vec, new_det, spawn_walker, ini_flag);
                     sol_vec.add(new_det, spawn_walker, ini_flag);
                 }
             }
             
             // Death/cloning step
-//            double *diag_el = &(sol_vec->matr_el[det_idx]);
             double *diag_el = sol_vec.matr_el_at_pos(det_idx);
             if (isnan(*diag_el)) {
                 *diag_el = diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
@@ -424,7 +397,6 @@ int main(int argc, const char * argv[]) {
         }
         
         // Calculate energy estimate
-//        matr_el = vec_dot(sol_vec, trial_vec->indices, (double *)trial_vec->values, n_hf_doub, htrial_hashes);
         matr_el = sol_vec.dot(trial_vec.indices(), trial_vec[0], trial_vec.curr_size(), htrial_hashes);
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
@@ -444,7 +416,6 @@ int main(int argc, const char * argv[]) {
         
         // Save vector snapshot to disk
         if ((iterat + 1) % save_interval == 0) {
-//            save_vec(sol_vec, result_dir);
             sol_vec.save(result_dir);
             if (proc_rank == hf_proc) {
                 fflush(num_file);
@@ -454,7 +425,6 @@ int main(int argc, const char * argv[]) {
             }
         }
     }
-//    save_vec(sol_vec, result_dir);
     sol_vec.save(result_dir);
     if (proc_rank == hf_proc) {
         fclose(num_file);

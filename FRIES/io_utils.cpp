@@ -147,9 +147,8 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     
     strcpy(buffer, hf_dir);
     strcat(buffer, "hcore.txt");
-//    in_struct->hcore = malloc(sizeof(double) * tot_orb * tot_orb);
     in_struct->hcore = new Matrix<double>(tot_orb, tot_orb);
-    size_t n_read = read_doub_csv(in_struct->hcore->data(), buffer);
+    size_t n_read = read_doub_csv((*(in_struct->hcore))[0], buffer);
     if (n_read < tot_orb * tot_orb) {
         fprintf(stderr, "Error reading values from %s\n", buffer);
         return -1;
@@ -157,7 +156,6 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     
     strcpy(buffer, hf_dir);
     strcat(buffer, "eris.txt");
-//    in_struct->eris = (double *) malloc(sizeof(double) * tot_orb * tot_orb * tot_orb * tot_orb);
     in_struct->eris = new FourDArr(tot_orb, tot_orb, tot_orb, tot_orb);
     n_read = read_doub_csv(in_struct->eris->data(), buffer);
     if (n_read < tot_orb * tot_orb * tot_orb * tot_orb) {

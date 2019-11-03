@@ -10,10 +10,12 @@
 
 #include "near_uniform.hpp"
 
-void gen_symm_lookup(unsigned char *orb_symm, unsigned int n_orb, unsigned int n_symm,
+void gen_symm_lookup(unsigned char *orb_symm,
                      Matrix<unsigned char> &lookup_tabl) {
     unsigned int idx, count;
     unsigned char symm;
+    size_t n_symm = lookup_tabl.rows();
+    size_t n_orb = lookup_tabl.cols() - 1;
     for (idx = 0; idx < n_symm; idx++) {
         lookup_tabl(idx, 0) = 0;
     }
@@ -26,9 +28,9 @@ void gen_symm_lookup(unsigned char *orb_symm, unsigned int n_orb, unsigned int n
     }
 }
 
-void print_symm_lookup(unsigned int n_orb, unsigned int n_symm,
-                       Matrix<unsigned char> &lookup_tabl) {
+void print_symm_lookup(Matrix<unsigned char> &lookup_tabl) {
     unsigned int idx, orb_idx;
+    size_t n_symm = lookup_tabl.rows();
     for (idx = 0; idx < n_symm; idx++) {
         printf("%u: ", idx);
         for (orb_idx = 0; orb_idx < lookup_tabl(idx, 0); orb_idx++) {

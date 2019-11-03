@@ -16,7 +16,6 @@
 #include <FRIES/Ext_Libs/argparse.h>
 #include <FRIES/Hamiltonians/heat_bathPP.hpp>
 #include <FRIES/Hamiltonians/molecule.hpp>
-//#include <FRIES/vec_utils.hpp>
 #define max_iter 1000000
 
 static const char *const usage[] = {
@@ -104,9 +103,7 @@ int main(int argc, const char * argv[]) {
     long long ini_bit = 1LL << (2 * n_orb);
     
     unsigned char *symm = in_data.symm;
-//    double (* h_core)[tot_orb] = (double (*)[tot_orb])in_data.hcore;
     Matrix<double> *h_core = in_data.hcore;
-//    double (* eris)[tot_orb][tot_orb][tot_orb] = (double (*)[tot_orb][tot_orb][tot_orb])in_data.eris;
     FourDArr *eris = in_data.eris;
     
     // Rn generator
@@ -116,13 +113,11 @@ int main(int argc, const char * argv[]) {
     // Solution vector
     unsigned int spawn_length = matr_samp * 5 / n_procs;
     size_t adder_size = spawn_length > 1000000 ? 1000000 : spawn_length;
-//    dist_vec *sol_vec = init_vec(max_n_dets, adder_size, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
     DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb, n_elec_unf, 0, n_procs, DOUB);
     size_t det_idx;
     
-//    unsigned char symm_lookup[n_irreps][n_orb + 1];
     Matrix<unsigned char> symm_lookup(n_irreps, n_orb + 1);
-    gen_symm_lookup(symm, n_orb, n_irreps, symm_lookup);
+    gen_symm_lookup(symm, symm_lookup);
     unsigned int max_n_symm = 0;
     for (det_idx = 0; det_idx < n_irreps; det_idx++) {
         if (symm_lookup[det_idx][0] > max_n_symm) {
@@ -157,7 +152,6 @@ int main(int argc, const char * argv[]) {
     unsigned char tmp_orbs[n_elec_unf];
     unsigned char (*orb_indices1)[4] = (unsigned char (*)[4])malloc(sizeof(char) * 4 * spawn_length);
     
-//    dist_vec *trial_vec;
     size_t n_trial;
     size_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
     DistVec<double> trial_vec(n_ex / n_procs, n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, 0, n_procs, DOUB);
@@ -167,19 +161,13 @@ int main(int argc, const char * argv[]) {
         double *load_vals = sol_vec[0];
         
         n_trial = load_vec_txt(trial_path, load_dets, load_vals, DOUB);
-//        trial_vec = init_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
         for (det_idx = 0; det_idx < n_trial; det_idx++) {
-//            add_doub(trial_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
             trial_vec.add(load_dets[det_idx], load_vals[det_idx], ini_bit);
         }
     }
     else { // Otherwise, use HF as trial vector
-//        trial_vec = init_vec(n_ex / n_procs, n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, DOUB, 0);
-//        trial_vec->proc_scrambler = proc_scrambler;
-//        add_doub(trial_vec, hf_det, 1, ini_bit);
         trial_vec.add(hf_det, 1, ini_bit);
     }
-//    perform_add(trial_vec, ini_bit);
     trial_vec.perform_add(ini_bit);
     
     // Calculate H * trial vector, and accumulate results on each processor
@@ -229,7 +217,6 @@ int main(int argc, const char * argv[]) {
         size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, DOUB);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
-//            add_doub(sol_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
             sol_vec.add(load_dets[det_idx], load_vals[det_idx], ini_bit);
         }
     }
@@ -293,7 +280,6 @@ int main(int argc, const char * argv[]) {
     size_t *det_indices2 = &det_indices1[spawn_length];
     unsigned char (*orb_indices2)[4] = (unsigned char (*)[4])malloc(sizeof(char) * 4 * spawn_length);
     unsigned int unocc_symm_cts[n_irreps][2];
-//    int *keep_idx = (int *)calloc(n_orb * spawn_length, sizeof(int));
     Matrix<int> keep_idx(spawn_length, n_orb);
     double *wt_remain = (double *)calloc(spawn_length, sizeof(double));
     size_t samp_idx, weight_idx;
@@ -330,7 +316,6 @@ int main(int argc, const char * argv[]) {
         subwt_mem.reshape(2);
         keep_idx.reshape(2);
         for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
-//            double *curr_el = doub_at_pos(sol_vec, det_idx);
             double *curr_el = sol_vec[det_idx];
             weight = fabs(*curr_el);
             comp_vec1[det_idx] = weight;
@@ -486,7 +471,6 @@ int main(int argc, const char * argv[]) {
             weight_idx = comp_idx[samp_idx][0];
             det_idx = det_indices2[weight_idx];
             long long curr_det = sol_vec.indices()[det_idx];
-//            double *curr_el = doub_at_pos(sol_vec, det_idx);
             double *curr_el = sol_vec[det_idx];
             int ini_flag = fabs(*curr_el) > init_thresh;
             int el_sign = 1 - 2 * (*curr_el < 0);
@@ -543,10 +527,8 @@ int main(int argc, const char * argv[]) {
         
         // Death/cloning step
         for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
-//            double *curr_el = doub_at_pos(sol_vec, det_idx);
             double *curr_el = sol_vec[det_idx];
             if (*curr_el != 0) {
-//                double *diag_el = &(sol_vec->matr_el[det_idx]);
                 double *diag_el = sol_vec.matr_el_at_pos(det_idx);
                 unsigned char *occ_orbs = sol_vec.orbs_at_pos(det_idx);
                 if (isnan(*diag_el)) {
@@ -568,7 +550,6 @@ int main(int argc, const char * argv[]) {
                 long long ini_flag = keep_idx(samp_idx, 0);
                 ini_flag <<= 2 * n_orb;
                 keep_idx(samp_idx, 0) = 0;
-//                add_doub(sol_vec, spawn_dets[samp_idx], comp_vec1[samp_idx], ini_flag);
                 sol_vec.add(spawn_dets[samp_idx], comp_vec1[samp_idx], ini_flag);
                 num_added++;
                 samp_idx++;
@@ -603,7 +584,6 @@ int main(int argc, const char * argv[]) {
                 fprintf(norm_file, "%lf\n", glob_norm);
             }
         }
-//        matr_el = vec_dot(sol_vec, trial_vec->indices, (double *)trial_vec->values, n_hf_doub, htrial_hashes);
         matr_el = sol_vec.dot(trial_vec.indices(), trial_vec[0], trial_vec.curr_size(), htrial_hashes);
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);

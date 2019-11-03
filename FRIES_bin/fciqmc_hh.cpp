@@ -136,7 +136,6 @@ int main(int argc, const char * argv[]) {
     
     // Solution vector
     unsigned int spawn_length = target_walkers / n_procs / n_procs;
-//    dist_vec *sol_vec = init_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec, INT, hub_len);
     DistVec<int> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec, hub_len, n_procs, INT);
     sol_vec.proc_scrambler_ = proc_scrambler;
     
@@ -155,7 +154,6 @@ int main(int argc, const char * argv[]) {
         size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, INT);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
-//            add_int(sol_vec, load_dets[det_idx], load_vals[det_idx], ini_bit);
             sol_vec.add(load_dets[det_idx], load_vals[det_idx], ini_bit);
         }
     }
@@ -243,9 +241,7 @@ int main(int argc, const char * argv[]) {
             walk_sign = 1 - ((*curr_el >> (sizeof(int) * 8 - 1)) & 2);
             
             // spawning step
-//            unsigned char (*neighb_orbs)[2][n_elec + 1] = (unsigned char (*)[2][n_elec + 1])sol_vec->neighb;
             const Matrix<unsigned char> &neighb_orbs = sol_vec.neighb();
-//            matr_el = eps * hub_t * (neighb_orbs[det_idx][0][0] + neighb_orbs[det_idx][1][0]);
             matr_el = eps * hub_t * (neighb_orbs(det_idx, 0) + neighb_orbs(det_idx, n_elec + 1));
             n_success = round_binomially(matr_el, n_walk, rngen_ptr);
             
@@ -264,7 +260,6 @@ int main(int argc, const char * argv[]) {
             }
             
             // Death/cloning step
-//            double *diag_el = &(sol_vec->matr_el[det_idx]);
             double *diag_el = sol_vec.matr_el_at_pos(det_idx);
             if (isnan(*diag_el)) {
                 *diag_el = hub_diag(curr_det, hub_len, sol_vec.tabl()) * hub_u;
@@ -299,7 +294,6 @@ int main(int argc, const char * argv[]) {
         recv_nums[0] = matr_el;
 #endif
         if (proc_rank == ref_proc) {
-//            double *diag_el = &(sol_vec->matr_el[0]);
             double *diag_el = sol_vec.matr_el_at_pos(0);
             if (isnan(*diag_el)) {
                 *diag_el = hub_diag(neel_det, hub_len, sol_vec.tabl()) * hub_u;

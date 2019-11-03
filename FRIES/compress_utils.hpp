@@ -16,10 +16,6 @@
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/ndarr.hpp>
 
-//#ifdef __cplusplus
-//extern "C" {
-//#endif
-
 /*! \brief Round a non-integral number binomially.
  *
  * Given a non-integral input p and a positive-integral input n, the result r of
@@ -274,8 +270,5 @@ void sample_alias(unsigned int *aliases, double *alias_probs, size_t n_states,
                   unsigned char *samples, unsigned int n_samp, size_t samp_int,
                   mt_struct *mt_ptr);
 
-//#ifdef __cplusplus
-//}
-//#endif
 
 #endif /* compress_utils_h */

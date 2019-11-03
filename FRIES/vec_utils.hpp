@@ -19,10 +19,6 @@
 #include <FRIES/ndarr.hpp>
 #include <vector>
 
-//#ifdef __cplusplus
-//extern "C" {
-//#endif
-
 using namespace std;
 
 
@@ -51,34 +47,26 @@ unsigned char gen_orb_list(long long det, byte_table *table, unsigned char *occ_
  *                          column indicate number of elements in each row.
  */
 void find_neighbors_1D(long long det, unsigned int n_sites, byte_table *table,
-                       unsigned int n_elec,
-                       unsigned char *neighbors);
+                       unsigned int n_elec, unsigned char *neighbors);
 
 template <class el_type>
 class DistVec;
 
-/*! \brief Struct used to add elements to sparse vector
- *
- * Elements to be added are buffered in send buffers until perform_add() is
- * called, at which point they are distributed into receive buffers located in
- * their corresponding MPI processes
+/*!
+ * \brief Class for adding elements to a DistVec object
+ * \tparam el_type Type of elements to be added to the DistVec object
+ * Elements are first added to a buffer, and then the buffered elements can be distributed to the appropriate process by calling perform_add()
  */
-//typedef struct{
-//    dtype type; ///< Type of elements to be added
-//    size_t size; ///< Maximum number of elements per MPI process in send and receive buffers
-//    long long *send_idx; ///< Send buffer for element indices
-//    long long *recv_idx; ///< Receive buffer for element indices
-//    void *send_vals; ///< Send buffer for element values
-//    void *recv_vals; ///< Receive buffer for element values
-//    Matrix<long long> *send_idx;
-//    Matrix<long long> *recv_idx;
-//    int *send_cts; ///< Number of elements in the send buffer for each process
-//    int *recv_cts; ///< Number of elements in the receive buffer for each process
-//    int *displacements; ///< Array positions in buffers corresponding to each process
-//} adder;
 template <class el_type>
 class Adder {
 public:
+    /*! \brief Constructor for Adder class
+     * Allocates memory for the internal buffers in the class
+     * \param [in] size     Maximum number of elements per MPI process in send and receive buffers
+     * \param [in] n_procs  The number of processes
+     * \param [in] type     The type of elements to be added
+     * \param [in] vec         The vector to which elements will be added
+     */
     Adder(size_t size, int n_procs, dtype type, DistVec<el_type> *vec) : send_idx_(n_procs, size), send_vals_(n_procs, size), recv_idx_(n_procs, size), recv_vals_(n_procs, size), type_(type), parent_vec_(vec) {
         send_cts_ = (int *)malloc(sizeof(int) * n_procs);
         recv_cts_ = (int *) malloc(sizeof(int) * n_procs);
@@ -89,27 +77,41 @@ public:
             send_cts_[proc_idx] = 0;
         }
     }
+    
     ~Adder() {
         free(send_cts_);
         free(recv_cts_);
         free(displacements_);
     }
+    
     Adder(const Adder &a) = delete;
+    
     Adder& operator= (const Adder &a) = delete;
     
+    /*! \brief Remove the elements from the internal buffers and send them to the DistVec objects on their corresponding MPI processes
+    * \param [in] ini_bit  The bit in indices used to determine whether each added element corresponds to an initiator
+     */
     void perform_add(long long ini_bit);
+    
+    /*! \brief Add an element to the internal buffers
+     * \param [in] idx      Index of the element to be added
+     * \param [in] val      Value of the added element
+     * \param [in] ini_flag     A bit string indicating the initiator status of the added element
+     */
     void add(long long idx, el_type val, long long ini_flag);
 private:
-    Matrix<long long> send_idx_;
-    Matrix<el_type> send_vals_;
-    Matrix<long long> recv_idx_;
-    Matrix<el_type> recv_vals_;
-    int *send_cts_;
-    int *recv_cts_;
-    int *displacements_;
-    DistVec<el_type> *parent_vec_;
-    dtype type_;
+    Matrix<long long> send_idx_; ///< Send buffer for element indices
+    Matrix<el_type> send_vals_; ///< Send buffer for element values
+    Matrix<long long> recv_idx_; ///< Receive buffer for element indices
+    Matrix<el_type> recv_vals_; ///< Receive buffer for element values
+    int *send_cts_; ///< Number of elements in the send buffer for each process
+    int *recv_cts_; ///< Number of elements in the receive buffer for each process
+    int *displacements_; ///< Array positions in buffers corresponding to each
+    DistVec<el_type> *parent_vec_; ///<The DistVec object to which elements are added
+    dtype type_; ///< Type of elements to be added
     
+/*! \brief Increase the size of the buffer for temporarily storing added elements
+ */
     void enlarge_() {
         printf("Increasing storage capacity in adder\n");
         size_t new_size = send_idx_.rows() * 2;
@@ -125,49 +127,70 @@ private:
     }
 };
 
-
-/*! \brief Setup an adder struct
- *
- * \param [in] size         Maximum number of elements per MPI process to use in
- *                          buffers
- * \param [in] type         Type of elements to be added
- * \return pointer to newly created adder struct
+/*!
+ * \brief Class for storing and manipulating a sparse vector
+ * \tparam el_type Type of elements in the vector
+ * Elements of the vector are distributed across many MPI processes, and hashing is used for efficient indexing
  */
-//adder *init_adder(size_t size, dtype type);
-
 template <class el_type>
 class DistVec {
-    long long *indices_;
-    std::vector<el_type> values_;
-    double *matr_el_;
-    size_t max_size_;
-    size_t curr_size_;
-    hash_table *vec_hash_;
-    stack_entry *vec_stack_;
-    byte_table *tabl_;
-    unsigned int n_elec_;
-    Matrix<unsigned char> occ_orbs_;
-    Matrix<unsigned char> neighb_;
-    unsigned int n_sites_;
-    Adder<el_type> adder_;
-    int n_nonz_;
-    dtype type_;
+    long long *indices_; ///< Array of indices of vector elements
+    std::vector<el_type> values_; ///< Array of values of vector elements
+    double *matr_el_; ///< Array of pre-calculated diagonal matrix elements associated with each vector element
+    size_t max_size_; ///< Maximum number of vector elements that can be stored
+    size_t curr_size_; ///< Current number of vector elements stored, including intermediate zeroes
+    hash_table *vec_hash_; ///< Hash table for quickly finding indices in \p indices_
+    stack_entry *vec_stack_; ///< Pointer to top of stack for managing available positions in the indices array
+    byte_table *tabl_; ///< Pointer to struct used to decompose determinant indices into lists of occupied orbitals
+    Matrix<unsigned char> occ_orbs_; ///< Matrix containing lists of occupied orbitals for each determniant index
+    Matrix<unsigned char> neighb_; ///< Pointer to array containing information about empty neighboring orbitals for Hubbard model
+    unsigned int n_sites_; ///< Number of sites along one dimension of the Hubbard lattice, if applicable
+    Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
+    int n_nonz_; /// Current number of nonzero elements in vector
+    dtype type_; ///< Type of elements in vector
 public:
-    unsigned int *proc_scrambler_;
+    unsigned int *proc_scrambler_; ///< Array of random numbers used in the hash function for assigning vector indices to MPI
+    
+    /*! \brief Constructor for DistVec object
+    * \param [in] size         Maximum number of elements to be stored in the vector
+    * \param [in] add_size     Maximum number of elements per processor to use in Adder object
+    * \param [in] rn_ptr       Pointer to an mt_struct object for RN generation
+    * \param [in] n_orb        Number of spatial orbitals in the basis (half the length of the vector of random numbers for the
+    *                          hash function for processors)
+    * \param [in] n_elec       Number of electrons represented in each vector index
+    * \param [in] n_sites      If the orbitals in vector indices represent lattice sites, the number of sites along one dimension. 0 otherwise.
+     * \param [in] n_procs Number of MPI processes over which to distribute vector elements
+     * \param [in] type     Data type of vector elements
+     */
     DistVec(size_t size, size_t add_size, mt_struct *rn_ptr, unsigned int n_orb,
-            unsigned int n_elec, int n_sites, int n_procs, dtype type) : n_elec_(n_elec), n_sites_(n_sites), values_(size), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, type, this), n_nonz_(0), type_(type), neighb_(n_sites ? size : 0, 2 * (n_elec + 1)) {
+            unsigned int n_elec, int n_sites, int n_procs, dtype type) : n_sites_(n_sites), values_(size), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, type, this), n_nonz_(0), type_(type), neighb_(n_sites ? size : 0, 2 * (n_elec + 1)) {
         indices_ = (long long *) malloc(sizeof(long long) * size);
         matr_el_ = (double *)malloc(sizeof(double) * size);
         vec_hash_ = setup_ht(size, rn_ptr, 2 * n_orb);
         tabl_ = gen_byte_table();
     }
+    
     ~DistVec() {
         free(indices_);
         free(matr_el_);
     }
-    DistVec(const DistVec &d) = delete;
-    DistVec& operator= (const DistVec& d) = delete;
     
+    DistVec(const DistVec &d) = delete;
+    
+    DistVec& operator= (const DistVec& d) = delete;
+
+    /*! \brief Calculate dot product
+     *
+     * Calculates dot product of the portion of a DistVec object stored on each MPI process
+     * with a local sparse vector (such that the local results could be added)
+     *
+     * \param [in] idx2         Indices of elements in the local vector
+     * \param [in] vals2         Values of elements in the local vector
+     * \param [in] num2         Number of elements in the local vector
+     * \param [in] hashes2      hash values of the indices of the local vector from
+     *                          the hash table of vec
+     * \return the value of the dot product
+     */
     double dot(long long *idx2, double *vals2, size_t num2,
                unsigned long long *hashes2) {
         size_t hf_idx;
@@ -182,6 +205,7 @@ public:
         return numer;
     }
     
+    /*! \brief Double the maximum number of elements that can be stored */
     void expand() {
         printf("Increasing storage capacity in vector\n");
         size_t new_max = max_size_ * 2;
@@ -193,34 +217,68 @@ public:
         }
         values_.resize(new_max);
     }
-    
+
+    /*! \brief Hash function mapping vector index to MPI process
+     *
+     * \param [in] idx          Vector index
+     * \return process index from hash value
+     */
     int idx_to_proc(long long idx) {
-        unsigned char orbs[n_elec_];
+        unsigned int n_elec = (unsigned int)occ_orbs_.cols();
+        unsigned char orbs[n_elec];
         gen_orb_list(idx, tabl_, orbs);
-        unsigned long long hash_val = hash_fxn(orbs, n_elec_, proc_scrambler_);
+        unsigned long long hash_val = hash_fxn(orbs, n_elec, proc_scrambler_);
         int n_procs = 1;
 #ifdef USE_MPI
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
 #endif
         return hash_val % n_procs;
     }
-    
+
+    /*! \brief Hash function mapping vector index to local hash value
+     *
+     * The local hash value is used to find the index on a particular processor
+     *
+     * \param [in] idx          Vector index
+     * \return hash value
+     */
     unsigned long long idx_to_hash(long long idx) {
-        unsigned char orbs[n_elec_];
+        unsigned int n_elec = (unsigned int)occ_orbs_.cols();
+        unsigned char orbs[n_elec];
         gen_orb_list(idx, tabl_, orbs);
-        return hash_fxn(orbs, n_elec_, vec_hash_->scrambler);
+        return hash_fxn(orbs, n_elec, vec_hash_->scrambler);
     }
-    
+
+    /*! \brief Add an element to the DistVec object
+     *
+     * The element will be added to a buffer for later processing
+     *
+     * \param [in] idx          The index of the element in the vector
+     * \param [in] val          The value of the added element
+     * \param [in] ini_flag     A bit string indicating whether the added element
+     *                          came from an initiator element. None of the 1 bits
+     *                          should overlap with the orbitals encoded in the rest
+     *                          of the bit string
+     */
     void add(long long idx, el_type val, long long ini_flag) {
         if (val != 0) {
             adder_.add(idx, val, ini_flag);
         }
     }
-    
+
+    /*! \brief Incorporate elements from the Adder buffer into the vector
+     *
+     * Sign-coherent elements are added regardless of their corresponding initiator
+     * flags. Otherwise, only elements with nonzero initiator flags are added
+     *
+     * \param [in] ini_bit      A bit mask defining where to look for initiator
+     *                          flags in added elements
+     */
     void perform_add(long long ini_bit) {
         adder_.perform_add(ini_bit);
     }
     
+    /*! \brief Get the index of an unused intermediate index in the \p indices_ array, or -1 if none exists */
     ssize_t pop_stack() {
         stack_entry *head = vec_stack_;
         if (!head) {
@@ -232,13 +290,22 @@ public:
         return ret_idx;
     }
     
+    /*! \brief Push an unused index in the \p indices_ array onto the stack
+     * \param [in] idx The index of the available element of the \p indices array
+     */
     void push_stack(size_t idx) {
         stack_entry *new_entry = (stack_entry*) malloc(sizeof(stack_entry));
         new_entry->idx = idx;
         new_entry->next = vec_stack_;
         vec_stack_ = new_entry;
     }
-    
+
+    /*! \brief Delete an element from the vector
+     *
+     * Removes an element from the vector and modifies the hash table accordingly
+     *
+     * \param [in] pos          The position of the element to be deleted in \p indices_
+     */
     void del_at_pos(size_t pos) {
         long long idx = indices_[pos];
         unsigned long long hash_val = idx_to_hash(idx);
@@ -247,35 +314,51 @@ public:
         n_nonz_--;
     }
     
+    /*! \returns The array used to store indices in the DistVec object */
     long long *indices() const {
         return indices_;
     }
+    
+    /*! \returns The array used to store values in the DistVec object */
     void *values() const {
         return (void *)values_.data();
     }
     
+    /*! \returns The current number of elements in use in the \p indices_ and \p values arrays */
     size_t curr_size() const {
         return curr_size_;
     }
     
+    /*!\returns The current number of nonzero elements in the vector */
     int n_nonz() const {
         return n_nonz_;
     }
     
+    /*! \returns A pointer to the byte_table struct used to perform bit manipulations for this vector */
     byte_table *tabl() const {
         return tabl_;
     }
     
+    /*! \returns A reference to the Matrix used to store information about empty neighboring orbitals of
+     *              seach determinant in the Hubbard model*/
     const Matrix<unsigned char> &neighb() const{
         return neighb_;
     }
     
+    /*! \returns The type of elements stored in the DistVec object */
     dtype type() const {
         return type_;
     }
     
+    /*! \brief Add elements destined for this process to the DistVec object
+     * \param [in] indices Indices of the elements to be added
+     * \param [in] vals     Values of the elements to be added
+     * \param [in] count    Number of elements to be added
+     * \param [in] ini_bit  The bit in indices used to determine whether each added element corresponds to an initiator
+     */
     void add_elements(long long *indices, el_type *vals, size_t count, long long ini_bit) {
         size_t el_idx;
+        unsigned int n_elec = (unsigned int)occ_orbs_.cols();
         for (el_idx = 0; el_idx < count; el_idx++) {
             long long new_idx = indices[el_idx];
             int ini_flag = !(!(new_idx & ini_bit));
@@ -292,14 +375,14 @@ public:
                     curr_size_++;
                 }
                 values_[*idx_ptr] = 0;
-                if (gen_orb_list(new_idx, tabl_, occ_orbs_[*idx_ptr]) != n_elec_) {
+                if (gen_orb_list(new_idx, tabl_, occ_orbs_[*idx_ptr]) != n_elec) {
                     fprintf(stderr, "Error: determinant %lld created with an incorrect number of electrons.\n", new_idx);
                 }
                 indices_[*idx_ptr] = new_idx;
                 matr_el_[*idx_ptr] = NAN;
                 n_nonz_++;
                 if (n_sites_) {
-                    find_neighbors_1D(new_idx, n_sites_, tabl_, n_elec_, neighb_[*idx_ptr]);
+                    find_neighbors_1D(new_idx, n_sites_, tabl_, n_elec, neighb_[*idx_ptr]);
                 }
             }
             int del_bool = 0;
@@ -314,18 +397,36 @@ public:
             }
         }
     }
+    
+    /*! \brief Get a pointer to a value in the \p values_ array of the DistVec object
+     
+    * \param [in] pos          The position of the corresponding index in the \p indices_ array
+     */
     el_type *operator[](size_t pos) {
         return &values_[pos];
     }
-    
+
+    /*! \brief Get a pointer to the list of occupied orbitals corresponding to an
+     * existing determinant index in the vector
+     *
+     * \param [in] pos          The position of the index in the \p indices_ array
+     */
     unsigned char *orbs_at_pos(size_t pos) {
         return occ_orbs_[pos];
     }
     
-    double *matr_el_at_pos(size_t idx) {
-        return &matr_el_[idx];
+    /*! \brief Get a pointer to the diagonal matrix element corresponding to an element in the DistVec object
+     
+    * \param [in] pos          The position of the corresponding index in the \p indices_ array
+     */
+    double *matr_el_at_pos(size_t pos) {
+        return &matr_el_[pos];
     }
-    
+
+    /*! \brief Calculate the sum of the magnitudes of the vector elements on each MPI process
+     *
+     * \return The sum of the magnitudes on each process
+     */
     double local_norm() {
         double norm = 0;
         size_t idx;
@@ -334,7 +435,14 @@ public:
         }
         return norm;
     }
-    
+
+    /*! Save a DistVec object to disk in binary format
+     *
+     * The vector indices from each MPI process are stored in the file
+     * [path]dets[MPI rank].dat, and the values at [path]vals[MPI rank].dat
+     *
+     * \param [in] path         Location where the files are to be stored
+     */
     void save(const char *path)  {
         int my_rank = 0;
     #ifdef USE_MPI
@@ -360,7 +468,14 @@ public:
         fwrite(values_.data(), el_size, curr_size_, file_p);
         fclose(file_p);
     }
-    
+
+    /*! Load a vector from disk in binary format
+     *
+     * The vector indices from each MPI process are read from the file
+     * [path]dets[MPI rank].dat, and the values from [path]vals[MPI rank].dat
+     *
+     * \param [in] path         Location where the files are to be stored
+     */
     void load(const char *path) {
         int my_rank = 0;
     #ifdef USE_MPI
@@ -397,6 +512,7 @@ public:
         
         size_t det_idx;
         n_nonz_ = 0;
+        unsigned int n_elec = (unsigned int)occ_orbs_.cols();
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
             int is_nonz = 0;
             if (fabs(values_[det_idx]) > 1e-9) {
@@ -409,13 +525,14 @@ public:
                 matr_el_[n_nonz_] = NAN;
                 n_nonz_++;
                 if (n_sites_) {
-                    find_neighbors_1D(indices_[det_idx], n_sites_, tabl_, n_elec_, neighb_[det_idx]);
+                    find_neighbors_1D(indices_[det_idx], n_sites_, tabl_, n_elec, neighb_[det_idx]);
                 }
             }
         }
         curr_size_ = n_nonz_;
     }
     
+    /*! \brief Collect all of the vector elements from other MPI processes and accumulate them in the vector on each process */
     void collect_procs() {
         int n_procs = 1;
         int proc_idx;
@@ -453,6 +570,8 @@ public:
             indices_ = (long long *)realloc(indices_, sizeof(long long) * tot_size);
             values_.resize(tot_size);
         }
+        memmove(&indices_[disps[my_rank]], indices_, vec_sizes[my_rank] * sizeof(long long));
+        memmove(&values_.data()[disps[my_rank]], values_.data(), vec_sizes[my_rank] * el_size);
     #ifdef USE_MPI
         MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, indices_, vec_sizes, disps, MPI_LONG_LONG, MPI_COMM_WORLD);
         MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, values_.data(), vec_sizes, disps, mpi_type, MPI_COMM_WORLD);
@@ -519,217 +638,5 @@ void Adder<el_type>::perform_add(long long ini_bit) {
     }
 }
 
-/*! \brief Struct for storing a sparse vector */
-//typedef struct {
-//    long long *indices; ///< Array of indices of vector elements
-//    void *values; ///< Array of values of vector elements
-//    double *matr_el; ///< Array of pre-calculated diagonal matrix elements associated with each vector element
-//    size_t max_size; ///< Maximum number of vector elements that can be stored
-//    size_t curr_size; ///< Current number of vector elements stored
-//    hash_table *vec_hash; ///< Hash table for quickly finding indices in the \p indices array
-//    stack_entry *vec_stack; ///< Pointer to stack struct for managing available positions in the indices array
-//    unsigned int *proc_scrambler; ///< Array of random numbers used in the hash function for assigning vector indices to MPI processes
-//    byte_table *tabl; ///< Struct used to decompose determinant indices into lists of occupied orbitals
-//    unsigned int n_elec; ///< Number of electrons represented by determinant bit-string indices
-////    unsigned char *occ_orbs; ///< 2-D array containing lists of occupied orbitals for each determniant index (dimensions \p max_size x \p n_elec)
-//    Matrix<unsigned char> *occ_orbs;
-////    unsigned char *neighb; ///< Pointer to array containing information about empty neighboring orbitals for Hubbard model
-//    Matrix<unsigned char> *neighb;
-//    unsigned int n_sites; ///< Number of sites along one dimension of the Hubbard lattice, if applicable
-//    dtype type; ///< Type of elements in vector
-//    adder *my_adder; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
-//    int n_nonz; /// Current number of nonzero elements in vector
-//} dist_vec;
-
-//void push_stack(dist_vec *vec, size_t idx);
-//ssize_t pop_stack(dist_vec *vec);
-
-
-/*! \brief Set up a dist_vec struct
- *
- * \param [in] size         Maximum number of elements to be stored
- * \param [in] add_size     Maximum number of elements per processor to use in
- *                          adder buffers
- * \param [in] rn_ptr       Pointer to an mt_struct object for RN generation
- * \param [in] n_orb        Number of spatial orbitals in the basis (half the
- *                          length of the vector of random numbers for the
- *                          hash function for processors)
- * \param [in] n_elec       Number of electrons represented in each vector index
- * \param [in] vec_type     Data type of vector elements
- * \param [in] n_sites      If the orbitals in vector indices represent lattice
- *                          sites, the number of sites along one dimension. 0
- *                          otherwise.
- * \return pointer to the newly allocated struct
- */
-//dist_vec *init_vec(size_t size, size_t add_size, mt_struct *rn_ptr, unsigned int n_orb,
-//                   unsigned int n_elec, dtype vec_type, int n_sites);
-
-/*! \brief Collect all of the vector elements from other MPI processes and accumulate them in the vectors on all processes
- *
- * \param [in, out] vec     A pointer to the dist_vec object on which to perform this operation
- */
-//void collect_procs(dist_vec *vec);
-
-
-/*! \brief Calculate dot product
- *
- * Calculates dot product of a vector distributed across potentially many MPI
- * processes with a local sparse vector (such that the local results could be
- * added)
- *
- * \param [in] vec          Struct containing the distributed vector
- * \param [in] idx2         Indices of elements in the local vector
- * \param [in] vals2         Values of elements in the local vector
- * \param [in] num2         Number of elements in the local vector
- * \param [in] hashes2      hash values of the indices of the local vector from
- *                          the hash table of vec
- * \return the value of the dot product
- */
-//double vec_dot(dist_vec *vec, long long *idx2, double *vals2, size_t num2,
-//               unsigned long long *hashes2);
-
-
-/*! \brief Hash function mapping vector index to processor
- *
- * \param [in] vec          Pointer to distributed sparse vector struct
- * \param [in] idx          Vector index
- * \return processor index from hash value
- */
-//int idx_to_proc(dist_vec *vec, long long idx);
-
-
-/*! \brief Hash function mapping vector index to local hash value
- *
- * The local hash value is used to find the index on a particular processor
- *
- * \param [in] vec          Pointer to distributed sparse vector struct
- * \param [in] idx          Vector index
- * \return hash value
- */
-//unsigned long long idx_to_hash(dist_vec *vec, long long idx);
-
-
-/*! \brief Add an int to a vector
- *
- * The element will be added to a buffer for later processing
- *
- * \param [in] vec          The dist_vec struct to which the element will be
- *                          added
- * \param [in] idx          The index of the element in the vector
- * \param [in] val          The value of the added element
- * \param [in] ini_flag     A bit string indicating whether the added element
- *                          came from an initiator element. None of the 1 bits
- *                          should overlap with the orbitals encoded in the rest
- *                          of the bit string
- */
-//void add_int(dist_vec *vec, long long idx, int val, long long ini_flag);
-
-
-/*! \brief Add a double to a vector
- *
- * The element will be added to a buffer for later processing
- *
- * \param [in] vec          The dist_vec struct to which the element will be
- *                          added
- * \param [in] idx          The index of the element in the vector
- * \param [in] val          The value of the added element
- * \param [in] ini_flag     A bit string indicating whether the added element
- *                          came from an initiator element. None of the 1 bits
- *                          should overlap with the orbitals encoded in the rest
- *                          of the bit string
- */
-//void add_doub(dist_vec *vec, long long idx, double val, long long ini_flag);
-
-
-/*! \brief Incorporate elements from the buffer into the vector
- *
- * Sign-coherent elements are added regardless of their corresponding initiator
- * flags. Otherwise, only elements with nonzero initiator flags are added
- *
- * \param [in] vec          The dist_vec struct on which to perform addition
- * \param [in] ini_bit      A bit mask defining where to look for initiator
- *                          flags in added elements
- */
-//void perform_add(dist_vec *vec, long long ini_bit);
-
-
-/*! \brief Delete an element from the vector
- *
- * Removes an element from the vector and modifies the hash table accordingly
- *
- * \param [in] vec          The dist_vec struct from which to delete the element
- * \param [in] pos          The position of the element to be deleted in the
- *                          element storage array of the dist_vec structure
- */
-//void del_at_pos(dist_vec *vec, size_t pos);
-
-/*! \brief Get a pointer to an element in the vector
- *
- * This function must be used in lieu of \p vec->values[\p pos] because the
- * values are stored as a (void *) array
- *
- * \param [in] vec          The dist_vec structure from which to read the element
- * \param [in] pos          The position of the desired element in the local
- *                          storage
- */
-//int *int_at_pos(dist_vec *vec, size_t pos);
-
-
-/*! \brief Get a pointer to an element in the vector
- *
- * This function must be used in lieu of \p vec->values[\p pos] because the
- * values are stored as a (void *) array
- *
- * \param [in] vec          The dist_vec structure from which to read the element
- * \param [in] pos          The position of the desired element in the local
- *                          storage
- */
-//double *doub_at_pos(dist_vec *vec, size_t pos);
-
-
-/*! \brief Get a pointer to the list of occupied orbitals corresponding to an
- * existing determinant index in the vector
- *
- * \param [in] vec          The dist_vec structure to reference
- * \param [in] pos          The position of the index in the local storage
- */
-//unsigned char *orbs_at_pos(dist_vec *vec, size_t pos);
-
-
-/*! \brief Calculate the one-norm of a vector
- *
- * This function sums over the elements on all MPI processes
- *
- * \param [in] vec          The vector whose one-norm is to be calculated
- * \return The one-norm of the vector
- */
-//double local_norm(dist_vec *vec);
-
-
-/*! Save a vector to disk in binary format
- *
- * The vector indices from each MPI process are stored in the file
- * [path]dets[MPI rank].dat, and the values at [path]vals[MPI rank].dat
- *
- * \param [in] vec          Pointer to the vector to save
- * \param [in] path         Location where the files are to be stored
- */
-//void save_vec(dist_vec *vec, const char *path);
-
-
-/*! Load a vector from disk in binary format
- *
- * The vector indices from each MPI process are read from the file
- * [path]dets[MPI rank].dat, and the values from [path]vals[MPI rank].dat
- *
- * \param [out] vec         Pointer to an allocated and initialized dist_vec
- *                          struct
- * \param [in] path         Location where the files are to be stored
- */
-//void load_vec(dist_vec *vec, const char *path);
-
-//#ifdef __cplusplus
-//}
-//#endif
 
 #endif /* vec_utils_h */

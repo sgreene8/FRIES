@@ -17,10 +17,6 @@
 #include <FRIES/ndarr.hpp>
 
 
-//#ifdef __cplusplus
-//extern "C" {
-//#endif
-
 /*!
  * \brief Data structure used to store the elements defining the intermediate
  * matrices in the HB-PP factorization
@@ -47,8 +43,7 @@ typedef struct {
  * \param [in] tot_orb      number of spatial orbitals from Hartree-Fock
  * \param [in] n_orb        number of unfrozen spatial orbitals to use in
  *                          constructing single- and double-electron components
- * \param [in] eris         2-electron integrals, of dimensions
- *                          \p tot_orb x \p tot_orb x \p tot_orb x \p tot_orb
+ * \param [in] eris         2-electron integrals
  * \return hb_info struct initialized with the HB-PP parameters
  */
 hb_info *set_up(unsigned int tot_orb, unsigned int n_orb,
@@ -215,9 +210,5 @@ unsigned int hb_doub_multi(long long det, unsigned char *occ_orbs,
                            unsigned int num_sampl, mt_struct *rn_ptr,
                            unsigned char (* chosen_orbs)[4], double *prob_vec);
 
-
-//#ifdef __cplusplus
-//}
-//#endif
 
 #endif /* heat_bathPP_h */

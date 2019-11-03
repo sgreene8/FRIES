@@ -16,9 +16,11 @@
 extern "C" {
 #endif
 
+/*! \brief An element in a singly-linked list as may be used to represent a stack
+ */
 struct stack_entry {
-    size_t idx;
-    struct stack_entry *next;
+    size_t idx; ///<The data associated with the element
+    struct stack_entry *next; ///< A pointer to the next element in the list, or NULL if last element
 };
 typedef struct stack_entry stack_entry;
 

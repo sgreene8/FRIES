@@ -14,10 +14,6 @@
 #include <FRIES/vec_utils.hpp>
 #include <FRIES/ndarr.hpp>
 
-//#ifdef __cplusplus
-//extern "C" {
-//#endif
-
 /*! \brief Read an array of floating-point numbers from a .csv file
  *
  * \param [out] buf     Array in which read-in numbers are stored
@@ -41,10 +37,8 @@ typedef struct {
     unsigned int n_elec; ///< Total number of electrons (including frozen) in the system
     unsigned int n_frz; ///< Suggested number of core electrons to freeze
     unsigned int n_orb; ///< Number of spatial orbitals in the HF basis
-//    double *eris; ///< Pointer to array of 2-electron integrals
-    FourDArr *eris;
-//    double *hcore; ///< Pointer to array of 1-electron integrals
-    Matrix<double> *hcore;
+    FourDArr *eris; ///< Pointer to 4-D array of 2-electron integrals
+    Matrix<double> *hcore; ///< Pointer to matrix of 1-electron integrals
     double hf_en; ///< HF electronic energy
     double eps; ///< Suggested imaginary time step to use in DMC calculations
     unsigned char *symm; ///< Irreps of orbitals in the HF basis
@@ -136,9 +130,5 @@ void save_proc_hash(const char *path, unsigned int *proc_hash, size_t n_hash);
  */
 void load_proc_hash(const char *path, unsigned int *proc_hash);
 
-    
-//#ifdef __cplusplus
-//}
-//#endif
 
 #endif /* io_utils_h */
