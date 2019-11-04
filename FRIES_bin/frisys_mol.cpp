@@ -269,7 +269,6 @@ int main(int argc, const char * argv[]) {
         fclose(param_f);
     }
     
-//    double *subwt_mem = (double *)malloc(sizeof(double) * n_orb * spawn_length);
     Matrix<double> subwt_mem(spawn_length, n_orb);
     unsigned int *ndiv_vec = (unsigned int *)malloc(sizeof(unsigned int) * spawn_length);
     double *comp_vec1 = (double *)malloc(sizeof(double) * spawn_length);
