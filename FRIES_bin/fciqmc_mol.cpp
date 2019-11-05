@@ -221,11 +221,19 @@ int main(int argc, const char * argv[]) {
             memcpy(sgnv_dets, load_dets, sizeof(long long) * n_sgnv);
             memcpy(sgnv_vals, load_vals, sizeof(double) * n_sgnv);
         }
-#ifdef USE_MPI
-        MPI_Bcast(sgnv_dets, n_sgnv, MPI_LONG_LONG, 0, MPI_COMM_WORLD);
-        MPI_Bcast(sgnv_vals, n_sgnv, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-#endif
     }
+    else {
+        sgnv_dets = (long long *)malloc(sizeof(long long));
+        sgnv_vals = (double *)malloc(sizeof(double));
+        n_sgnv = 0;
+        
+        sgnv_dets[0] = hf_det;
+        sgnv_vals[0] = 1;
+    }
+#ifdef USE_MPI
+    MPI_Bcast(sgnv_dets, n_sgnv, MPI_LONG_LONG, 0, MPI_COMM_WORLD);
+    MPI_Bcast(sgnv_vals, n_sgnv, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+#endif
     
     unsigned long long *sgn_hashes = (unsigned long long *)malloc(sizeof(unsigned long long) * n_sgnv);
     for (det_idx = 0; det_idx < n_sgnv; det_idx++) {
@@ -302,11 +310,9 @@ int main(int argc, const char * argv[]) {
         strcpy(file_path, result_dir);
         strcat(file_path, "projden.txt");
         den_file = fopen(file_path, "a");
-        if (sgnv_path) {
-            strcpy(file_path, result_dir);
-            strcat(file_path, "sign.txt");
-            sign_file = fopen(file_path, "a");
-        }
+        strcpy(file_path, result_dir);
+        strcat(file_path, "sign.txt");
+        sign_file = fopen(file_path, "a");
         strcpy(file_path, result_dir);
         strcat(file_path, "S.txt");
         shift_file = fopen(file_path, "a");
@@ -468,20 +474,18 @@ int main(int argc, const char * argv[]) {
         }
         
         // Calculate sign of iterate
-        if (sgnv_path) {
-            matr_el = sol_vec.dot(sgnv_dets, sgnv_vals, n_sgnv, sgn_hashes);
+        matr_el = sol_vec.dot(sgnv_dets, sgnv_vals, n_sgnv, sgn_hashes);
 #ifdef USE_MPI
-            MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
+        MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
 #else
-            recv_nums[0] = matr_el;
+        recv_nums[0] = matr_el;
 #endif
-            if (proc_rank == 0) {
-                matr_el = 0;
-                for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-                    matr_el += recv_nums[proc_idx];
-                }
-                fprintf(sign_file, "%lf\n", matr_el);
+        if (proc_rank == 0) {
+            matr_el = 0;
+            for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+                matr_el += recv_nums[proc_idx];
             }
+            fprintf(sign_file, "%lf\n", matr_el);
         }
         
         // Save vector snapshot to disk
