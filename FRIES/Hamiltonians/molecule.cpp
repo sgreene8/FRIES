@@ -161,12 +161,7 @@ void h_op(DistVec<double> &vec, unsigned char *symm, unsigned int n_orbs,
     size_t det_idx, ex_idx;
     unsigned int unf_orbs = n_orbs - n_frozen / 2;
     long long ini_flag = 1LL << 2 * unf_orbs;
-//    if (vec.type != DOUB) {
-//        fprintf(stderr, "Error: the h_op() function requires a dist_vec of type DOUB\n");
-//        return;
-//    }
     for (det_idx = 0; det_idx < vec.curr_size(); det_idx++) {
-//        double *curr_el = doub_at_pos(vec, det_idx);
         double *curr_el = vec[det_idx];
         long long curr_det = vec.indices()[det_idx];
         if (*curr_el == 0) {
@@ -181,11 +176,9 @@ void h_op(DistVec<double> &vec, unsigned char *symm, unsigned int n_orbs,
             long long new_det = curr_det;
             matr_el *= sing_det_parity(&new_det, sing_ex_orbs[ex_idx]);
             matr_el *= *curr_el * h_fac;
-//            add_doub(vec, new_det, matr_el, ini_flag);
             vec.add(new_det, matr_el, ini_flag);
         }
         
-//        orbs_scratch.cols_ = 4;
         unsigned char (*doub_ex_orbs)[4] = (unsigned char (*)[4])orbs_scratch;
         size_t n_doub = doub_ex_symm(curr_det, occ_orbs, n_elec, unf_orbs, doub_ex_orbs, symm);
         for (ex_idx = 0; ex_idx < n_doub; ex_idx++) {
@@ -193,18 +186,15 @@ void h_op(DistVec<double> &vec, unsigned char *symm, unsigned int n_orbs,
             long long new_det = curr_det;
             matr_el *= doub_det_parity(&new_det, doub_ex_orbs[ex_idx]);
             matr_el *= *curr_el * h_fac;
-//            add_doub(vec, new_det, matr_el, ini_flag);
             vec.add(new_det, matr_el, ini_flag);
         }
 
-//        double *diag_el = &(vec->matr_el[det_idx]);
         double *diag_el = vec.matr_el_at_pos(det_idx);
         if (isnan(*diag_el)) {
             *diag_el = diag_matrel(occ_orbs, n_orbs, eris, h_core, n_frozen, n_elec + n_frozen) - hf_en;
         }
         *curr_el *= (id_fac + h_fac * (*diag_el));
     }
-//    perform_add(vec, ini_flag);
     vec.perform_add(ini_flag);
 }
 
@@ -222,7 +212,6 @@ size_t gen_hf_ex(long long hf_det, unsigned char *hf_occ, unsigned int num_elec,
     unsigned int num_unf_orb = n_orb - n_frozen / 2;
     size_t max_n_doub = count_doub_nosymm(num_elec, num_unf_orb);
     unsigned char ex_arr[max_n_doub][4];
-//    Matrix<unsigned char> ex_arr(max_n_doub, 4);
     size_t num_hf_doub = doub_ex_symm(hf_det, hf_occ, num_elec, num_unf_orb, ex_arr, orb_symm);
     size_t idx;
     double matr_el;
