@@ -216,6 +216,7 @@ public:
             neighb_.enlarge(new_max * 2);
         }
         values_.resize(new_max);
+        max_size_ = new_max;
     }
 
     /*! \brief Hash function mapping vector index to MPI process
