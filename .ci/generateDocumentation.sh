@@ -86,7 +86,7 @@ echo 'Uploading documentation to the gh-pages branch...'
 # gh-pages branch.
 # GitHub is smart enough to know which files have changed and which files have
 # stayed the same and will only update the changed files.
-mv html/* .
+mv html/* ./
 rm -r html
 git add --all
 
