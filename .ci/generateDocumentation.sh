@@ -61,6 +61,7 @@ git config user.email "travis@travis-ci.org"
 
 # go back to first commit
 git reset --hard `git rev-list --max-parents=0 --abbrev-commit HEAD`
+git rm -r *
 
 # Need to create a .nojekyll file to allow filenames starting with an underscore
 # to be seen on the gh-pages site. Therefore creating an empty .nojekyll file.
