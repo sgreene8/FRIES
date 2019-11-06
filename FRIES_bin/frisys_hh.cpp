@@ -216,7 +216,7 @@ int main(int argc, const char * argv[]) {
     double *comp_vec2 = (double *)malloc(sizeof(double) * spawn_length);
     size_t (*comp_idx)[2] = (size_t (*)[2])malloc(sizeof(size_t) * 2 * spawn_length);
     unsigned int *ndiv_vec = (unsigned int *)malloc(sizeof(unsigned int) * spawn_length);
-    Matrix<int> keep_idx(spawn_length, 2);
+    Matrix<int> keep_idx(spawn_length, 1);
     double *wt_remain = (double *)calloc(spawn_length, sizeof(double));
     size_t n_subwt;
     size_t comp_len;
@@ -249,7 +249,6 @@ int main(int argc, const char * argv[]) {
             fprintf(stderr, "Warning: target number of matrix samples (%u) is less than number of nonzero vector elements (%d)\n", matr_samp, glob_n_nonz);
         }
         n_subwt = 1;
-        keep_idx.reshape(1);
         for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
             double *curr_el = sol_vec[det_idx];
             weight = fabs(*curr_el);
