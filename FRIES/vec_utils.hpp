@@ -114,16 +114,13 @@ private:
  */
     void enlarge_() {
         printf("Increasing storage capacity in adder\n");
-        size_t new_size = send_idx_.rows() * 2;
+        size_t n_proc = send_idx_.rows();
         size_t new_cols = send_idx_.cols() * 2;
-        send_idx_.enlarge(new_size);
-        send_idx_.reshape(new_cols);
-        send_vals_.enlarge(new_size);
-        send_vals_.reshape(new_cols);
-        recv_idx_.enlarge(new_size);
-        recv_idx_.reshape(new_cols);
-        recv_vals_.enlarge(new_size);
-        recv_vals_.reshape(new_cols);
+        
+        send_idx_.enlarge_cols(new_cols, send_cts_);
+        send_vals_.enlarge_cols(new_cols, send_cts_);
+        recv_idx_.reshape(n_proc, new_cols);
+        recv_vals_.reshape(n_proc, new_cols);
     }
 };
 
@@ -211,9 +208,9 @@ public:
         size_t new_max = max_size_ * 2;
         indices_ = (long long *)realloc(indices_, sizeof(long long) * new_max);
         matr_el_ = (double *)realloc(matr_el_, sizeof(double) * new_max);
-        occ_orbs_.enlarge(new_max);
+        occ_orbs_.reshape(new_max, occ_orbs_.cols());
         if (n_sites_) {
-            neighb_.enlarge(new_max * 2);
+            neighb_.reshape(new_max, neighb_.cols());
         }
         values_.resize(new_max);
         max_size_ = new_max;

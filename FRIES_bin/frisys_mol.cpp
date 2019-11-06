@@ -312,8 +312,8 @@ int main(int argc, const char * argv[]) {
         
         // Singles vs doubles
         n_subwt = 2;
-        subwt_mem.reshape(2);
-        keep_idx.reshape(2);
+        subwt_mem.reshape(spawn_length, 2);
+        keep_idx.reshape(spawn_length, 2);
         for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
             double *curr_el = sol_vec[det_idx];
             weight = fabs(*curr_el);
@@ -334,8 +334,8 @@ int main(int argc, const char * argv[]) {
         
         // First occupied orbital
         n_subwt = n_elec_unf;
-        subwt_mem.reshape(n_elec_unf);
-        keep_idx.reshape(n_elec_unf);
+        subwt_mem.reshape(spawn_length, n_elec_unf);
+        keep_idx.reshape(spawn_length, n_elec_unf);
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
             det_idx = comp_idx[samp_idx][0];
             det_indices1[samp_idx] = det_idx;
@@ -398,8 +398,8 @@ int main(int argc, const char * argv[]) {
         
         // 1st unoccupied (double)
         n_subwt = n_orb;
-        subwt_mem.reshape(n_orb);
-        keep_idx.reshape(n_orb);
+        subwt_mem.reshape(spawn_length, n_orb);
+        keep_idx.reshape(spawn_length, n_orb);
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
             weight_idx = comp_idx[samp_idx][0];
             det_idx = det_indices2[weight_idx];
@@ -427,8 +427,8 @@ int main(int argc, const char * argv[]) {
         
         // 2nd unoccupied (double)
         n_subwt = max_n_symm;
-        subwt_mem.reshape(max_n_symm);
-        keep_idx.reshape(max_n_symm);
+        subwt_mem.reshape(spawn_length, max_n_symm);
+        keep_idx.reshape(spawn_length, max_n_symm);
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
             weight_idx = comp_idx[samp_idx][0];
             det_idx = det_indices1[weight_idx];
@@ -465,7 +465,7 @@ int main(int argc, const char * argv[]) {
         
         long long *spawn_dets = (long long *)det_indices1;
         size_t num_added = 0;
-        keep_idx.reshape(1);
+        keep_idx.reshape(spawn_length, 1);
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
             weight_idx = comp_idx[samp_idx][0];
             det_idx = det_indices2[weight_idx];

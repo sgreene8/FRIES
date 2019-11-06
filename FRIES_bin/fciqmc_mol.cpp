@@ -225,7 +225,7 @@ int main(int argc, const char * argv[]) {
     else {
         sgnv_dets = (long long *)malloc(sizeof(long long));
         sgnv_vals = (double *)malloc(sizeof(double));
-        n_sgnv = 0;
+        n_sgnv = 1;
         
         sgnv_dets[0] = hf_det;
         sgnv_vals[0] = 1;

@@ -56,20 +56,35 @@ public:
         return &data_[cols_ * row];
     }
     
-    /*! \brief Increase number of rows in matrix
-     * \param [in] new_row      Desired number of rows in matrix
+    /*! \brief Increase number of columns in the matrix
+     * Data are copied such that the first n[i] elements in each row remain the same before and after this operation
+     * \param [in] new_col      Desired number of columns in the enlarged matrix
+     * \param [in] n_keep       Number of elements to preserve in each row of the matrix (should have \p rows_ elements)
      */
-    void enlarge(size_t new_row) {
-        tot_size_ = new_row * cols_;
-        data_ = (mat_type *) realloc(data_, sizeof(mat_type) * tot_size_);
-        rows_ = new_row;
+    void enlarge_cols(size_t new_col, int *n_keep) {
+        if (new_col > cols_) {
+            size_t old_cols = cols_;
+            reshape(rows_, new_col);
+            
+            size_t row_idx;
+            for (row_idx = rows_; row_idx > 0; row_idx--) {
+                memmove(&data_[(row_idx - 1) * new_col], &data_[(row_idx - 1) * old_cols], sizeof(mat_type) * n_keep[row_idx - 1]);
+            }
+        }
     }
     
-    /*! \brief Change the dimensions without changing any of the data
+    
+    /*! \brief Change the dimensions without moving any of the data
+     * \param [in] new_rows     Desired number of rows in the reshaped matrix
      * \param [in] new_cols     Desired number of columns in the reshaped matrix
      */
-    void reshape(size_t new_cols) {
-        rows_ = tot_size_ / new_cols;
+    void reshape(size_t new_rows, size_t new_cols) {
+        size_t new_size = new_rows * new_cols;
+        if (new_size > tot_size_) {
+            tot_size_ = new_size;
+            data_ = (mat_type *) realloc(data_, sizeof(mat_type) * tot_size_);
+        }
+        rows_ = new_rows;
         cols_ = new_cols;
     }
     
