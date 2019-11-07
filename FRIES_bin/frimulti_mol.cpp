@@ -199,7 +199,7 @@ int main(int argc, const char * argv[]) {
     }
     
     // Calculate H * trial vector, and accumulate results on each processor
-    h_op(htrial_vec, symm, tot_orb, *eris, *h_core, (unsigned char *)orb_indices1, n_frz, n_elec_unf, 0, 1, hf_en);
+    h_op(htrial_vec, symm, tot_orb, *eris, *h_core, (unsigned char *)spawn_orbs, n_frz, n_elec_unf, 0, 1, hf_en);
     htrial_vec.collect_procs();
     unsigned long long *htrial_hashes = (unsigned long long *)malloc(sizeof(long long) * htrial_vec.curr_size());
     for (det_idx = 0; det_idx < htrial_vec.curr_size(); det_idx++) {
