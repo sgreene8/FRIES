@@ -136,7 +136,7 @@ int main(int argc, const char * argv[]) {
     
     // Solution vector
     unsigned int spawn_length = target_walkers / n_procs / n_procs;
-    DistVec<int> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec, hub_len, n_procs, INT);
+    DistVec<int> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec, hub_len, n_procs);
     sol_vec.proc_scrambler_ = proc_scrambler;
     
     long long neel_det = gen_neel_det_1D(n_orb, n_elec, hub_dim);
@@ -287,7 +287,7 @@ int main(int argc, const char * argv[]) {
         }
         
         // Calculate energy estimate
-        matr_el = calc_ref_ovlp(sol_vec.indices(), sol_vec[0], sol_vec.curr_size(), neel_det, sol_vec.tabl(), sol_vec.type());
+        matr_el = calc_ref_ovlp(sol_vec.indices(), sol_vec[0], sol_vec.curr_size(), neel_det, sol_vec.tabl());
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, ref_proc, MPI_COMM_WORLD);
 #else

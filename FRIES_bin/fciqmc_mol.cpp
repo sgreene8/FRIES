@@ -128,7 +128,7 @@ int main(int argc, const char * argv[]) {
     
     // Solution vector
     unsigned int spawn_length = target_walkers / n_procs / n_procs * 2;
-    DistVec<int> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec_unf, 0, n_procs, INT);
+    DistVec<int> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec_unf, 0, n_procs);
     size_t det_idx;
     
     Matrix<unsigned char> symm_lookup(n_irreps, n_orb + 1);
@@ -168,8 +168,8 @@ int main(int argc, const char * argv[]) {
     
     size_t n_trial;
     size_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
-    DistVec<double> trial_vec(100, 100, rngen_ptr, n_orb, n_elec_unf, 0, n_procs, DOUB);
-    DistVec<double> htrial_vec(100 * n_ex, 100 * n_ex, rngen_ptr, n_orb, n_elec_unf, 0, n_procs, DOUB);
+    DistVec<double> trial_vec(100, 100, rngen_ptr, n_orb, n_elec_unf, 0, n_procs);
+    DistVec<double> htrial_vec(100 * n_ex, 100 * n_ex, rngen_ptr, n_orb, n_elec_unf, 0, n_procs);
     trial_vec.proc_scrambler_ = proc_scrambler;
     htrial_vec.proc_scrambler_ = proc_scrambler;
     if (trial_path) { // load trial vector from file

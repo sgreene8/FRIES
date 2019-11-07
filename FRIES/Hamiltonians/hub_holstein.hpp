@@ -12,10 +12,6 @@
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /*! \brief Uniformly chooses num_sampl excitations from a column of the
  *  Hamiltonian using independent multinomial sampling.
  *
@@ -85,8 +81,26 @@ long long gen_neel_det_1D(unsigned int n_sites, unsigned int n_elec,
  * \param [in] ref_det      reference determinant
  * \return sum of all (off-diagonal) matrix elements
  */
-double calc_ref_ovlp(long long *dets, void *vals, size_t n_dets, long long ref_det,
-                     byte_table *table, dtype type);
+template <typename T>
+double calc_ref_ovlp(long long *dets, T *vals, size_t n_dets, long long ref_det,
+                     byte_table *table) {
+    size_t det_idx;
+    double result = 0;
+    long long curr_det;
+    unsigned int n_elec = count_bits(ref_det, table);
+    for (det_idx = 0; det_idx < n_dets; det_idx++) {
+        curr_det = dets[det_idx];
+        long long hoppers = ((curr_det & ~ref_det ) & ((curr_det & (ref_det >> 1) & (~curr_det >> 1)) | (curr_det & (ref_det << 1) & (~curr_det << 1))));
+        if (count_bits(hoppers, table) == 1) {
+            long long common = ref_det & curr_det & ~hoppers;
+            if (count_bits(common, table) == (n_elec - 1)) {
+                result += vals[det_idx];
+            }
+        }
+    }
+    return result;
+}
+
 
 /*! \brief Find the orbitals involved in the ith excitation from a Hubbard
  * determinant
@@ -100,9 +114,5 @@ double calc_ref_ovlp(long long *dets, void *vals, size_t n_dets, long long ref_d
  */
 void idx_to_orbs(unsigned int chosen_idx, unsigned int n_elec,
                  const unsigned char *neighbors, unsigned char *orbs);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* hub_holstein_h */

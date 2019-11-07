@@ -4,7 +4,7 @@ list(APPEND FRIES_FILELIST
         det_store.c
         fci_utils.c
         Hamiltonians/heat_bathPP.cpp
-        Hamiltonians/hub_holstein.c
+        Hamiltonians/hub_holstein.cpp
         Hamiltonians/near_uniform.cpp
         Hamiltonians/molecule.cpp
         io_utils.cpp

@@ -3,7 +3,7 @@
  * \brief Utilities for Hubbard-Holstein in the site basis
  */
 
-#include "hub_holstein.h"
+#include "hub_holstein.hpp"
 
 unsigned char gen_orb_list(long long det, byte_table *table, unsigned char *occ_orbs);
 
@@ -78,27 +78,3 @@ long long gen_neel_det_1D(unsigned int n_sites, unsigned int n_elec, unsigned in
     return neel_state;
 }
 
-
-double calc_ref_ovlp(long long *dets, void *vals, size_t n_dets, long long ref_det,
-                     byte_table *table, dtype type) {
-    size_t det_idx;
-    double result = 0;
-    long long curr_det;
-    unsigned int n_elec = count_bits(ref_det, table);
-    for (det_idx = 0; det_idx < n_dets; det_idx++) {
-        curr_det = dets[det_idx];
-        long long hoppers = ((curr_det & ~ref_det ) & ((curr_det & (ref_det >> 1) & (~curr_det >> 1)) | (curr_det & (ref_det << 1) & (~curr_det << 1))));
-        if (count_bits(hoppers, table) == 1) {
-            long long common = ref_det & curr_det & ~hoppers;
-            if (count_bits(common, table) == (n_elec - 1)) {
-                if (type == INT) {
-                    result += ((int *)vals)[det_idx];
-                }
-                else if (type == DOUB) {
-                    result += ((double *)vals)[det_idx];
-                }
-            }
-        }
-    }
-    return result;
-}

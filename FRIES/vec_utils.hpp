@@ -13,7 +13,7 @@
 #include <string.h>
 #include <math.h>
 #include <FRIES/det_store.h>
-#include <FRIES/Hamiltonians/hub_holstein.h>
+#include <FRIES/Hamiltonians/hub_holstein.hpp>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/mpi_switch.h>
 #include <FRIES/ndarr.hpp>
@@ -21,6 +21,28 @@
 
 using namespace std;
 
+
+#ifdef USE_MPI
+#define CONV_MPI(type)(type ? MPI_INT : MPI_DOUBLE)
+template<typename T>
+struct mpi_type
+{
+};
+
+// template specialization
+template<>
+struct mpi_type<double>
+{
+    static constexpr int value = 0;
+};
+
+template<>
+struct mpi_type<int>
+{
+    static constexpr int value = 1;
+};
+
+#endif
 
 /*! \brief Generate list of occupied orbitals from bit-string representation of
  *  a determinant
@@ -64,10 +86,9 @@ public:
      * Allocates memory for the internal buffers in the class
      * \param [in] size     Maximum number of elements per MPI process in send and receive buffers
      * \param [in] n_procs  The number of processes
-     * \param [in] type     The type of elements to be added
      * \param [in] vec         The vector to which elements will be added
      */
-    Adder(size_t size, int n_procs, dtype type, DistVec<el_type> *vec) : send_idx_(n_procs, size), send_vals_(n_procs, size), recv_idx_(n_procs, size), recv_vals_(n_procs, size), type_(type), parent_vec_(vec) {
+    Adder(size_t size, int n_procs, DistVec<el_type> *vec) : send_idx_(n_procs, size), send_vals_(n_procs, size), recv_idx_(n_procs, size), recv_vals_(n_procs, size), parent_vec_(vec) {
         send_cts_ = (int *)malloc(sizeof(int) * n_procs);
         recv_cts_ = (int *) malloc(sizeof(int) * n_procs);
         displacements_ = (int *) malloc(sizeof(int) * n_procs);
@@ -108,7 +129,9 @@ private:
     int *recv_cts_; ///< Number of elements in the receive buffer for each process
     int *displacements_; ///< Array positions in buffers corresponding to each
     DistVec<el_type> *parent_vec_; ///<The DistVec object to which elements are added
-    dtype type_; ///< Type of elements to be added
+#ifdef USE_MPI
+    static constexpr int my_mpi_type = mpi_type<el_type>::value;
+#endif
     
 /*! \brief Increase the size of the buffer for temporarily storing added elements
  */
@@ -121,6 +144,11 @@ private:
         send_vals_.enlarge_cols(new_cols, send_cts_);
         recv_idx_.reshape(n_proc, new_cols);
         recv_vals_.reshape(n_proc, new_cols);
+        
+        int proc_idx;
+        for (proc_idx = 0; proc_idx < n_proc; proc_idx++) {
+            displacements_[proc_idx] = proc_idx * (int)new_cols;
+        }
     }
 };
 
@@ -144,7 +172,9 @@ class DistVec {
     unsigned int n_sites_; ///< Number of sites along one dimension of the Hubbard lattice, if applicable
     Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
     int n_nonz_; /// Current number of nonzero elements in vector
-    dtype type_; ///< Type of elements in vector
+#ifdef USE_MPI
+    static constexpr int my_mpi_type = mpi_type<el_type>::value;
+#endif
 public:
     unsigned int *proc_scrambler_; ///< Array of random numbers used in the hash function for assigning vector indices to MPI
     
@@ -157,10 +187,9 @@ public:
     * \param [in] n_elec       Number of electrons represented in each vector index
     * \param [in] n_sites      If the orbitals in vector indices represent lattice sites, the number of sites along one dimension. 0 otherwise.
      * \param [in] n_procs Number of MPI processes over which to distribute vector elements
-     * \param [in] type     Data type of vector elements
      */
     DistVec(size_t size, size_t add_size, mt_struct *rn_ptr, unsigned int n_orb,
-            unsigned int n_elec, int n_sites, int n_procs, dtype type) : n_sites_(n_sites), values_(size), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, type, this), n_nonz_(0), type_(type), neighb_(n_sites ? size : 0, 2 * (n_elec + 1)) {
+            unsigned int n_elec, int n_sites, int n_procs) : n_sites_(n_sites), values_(size), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, this), n_nonz_(0), neighb_(n_sites ? size : 0, 2 * (n_elec + 1)) {
         indices_ = (long long *) malloc(sizeof(long long) * size);
         matr_el_ = (double *)malloc(sizeof(double) * size);
         vec_hash_ = setup_ht(size, rn_ptr, 2 * n_orb);
@@ -343,11 +372,6 @@ public:
         return neighb_;
     }
     
-    /*! \returns The type of elements stored in the DistVec object */
-    dtype type() const {
-        return type_;
-    }
-    
     /*! \brief Add elements destined for this process to the DistVec object
      * \param [in] indices Indices of the elements to be added
      * \param [in] vals     Values of the elements to be added
@@ -447,13 +471,7 @@ public:
         MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     #endif
         
-        size_t el_size = 0;
-        if (type_ == INT) {
-            el_size = sizeof(int);
-        }
-        else if (type_ == DOUB) {
-            el_size = sizeof(double);
-        }
+        size_t el_size = sizeof(el_type);
         
         char buffer[100];
         sprintf(buffer, "%sdets%d.dat", path, my_rank);
@@ -480,13 +498,7 @@ public:
         MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     #endif
         
-        size_t el_size = 0;
-        if (type_ == INT) {
-            el_size = sizeof(int);
-        }
-        else if (type_ == DOUB) {
-            el_size = sizeof(double);
-        }
+        size_t el_size = sizeof(el_type);
         
         size_t n_dets;
         char buffer[100];
@@ -551,19 +563,7 @@ public:
             disps[proc_idx] = tot_size;
             tot_size += vec_sizes[proc_idx];
         }
-        size_t el_size = 0;
-        if (type_ == DOUB) {
-            el_size = sizeof(double);
-    #ifdef USE_MPI
-            mpi_type = MPI_DOUBLE;
-    #endif
-        }
-        else if (type_ == INT) {
-            el_size = sizeof(int);
-    #ifdef USE_MPI
-            mpi_type = MPI_INT;
-    #endif
-        }
+        size_t el_size = sizeof(el_type);
         if (tot_size > max_size_) {
             indices_ = (long long *)realloc(indices_, sizeof(long long) * tot_size);
             values_.resize(tot_size);
@@ -572,7 +572,7 @@ public:
         memmove(&values_.data()[disps[my_rank]], values_.data(), vec_sizes[my_rank] * el_size);
     #ifdef USE_MPI
         MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, indices_, vec_sizes, disps, MPI_LONG_LONG, MPI_COMM_WORLD);
-        MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, values_.data(), vec_sizes, disps, mpi_type, MPI_COMM_WORLD);
+        MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, values_.data(), vec_sizes, disps, CONV_MPI(my_mpi_type), MPI_COMM_WORLD);
     #endif
         curr_size_ = tot_size;
     }
@@ -596,31 +596,12 @@ void Adder<el_type>::perform_add(long long ini_bit) {
     int n_procs = 1;
     int proc_idx;
     
-    size_t el_size = 0;
-    if (type_ == INT) {
-        el_size = sizeof(int);
-    }
-    else if (type_ == DOUB) {
-        el_size = sizeof(double);
-    }
-    else {
-        fprintf(stderr, "Error: type %d not supported in function perform_add.\n", type_);
-    }
+    size_t el_size = sizeof(el_type);
 #ifdef USE_MPI
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     MPI_Alltoall(send_cts_, 1, MPI_INT, recv_cts_, 1, MPI_INT, MPI_COMM_WORLD);
     MPI_Alltoallv(send_idx_[0], send_cts_, displacements_, MPI_LONG_LONG, recv_idx_[0], recv_cts_, displacements_, MPI_LONG_LONG, MPI_COMM_WORLD);
-    MPI_Datatype mpi_type;
-    if (type_ == INT) {
-        mpi_type = MPI_INT;
-    }
-    else if (type_ == DOUB) {
-        mpi_type = MPI_DOUBLE;
-    }
-    else {
-        fprintf(stderr, "Error: type %d not supported in function perform_add.\n", type_);
-    }
-    MPI_Alltoallv(send_vals_[0], send_cts_, displacements_, mpi_type, recv_vals_[0], recv_cts_, displacements_, mpi_type, MPI_COMM_WORLD);
+    MPI_Alltoallv(send_vals_[0], send_cts_, displacements_, CONV_MPI(my_mpi_type), recv_vals_[0], recv_cts_, displacements_, CONV_MPI(my_mpi_type), MPI_COMM_WORLD);
 #else
     for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         int cpy_size = send_cts_[proc_idx];
