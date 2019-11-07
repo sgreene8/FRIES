@@ -169,7 +169,7 @@ int main(int argc, const char * argv[]) {
     size_t n_trial;
     size_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
     DistVec<double> trial_vec(100, 100, rngen_ptr, n_orb, n_elec_unf, 0, n_procs, DOUB);
-    DistVec<double> htrial_vec(n_ex, n_ex, rngen_ptr, n_orb, n_elec_unf, 0, n_procs, DOUB);
+    DistVec<double> htrial_vec(100 * n_ex, 100 * n_ex, rngen_ptr, n_orb, n_elec_unf, 0, n_procs, DOUB);
     trial_vec.proc_scrambler_ = proc_scrambler;
     htrial_vec.proc_scrambler_ = proc_scrambler;
     if (trial_path) { // load trial vector from file
@@ -480,7 +480,7 @@ int main(int argc, const char * argv[]) {
 #else
         recv_nums[0] = matr_el;
 #endif
-        if (proc_rank == 0) {
+        if (proc_rank == hf_proc) {
             matr_el = 0;
             for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
                 matr_el += recv_nums[proc_idx];

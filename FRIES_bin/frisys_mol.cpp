@@ -154,31 +154,42 @@ int main(int argc, const char * argv[]) {
     
     size_t n_trial;
     size_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
-    DistVec<double> trial_vec(n_ex / n_procs, n_ex / n_procs, rngen_ptr, n_orb, n_elec_unf, 0, n_procs, DOUB);
+    DistVec<double> trial_vec(100, 100, rngen_ptr, n_orb, n_elec_unf, 0, n_procs, DOUB);
+    DistVec<double> htrial_vec(100 * n_ex, 100 * n_ex, rngen_ptr, n_orb, n_elec_unf, 0, n_procs, DOUB);
     trial_vec.proc_scrambler_ = proc_scrambler;
+    htrial_vec.proc_scrambler_ = proc_scrambler;
     if (trial_path) { // load trial vector from file
         long long *load_dets = sol_vec.indices();
-        double *load_vals = sol_vec[0];
+        double *load_vals = (double *)sol_vec.values();
         
         n_trial = load_vec_txt(trial_path, load_dets, load_vals, DOUB);
         for (det_idx = 0; det_idx < n_trial; det_idx++) {
             trial_vec.add(load_dets[det_idx], load_vals[det_idx], ini_bit);
+            htrial_vec.add(load_dets[det_idx], load_vals[det_idx], ini_bit);
         }
     }
     else { // Otherwise, use HF as trial vector
         trial_vec.add(hf_det, 1, ini_bit);
+        htrial_vec.add(hf_det, 1, ini_bit);
     }
     trial_vec.perform_add(ini_bit);
+    htrial_vec.perform_add(ini_bit);
     
-    // Calculate H * trial vector, and accumulate results on each processor
-    h_op(trial_vec, symm, tot_orb, *eris, *h_core, (unsigned char *)orb_indices1, n_frz, n_elec_unf, 0, 1, hf_en);
     trial_vec.collect_procs();
-    unsigned long long htrial_hashes[trial_vec.curr_size()];
+    unsigned long long *trial_hashes = (unsigned long long *)malloc(sizeof(long long) * trial_vec.curr_size());
     for (det_idx = 0; det_idx < trial_vec.curr_size(); det_idx++) {
-        htrial_hashes[det_idx] = sol_vec.idx_to_hash(trial_vec.indices()[det_idx]);
+        trial_hashes[det_idx] = sol_vec.idx_to_hash(trial_vec.indices()[det_idx]);
     }
     
-    // Calculate HF column vector for energy estimator, and count # single/double excitations
+    // Calculate H * trial vector, and accumulate results on each processor
+    h_op(htrial_vec, symm, tot_orb, *eris, *h_core, (unsigned char *)orb_indices1, n_frz, n_elec_unf, 0, 1, hf_en);
+    htrial_vec.collect_procs();
+    unsigned long long *htrial_hashes = (unsigned long long *)malloc(sizeof(long long) * htrial_vec.curr_size());
+    for (det_idx = 0; det_idx < htrial_vec.curr_size(); det_idx++) {
+        htrial_hashes[det_idx] = sol_vec.idx_to_hash(htrial_vec.indices()[det_idx]);
+    }
+    
+    // Count # single/double excitations from HF
     gen_orb_list(hf_det, sol_vec.tabl(), tmp_orbs);
     size_t n_hf_doub = doub_ex_symm(hf_det, tmp_orbs, n_elec_unf, n_orb, orb_indices1, symm);
     size_t n_hf_sing = count_singex(hf_det, tmp_orbs, symm, n_orb, symm_lookup, n_elec_unf);
@@ -288,6 +299,7 @@ int main(int argc, const char * argv[]) {
     double last_one_norm = 0;
     double matr_el;
     double recv_nums[n_procs];
+    double recv_dens[n_procs];
     
     // Parameters for systematic sampling
     double rn_sys = 0;
@@ -583,22 +595,26 @@ int main(int argc, const char * argv[]) {
                 fprintf(norm_file, "%lf\n", glob_norm);
             }
         }
-        matr_el = sol_vec.dot(trial_vec.indices(), trial_vec[0], trial_vec.curr_size(), htrial_hashes);
+        matr_el = sol_vec.dot(htrial_vec.indices(), htrial_vec[0], htrial_vec.curr_size(), htrial_hashes);
+        double denom = sol_vec.dot(trial_vec.indices(), trial_vec[0], trial_vec.curr_size(), trial_hashes);
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
+        MPI_Gather(&denom, 1, MPI_DOUBLE, recv_dens, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
 #else
         recv_nums[0] = matr_el;
+        recv_dens[0] = denom;
 #endif
         if (proc_rank == hf_proc) {
             matr_el = 0;
+            denom = 0;
             for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
                 matr_el += recv_nums[proc_idx];
+                denom += recv_dens[proc_idx];
             }
             
             fprintf(num_file, "%lf\n", matr_el);
-            double ref_element = sol_vec[0][0];
-            fprintf(den_file, "%lf\n", ref_element);
-            printf("%6u, en est: %.9lf, shift: %lf, norm: %lf\n", iterat, matr_el / ref_element, en_shift, glob_norm);
+            fprintf(den_file, "%lf\n", denom);
+            printf("%6u, en est: %.9lf, shift: %lf, norm: %lf\n", iterat, matr_el / denom, en_shift, glob_norm);
         }
         
         if (proc_rank == 0) {
