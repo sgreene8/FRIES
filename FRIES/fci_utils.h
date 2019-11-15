@@ -8,7 +8,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <FRIES/math_utils.h>
+#include <FRIES/det_store.h>
 
 
 #ifdef __cplusplus
@@ -23,9 +23,9 @@ extern "C" {
  *
  * \param [in] n_orb    The number of spatial orbitals in the basis
  * \param [in] n_elec   The number of electrons in the system (N)
- * \return bit-string representation of HF determinant
+ * \param [out] det     Upon return, contains bit-string representation of HF determinant
  */
-long long gen_hf_bitstring(unsigned int n_orb, unsigned int n_elec);
+void gen_hf_bitstring(unsigned int n_orb, unsigned int n_elec, uint8_t *det);
 
 
 /*! \brief Calculate the parity and determinant resulting from a double
@@ -42,7 +42,7 @@ long long gen_hf_bitstring(unsigned int n_orb, unsigned int n_elec);
  *
  * \return parity of the excitation (+1 or -1)
  */
-int doub_det_parity(long long *det, unsigned char *orbs);
+int doub_det_parity(uint8_t *det, uint8_t *orbs);
 
 
 /*! \brief Calculate the parity and determinant resulting from a single
@@ -58,7 +58,7 @@ int doub_det_parity(long long *det, unsigned char *orbs);
  *
  * \return parity of the excitation (+1 or -1)
  */
-int sing_det_parity(long long *det, unsigned char *orbs);
+int sing_det_parity(uint8_t *det, uint8_t *orbs);
 
 
 /*! \brief Calculate the parity of a single excitation
@@ -74,7 +74,7 @@ int sing_det_parity(long long *det, unsigned char *orbs);
  *                      upon
  * \return parity of the excitation (+1 or -1)
  */
-int excite_sign(unsigned char cre_op, unsigned char des_op, long long det);
+int excite_sign(uint8_t cre_op, uint8_t des_op, uint8_t *det);
 
     
 #ifdef __cplusplus

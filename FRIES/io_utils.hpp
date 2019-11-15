@@ -29,7 +29,7 @@ size_t read_doub_csv(double *buf, char *fname);
  * \param [in] fname    Path of file
  * \returns          Total number of values read from the file 
  */
-size_t read_uchar_csv(unsigned char *buf, char *fname);
+size_t read_uchar_csv(uint8_t *buf, char *fname);
 
 
 /*! \brief Data structure containing the output of a Hartree-Fock calculation */
@@ -41,7 +41,7 @@ typedef struct {
     Matrix<double> *hcore; ///< Pointer to matrix of 1-electron integrals
     double hf_en; ///< HF electronic energy
     double eps; ///< Suggested imaginary time step to use in DMC calculations
-    unsigned char *symm; ///< Irreps of orbitals in the HF basis
+    uint8_t *symm; ///< Irreps of orbitals in the HF basis
 } hf_input;
 
 
@@ -100,12 +100,12 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct);
  * \param [in] prefix       prefix of files containing the vector, including the
  *                          directory. File names should be in the format
  *                          [prefix]dets and [prefix]vals
- * \param [out] dets        Array of element indices read in
+ * \param [out] dets        Matrix in which to store the element indices read in. Currently supports only reading in 64-bit integers
  * \param [out] vals        Array of element values read in
  * \param [in] type         Data type of the vector
  * \return total number of elements in the vector on this MPI process
  */
-size_t load_vec_txt(const char *prefix, long long *dets, void *vals, dtype type);
+size_t load_vec_txt(const char *prefix, Matrix<uint8_t> &dets, void *vals, dtype type);
 
 
 /*! \brief Save to disk the array of random numbers used to assign Slater

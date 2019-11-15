@@ -8,6 +8,7 @@
 
 #include <stdlib.h>
 
+#define CEILING(x,y) ((x + y - 1) / y)
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,8 +18,8 @@ extern "C" {
  *  a number
  */
 typedef struct {
-    unsigned char (*pos)[8]; ///< 2-D array whose rows contain lists of positions of 1's in binary representation of row index (dimensions 256 x 8)
-    unsigned char *nums; ///< 1-D array containing number of 1's in binary representation of index (length 256)
+    uint8_t (*pos)[8]; ///< 2-D array whose rows contain lists of positions of 1's in binary representation of row index (dimensions 256 x 8)
+    uint8_t *nums; ///< 1-D array containing number of 1's in binary representation of index (length 256)
 } byte_table;
 
 
@@ -38,25 +39,17 @@ typedef enum {
 byte_table *gen_byte_table(void);
 
 
-/*! \brief Count the number of 1's in the binary representation of a number
- *
- * \param [in] num      Number to be analyzed
- * \param [in] tab      Pointer to a byte_table struct
- */
-unsigned int count_bits(long long num, byte_table *tab);
-
-
 /*! \brief Count number of 1's between two bits in binary representation of a
  * number
  *
  * The order of the two bit indices does not matter
  *
- * \param [in] bit_str  The number whose bits will be counted
+ * \param [in] bit_str  The binary representation of the number in bit string format
  * \param [in] a        The position of one of the bits in question
  * \param [in] b        The position of the second bit in question
  * \return the number of bits
  */
-unsigned int bits_between(long long bit_str, unsigned char a, unsigned char b);
+unsigned int bits_between(uint8_t *bit_str, uint8_t a, uint8_t b);
 
 
 #ifdef __cplusplus

@@ -22,7 +22,7 @@ TEST_CASE("Test alias method", "[alias]") {
 
     mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, 0);
     sgenrand_mt(0, rngen_ptr);
-    unsigned char samples[n_samp];
+    uint8_t samples[n_samp];
 
     unsigned int cumu_samp[n_states];
     unsigned int iter_idx, samp_idx;

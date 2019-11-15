@@ -6,7 +6,7 @@
 
 #include "det_store.h"
 
-unsigned long long hash_fxn(unsigned char *occ_orbs, unsigned int n_elec, unsigned int *rand_nums) {
+unsigned long long hash_fxn(uint8_t *occ_orbs, unsigned int n_elec, unsigned int *rand_nums) {
     unsigned long long hash = 0;
     unsigned int i;
     for (i = 0; i < n_elec; i++) {
@@ -22,6 +22,7 @@ hash_table *setup_ht(size_t table_size, mt_struct *rn_gen, unsigned int rn_len) 
     table->buckets = malloc(sizeof(hash_entry *) * table_size);
     table->scrambler = malloc(sizeof(unsigned int) * rn_len);
     table->recycle_list = NULL;
+    table->idx_size = CEILING(rn_len, 8);
     
     size_t j;
     for (j = 0; j < table_size; j++) {
@@ -34,7 +35,7 @@ hash_table *setup_ht(size_t table_size, mt_struct *rn_gen, unsigned int rn_len) 
 }
 
 
-ssize_t *read_ht(hash_table *table, long long det, unsigned long long hash_val,
+ssize_t *read_ht(hash_table *table, uint8_t *det, unsigned long long hash_val,
                  int create) {
     size_t table_idx = hash_val % table->length;
     // address of location storing address of next entry
@@ -43,7 +44,7 @@ ssize_t *read_ht(hash_table *table, long long det, unsigned long long hash_val,
     hash_entry *next_ptr = *prev_ptr;
     unsigned int collisions = 0;
     while (next_ptr) {
-        if (next_ptr->det == det) {
+        if (bit_str_equ(det, next_ptr->det, table->idx_size)) {
             break;
         }
         collisions++;
@@ -63,9 +64,10 @@ ssize_t *read_ht(hash_table *table, long long det, unsigned long long hash_val,
         }
         else {
             next_ptr = malloc(sizeof(hash_entry));
+            next_ptr->det = malloc(table->idx_size);
         }
         *prev_ptr = next_ptr;
-        next_ptr->det = det;
+        memcpy(next_ptr->det, det, table->idx_size);
         next_ptr->next = NULL;
         next_ptr->val = -1;
         return &(next_ptr->val);
@@ -74,14 +76,14 @@ ssize_t *read_ht(hash_table *table, long long det, unsigned long long hash_val,
         return NULL;
 }
 
-void del_ht(hash_table *table, long long det, unsigned long long hash_val) {
+void del_ht(hash_table *table, uint8_t *det, unsigned long long hash_val) {
     size_t table_idx = hash_val % table->length;
     // address of location storing address of next entry
     hash_entry **prev_ptr = &(table->buckets[table_idx]);
     // address of next entry
     hash_entry *next_ptr = *prev_ptr;
     while (next_ptr) {
-        if (next_ptr->det == det) {
+        if (bit_str_equ(next_ptr->det, det, table->idx_size)) {
             break;
         }
         prev_ptr = &(next_ptr->next);
@@ -91,5 +93,42 @@ void del_ht(hash_table *table, long long det, unsigned long long hash_val) {
         *prev_ptr = next_ptr->next;
         next_ptr->next = table->recycle_list;
         table->recycle_list = next_ptr;
+    }
+}
+
+
+int bit_str_equ(uint8_t *str1, uint8_t *str2, uint8_t n_bytes) {
+    int byte_idx;
+    for (byte_idx = 0; byte_idx < n_bytes; byte_idx++) {
+        if (str1[byte_idx] != str2[byte_idx]) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+
+int read_bit(uint8_t *bit_str, uint8_t bit_idx) {
+    uint8_t byte_idx = bit_idx / 8;
+    return !(!(bit_str[byte_idx] & (1 << (bit_idx % 8))));
+}
+
+
+void zero_bit(uint8_t *bit_str, uint8_t bit_idx) {
+    uint8_t *byte = &bit_str[bit_idx / 8];
+    uint8_t mask = ~0 ^ (1 << (bit_idx % 8));
+    *byte &= mask;
+}
+
+void set_bit(uint8_t *bit_str, uint8_t bit_idx) {
+    uint8_t *byte = &bit_str[bit_idx / 8];
+    uint8_t mask = 1 << (bit_idx % 8);
+    *byte |= mask;
+}
+
+void print_str(uint8_t *bit_str, uint8_t n_bytes, char *out_str) {
+    uint8_t byte_idx;
+    for (byte_idx = 0; byte_idx < n_bytes; byte_idx++) {
+        sprintf(&out_str[byte_idx], "%x", bit_str[byte_idx]);
     }
 }

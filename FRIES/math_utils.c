@@ -8,8 +8,8 @@
 
 byte_table *gen_byte_table(void) {
     byte_table *new_table = malloc(sizeof(byte_table));
-    new_table->nums = malloc(sizeof(unsigned char) * 256);
-    new_table->pos = malloc(sizeof(unsigned char) * 256 * 8);
+    new_table->nums = malloc(sizeof(uint8_t) * 256);
+    new_table->pos = malloc(sizeof(uint8_t) * 256 * 8);
     unsigned int byte;
     unsigned int bit;
     unsigned int num;
@@ -27,23 +27,10 @@ byte_table *gen_byte_table(void) {
 }
 
 
-unsigned int count_bits(long long num, byte_table *tab) {
+unsigned int bits_between(uint8_t *bit_str, uint8_t a, uint8_t b) {
     unsigned int n_bits = 0;
-    unsigned char curr_byte;
-    while (num != 0) {
-        curr_byte = num & 255;
-        n_bits += tab->nums[curr_byte];
-        num >>= 8;
-    }
-    return n_bits;
-}
-
-
-unsigned int bits_between(long long bit_str, unsigned char a, unsigned char b) {
-    // count number of 1's between bits a and b in binary representation of bit_str
-    unsigned int n_bits = 0;
-    unsigned char byte_counts[] = {0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4};
-    unsigned char min_bit, max_bit;
+    uint8_t byte_counts[] = {0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4};
+    uint8_t min_bit, max_bit;
     
     if (a < b) {
         min_bit = a;
@@ -54,12 +41,38 @@ unsigned int bits_between(long long bit_str, unsigned char a, unsigned char b) {
         min_bit = b;
     }
     
-    long long mask = (1LL << max_bit) - (1LL << (min_bit + 1));
-    long long curr_int = (bit_str & mask) >> (min_bit + 1);
+    uint8_t mask;
+    uint8_t min_byte = min_bit / 8;
+    uint8_t max_byte = max_bit / 8;
+    int same_byte = min_byte == max_byte;
+    uint8_t byte_idx;
+    uint8_t curr_int;
     
-    while (curr_int != 0) {
+    byte_idx = min_bit / 8;
+    min_bit %= 8;
+    max_bit %= 8;
+    if (same_byte) {
+        mask = (1 << max_bit) - (1 << (min_bit + 1));
+    }
+    else {
+        mask = 256 - (1 << (min_bit + 1));
+    }
+    curr_int = mask & bit_str[byte_idx];
+    n_bits = byte_counts[curr_int & 15];
+    curr_int >>= 4;
+    n_bits += byte_counts[curr_int & 15];
+    for (byte_idx++; byte_idx < max_byte; byte_idx++) {
+        curr_int = bit_str[byte_idx];
+        n_bits = byte_counts[curr_int & 15];
+        curr_int >>= 4;
+        n_bits += byte_counts[curr_int & 15];
+    }
+    if (!same_byte) {
+        mask = (1 << max_bit) - 1;
+        curr_int = mask & bit_str[byte_idx];
         n_bits += byte_counts[curr_int & 15];
         curr_int >>= 4;
+        n_bits += byte_counts[curr_int & 15];
     }
     
     return n_bits;

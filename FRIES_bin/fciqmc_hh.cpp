@@ -60,7 +60,7 @@ int main(int argc, const char * argv[]) {
         OPT_STRING('y', "result_dir", &result_dir, "Directory in which to save output files"),
         OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
         OPT_INTEGER('i', "initiator", &init_thresh, "Number of walkers on a determinant required to make it an initiator."),
-        OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous fciqmc calculation (in binary format, see documentation for save_vec())."),
+        OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous fciqmc calculation (in binary format, see documentation for DistVec::save() and DistVec::load())."),
         OPT_STRING('n', "ini_vec", &ini_path, "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)."),
         OPT_END(),
     };
@@ -107,7 +107,7 @@ int main(int argc, const char * argv[]) {
     }
     
     unsigned int n_orb = pow_int(hub_len, hub_dim);
-    long long ini_bit = 1LL << (2 * n_orb);
+    size_t det_size = CEILING(2 * n_orb, 8);
     
     // Rn generator
     mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, proc_rank, (unsigned int) time(NULL));
@@ -136,10 +136,11 @@ int main(int argc, const char * argv[]) {
     
     // Solution vector
     unsigned int spawn_length = target_walkers / n_procs / n_procs;
-    DistVec<int> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec, hub_len, n_procs);
+    DistVec<int> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb * 2, n_elec, n_procs, hub_len);
     sol_vec.proc_scrambler_ = proc_scrambler;
     
-    long long neel_det = gen_neel_det_1D(n_orb, n_elec, hub_dim);
+    uint8_t neel_det[det_size];
+    gen_neel_det_1D(n_orb, n_elec, neel_det);
     ref_proc = sol_vec.idx_to_proc(neel_det);
     size_t walker_idx;
     
@@ -148,21 +149,22 @@ int main(int argc, const char * argv[]) {
         sol_vec.load(load_dir);
     }
     else if (ini_path) {
-        long long *load_dets = sol_vec.indices();
+        // from an initial vector in .txt format
+        Matrix<uint8_t> &load_dets = sol_vec.indices();
         int *load_vals = sol_vec[0];
         
         size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, INT);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
-            sol_vec.add(load_dets[det_idx], load_vals[det_idx], ini_bit);
+            sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
         }
     }
     else {
         if (ref_proc == proc_rank) {
-            sol_vec.add(neel_det, 100, ini_bit);
+            sol_vec.add(neel_det, 100, 1);
         }
     }
-    sol_vec.perform_add(ini_bit);
+    sol_vec.perform_add();
     loc_norm = sol_vec.local_norm();
     sum_mpi_d(loc_norm, &glob_norm, proc_rank, n_procs);
     if (load_dir) {
@@ -214,47 +216,51 @@ int main(int argc, const char * argv[]) {
     }
     
     unsigned int max_spawn = 500000; // should scale as max expected # on one determinant
-    unsigned char (*spawn_orbs)[2] = (unsigned char (*)[2])malloc(sizeof(unsigned char) * 2 * max_spawn);
+    uint8_t (*spawn_orbs)[2] = (uint8_t (*)[2])malloc(sizeof(uint8_t) * 2 * max_spawn);
     
-    long long ini_flag;
+    int ini_flag;
     unsigned int n_walk, n_success;
     int spawn_walker, walk_sign, new_val;
-    long long new_det;
     double matr_el;
     double recv_nums[n_procs];
     
     unsigned int iterat;
     int glob_nnonz;
     int n_nonz;
+    uint8_t new_det[det_size];
+    uint8_t tmp_orbs[n_elec * 2];
+    
     for (iterat = 0; iterat < max_iter; iterat++) {
         n_nonz = 0;
         for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
             int *curr_el = sol_vec[det_idx];
-            long long curr_det = sol_vec.indices()[det_idx];
+            uint8_t *curr_det = sol_vec.indices()[det_idx];
+            
             n_walk = abs(*curr_el);
             if (n_walk == 0) {
                 continue;
             }
             n_nonz++;
             ini_flag = n_walk > init_thresh;
-            ini_flag <<= 2 * n_orb;
             walk_sign = 1 - ((*curr_el >> (sizeof(int) * 8 - 1)) & 2);
             
             // spawning step
-            const Matrix<unsigned char> &neighb_orbs = sol_vec.neighb();
+            const Matrix<uint8_t> &neighb_orbs = sol_vec.neighb();
             matr_el = eps * hub_t * (neighb_orbs(det_idx, 0) + neighb_orbs(det_idx, n_elec + 1));
             n_success = round_binomially(matr_el, n_walk, rngen_ptr);
             
             if (n_success > max_spawn) {
                 printf("Allocating more memory for spawning\n");
                 max_spawn *= 2;
-                spawn_orbs = (unsigned char (*)[2])realloc(spawn_orbs, sizeof(unsigned char) * 2 * max_spawn);
+                spawn_orbs = (uint8_t (*)[2])realloc(spawn_orbs, sizeof(uint8_t) * 2 * max_spawn);
             }
             
-            hub_multin(curr_det, n_elec, neighb_orbs[det_idx], n_success, rngen_ptr, spawn_orbs);
+            hub_multin(n_elec, neighb_orbs[det_idx], n_success, rngen_ptr, spawn_orbs);
             
             for (walker_idx = 0; walker_idx < n_success; walker_idx++) {
-                new_det = curr_det ^ (1LL << spawn_orbs[walker_idx][0]) ^ (1LL << spawn_orbs[walker_idx][1]);
+                memcpy(new_det, curr_det, det_size);
+                zero_bit(new_det, spawn_orbs[walker_idx][0]);
+                set_bit(new_det, spawn_orbs[walker_idx][1]);
                 spawn_walker = -walk_sign;
                 sol_vec.add(new_det, spawn_walker, ini_flag);
             }
@@ -271,7 +277,7 @@ int main(int argc, const char * argv[]) {
             }
             *curr_el = new_val;
         }
-        sol_vec.perform_add(ini_bit);
+        sol_vec.perform_add();
         
         // Adjust shift
         if ((iterat + 1) % shift_interval == 0) {
@@ -287,7 +293,7 @@ int main(int argc, const char * argv[]) {
         }
         
         // Calculate energy estimate
-        matr_el = calc_ref_ovlp(sol_vec.indices(), sol_vec[0], sol_vec.curr_size(), neel_det, sol_vec.tabl());
+        matr_el = calc_ref_ovlp(sol_vec.indices(), sol_vec[0], sol_vec.curr_size(), neel_det, sol_vec.tabl(), n_elec, hub_len);
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, ref_proc, MPI_COMM_WORLD);
 #else

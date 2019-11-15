@@ -10,10 +10,10 @@
 
 #include "near_uniform.hpp"
 
-void gen_symm_lookup(unsigned char *orb_symm,
-                     Matrix<unsigned char> &lookup_tabl) {
+void gen_symm_lookup(uint8_t *orb_symm,
+                     Matrix<uint8_t> &lookup_tabl) {
     unsigned int idx, count;
-    unsigned char symm;
+    uint8_t symm;
     size_t n_symm = lookup_tabl.rows();
     size_t n_orb = lookup_tabl.cols() - 1;
     for (idx = 0; idx < n_symm; idx++) {
@@ -28,7 +28,7 @@ void gen_symm_lookup(unsigned char *orb_symm,
     }
 }
 
-void print_symm_lookup(Matrix<unsigned char> &lookup_tabl) {
+void print_symm_lookup(Matrix<uint8_t> &lookup_tabl) {
     unsigned int idx, orb_idx;
     size_t n_symm = lookup_tabl.rows();
     for (idx = 0; idx < n_symm; idx++) {
@@ -40,10 +40,10 @@ void print_symm_lookup(Matrix<unsigned char> &lookup_tabl) {
     }
 }
 
-void count_symm_virt(unsigned int counts[][2], unsigned char *occ_orbs,
+void count_symm_virt(unsigned int counts[][2], uint8_t *occ_orbs,
                      unsigned int n_elec, unsigned int n_orb, unsigned int n_symm,
-                     const Matrix<unsigned char> &symm_table,
-                     unsigned char *orb_irreps) {
+                     const Matrix<uint8_t> &symm_table,
+                     uint8_t *orb_irreps) {
     unsigned int i;
     for (i = 0; i < n_symm; i++) {
         counts[i][0] = symm_table(i, 0);
@@ -73,7 +73,7 @@ unsigned int _choose_uint(mt_struct *mt_ptr, unsigned int nmax) {
     return (genrand_mt(mt_ptr) / (1. + UINT32_MAX) * nmax);
 }
 
-orb_pair _tri_to_occ_pair(unsigned char *occ_orbs, unsigned int num_elec, unsigned int tri_idx) {
+orb_pair _tri_to_occ_pair(uint8_t *occ_orbs, unsigned int num_elec, unsigned int tri_idx) {
     // Use triangle inversion to convert an electron pair index into an orb_pair object
     orb_pair pair;
     unsigned int orb_idx1 = ((sqrt(tri_idx * 8. + 1) - 1) / 2);
@@ -86,19 +86,19 @@ orb_pair _tri_to_occ_pair(unsigned char *occ_orbs, unsigned int num_elec, unsign
     return pair;
 }
 
-orb_pair _choose_occ_pair(unsigned char *occ_orbs, unsigned int num_elec, mt_struct *mt_ptr) {
+orb_pair _choose_occ_pair(uint8_t *occ_orbs, unsigned int num_elec, mt_struct *mt_ptr) {
     // Randomly & uniformly choose a pair of occupied orbitals
     unsigned int rand_pair = _choose_uint(mt_ptr, num_elec * (num_elec - 1) / 2);
     return _tri_to_occ_pair(occ_orbs, num_elec, rand_pair);
 }
 
-unsigned int _count_doub_virt(orb_pair occ, unsigned char *orb_irreps,
+unsigned int _count_doub_virt(orb_pair occ, uint8_t *orb_irreps,
                               unsigned int n_orb, unsigned int num_elec,
                               unsigned int virt_counts[][2]) {
     // Count number of spin- and symmetry-allowed unoccupied orbitals
     // given a chosen pair of occupied orbitals
     unsigned int n_allow;
-    unsigned char sym_prod = (orb_irreps[occ.orb1 % n_orb] ^
+    uint8_t sym_prod = (orb_irreps[occ.orb1 % n_orb] ^
                               orb_irreps[occ.orb2 % n_orb]);
     int same_symm = sym_prod == 0 && occ.spin1 == occ.spin2;
     unsigned int i;
@@ -119,8 +119,8 @@ unsigned int _count_doub_virt(orb_pair occ, unsigned char *orb_irreps,
     return n_allow;
 }
 
-unsigned int _doub_choose_virt1(orb_pair occ, long long det,
-                                unsigned char *irreps, unsigned int n_orb,
+unsigned int _doub_choose_virt1(orb_pair occ, uint8_t *det,
+                                uint8_t *irreps, unsigned int n_orb,
                                 unsigned int virt_counts[][2],
                                 unsigned int num_allowed,
                                 mt_struct *mt_ptr) {
@@ -129,7 +129,7 @@ unsigned int _doub_choose_virt1(orb_pair occ, long long det,
     int virt_choice = 0;
     unsigned int orbital;
     unsigned int a_spin, b_spin;
-    unsigned char sym_prod = (irreps[occ.orb1 % n_orb] ^ irreps[occ.orb2 % n_orb]);
+    uint8_t sym_prod = (irreps[occ.orb1 % n_orb] ^ irreps[occ.orb2 % n_orb]);
     unsigned int n_virt2, a_symm;
 
     if (num_allowed <= 3) { // choose the orbital index and then search for it
@@ -147,7 +147,7 @@ unsigned int _doub_choose_virt1(orb_pair occ, long long det,
         orbital = 0;
         while (virt_choice >= 0 && orbital < n_orb) {
             // check that this orbital is unoccupied
-            if (!(det & (1LL << (orbital + a_spin * n_orb)))) {
+            if (!read_bit(det, orbital + a_spin * n_orb)) {
                 a_symm = irreps[orbital];
                 n_virt2 = (virt_counts[sym_prod ^ a_symm][b_spin] -
                            (sym_prod == 0 && a_spin == b_spin));
@@ -163,7 +163,7 @@ unsigned int _doub_choose_virt1(orb_pair occ, long long det,
             b_spin = 0;
             while (virt_choice >= 0 && orbital < 2 * n_orb) {
                 // check that this orbital is unoccupied
-                if (!(det & (1LL << orbital))) {
+                if (!read_bit(det, orbital)) {
                     a_symm = irreps[orbital - n_orb];
                     n_virt2 = (virt_counts[sym_prod ^ a_symm][b_spin] -
                                (sym_prod == 0 && a_spin == b_spin));
@@ -190,7 +190,7 @@ unsigned int _doub_choose_virt1(orb_pair occ, long long det,
                 a_spin = virt_choice / n_orb;
                 b_spin = 1 - a_spin;
             }
-            if (!(det & (1LL << virt_choice))) { // check if unoccupied
+            if (!read_bit(det, virt_choice)) { // check if unoccupied
                 a_symm = irreps[virt_choice % n_orb];
                 n_virt2 = (virt_counts[sym_prod ^ a_symm][b_spin] -
                            (sym_prod == 0 && a_spin == b_spin));
@@ -201,8 +201,8 @@ unsigned int _doub_choose_virt1(orb_pair occ, long long det,
 }
 
 
-unsigned int _doub_choose_virt2(unsigned int spin_shift, long long det,
-                                const unsigned char *symm_row,
+unsigned int _doub_choose_virt2(unsigned int spin_shift, uint8_t *det,
+                                const uint8_t *symm_row,
                                 unsigned int virt1, unsigned int n_allow,
                                 mt_struct *mt_ptr) {
     // Choose the second virtual orbial uniformly
@@ -212,7 +212,7 @@ unsigned int _doub_choose_virt2(unsigned int spin_shift, long long det,
     // Search for chosen orbital
     while (orb_idx >= 0) {
         orbital = symm_row[symm_idx] + spin_shift;
-        if (!(det & (1LL << orbital)) && orbital != virt1) {
+        if (!read_bit(det, orbital) && orbital != virt1) {
             orb_idx -= 1;
         }
         symm_idx += 1;
@@ -221,10 +221,10 @@ unsigned int _doub_choose_virt2(unsigned int spin_shift, long long det,
 }
 
 
-unsigned int doub_multin(long long det, unsigned char *occ_orbs, unsigned int num_elec,
-                         unsigned char *orb_symm, unsigned int num_orb, const Matrix<unsigned char> &lookup_tabl,
+unsigned int doub_multin(uint8_t *det, uint8_t *occ_orbs, unsigned int num_elec,
+                         uint8_t *orb_symm, unsigned int num_orb, const Matrix<uint8_t> &lookup_tabl,
                          unsigned int (* unocc_sym_counts)[2], unsigned int num_sampl,
-                         mt_struct *rn_ptr, unsigned char (* chosen_orbs)[4], double *prob_vec) {
+                         mt_struct *rn_ptr, uint8_t (* chosen_orbs)[4], double *prob_vec) {
     unsigned int i, a_symm, b_symm, a_spin, b_spin, sym_prod;
     unsigned int unocc1, unocc2, m_a_allow, m_a_b_allow, m_b_a_allow;
     orb_pair occ;
@@ -286,7 +286,7 @@ unsigned int _sing_choose_occ(unsigned int *counts, unsigned int n_elec, mt_stru
 }
 
 
-unsigned int _sing_choose_virt(long long det, const unsigned char *symm_row,
+unsigned int _sing_choose_virt(uint8_t *det, const uint8_t *symm_row,
                                unsigned int spin_shift, mt_struct *mt_ptr
                                ) {
 // Uniformly choose a virtual orbital with the specified symmetry
@@ -296,17 +296,17 @@ unsigned int _sing_choose_virt(long long det, const unsigned char *symm_row,
     while (symm_idx == -1) {
         symm_idx = _choose_uint(mt_ptr, symm_row[0]);
         orbital = spin_shift + symm_row[symm_idx + 1];
-        if (det & (1LL << orbital))
+        if (read_bit(det, orbital))
             symm_idx = -1; // orbital is occupied, choose again
     }
     return orbital;
 }
 
 
-unsigned int sing_multin(long long det, unsigned char *occ_orbs, unsigned int num_elec,
-                         unsigned char *orb_symm, unsigned int num_orb, const Matrix<unsigned char> &lookup_tabl,
+unsigned int sing_multin(uint8_t *det, uint8_t *occ_orbs, unsigned int num_elec,
+                         uint8_t *orb_symm, unsigned int num_orb, const Matrix<uint8_t> &lookup_tabl,
                          unsigned int (* unocc_sym_counts)[2], unsigned int num_sampl,
-                         mt_struct *rn_ptr, unsigned char (* chosen_orbs)[2], double *prob_vec) {
+                         mt_struct *rn_ptr, uint8_t (* chosen_orbs)[2], double *prob_vec) {
     unsigned int j, delta_s, num_allowed, occ_orb, occ_symm, occ_spin;
     unsigned int elec_idx, virt_orb;
     unsigned int m_allow[num_elec];
@@ -341,11 +341,11 @@ unsigned int sing_multin(long long det, unsigned char *occ_orbs, unsigned int nu
 }
 
 
-unsigned int count_sing_allowed(unsigned char *occ_orbs, unsigned int num_elec,
-                                unsigned char *orb_symm, unsigned int num_orb,
+unsigned int count_sing_allowed(uint8_t *occ_orbs, unsigned int num_elec,
+                                uint8_t *orb_symm, unsigned int num_orb,
                                 unsigned int (* unocc_sym_counts)[2]) {
     unsigned int elec_idx, num_allowed = 0;
-    unsigned char occ_symm;
+    uint8_t occ_symm;
     for (elec_idx = 0; elec_idx < num_elec; elec_idx++) {
         occ_symm = orb_symm[occ_orbs[elec_idx] % num_orb];
         if (unocc_sym_counts[occ_symm][elec_idx / (num_elec / 2)] != 0)
@@ -355,12 +355,12 @@ unsigned int count_sing_allowed(unsigned char *occ_orbs, unsigned int num_elec,
 }
 
 
-unsigned int count_sing_virt(unsigned char *occ_orbs, unsigned int num_elec,
-                             unsigned char *orb_symm, unsigned int num_orb,
+unsigned int count_sing_virt(uint8_t *occ_orbs, uint8_t num_elec,
+                             uint8_t *orb_symm, uint8_t num_orb,
                              unsigned int (* unocc_sym_counts)[2],
-                             unsigned char *occ_choice) {
+                             uint8_t *occ_choice) {
     unsigned int elec_idx, num_allowed = 0;
-    unsigned char occ_symm;
+    uint8_t occ_symm;
     unsigned int virt_allowed;
     for (elec_idx = 0; elec_idx < num_elec; elec_idx++) {
         occ_symm = orb_symm[occ_orbs[elec_idx] % num_orb];
@@ -377,12 +377,12 @@ unsigned int count_sing_virt(unsigned char *occ_orbs, unsigned int num_elec,
 }
 
 
-void symm_pair_wt(unsigned char *occ_orbs, unsigned int num_elec,
-                  unsigned char *orb_symm, unsigned int num_orb,
-                  unsigned int (* unocc_sym_counts)[2], unsigned char *occ_choice,
-                  double *virt_weights, unsigned char *virt_counts) {
+void symm_pair_wt(uint8_t *occ_orbs, unsigned int num_elec,
+                  uint8_t *orb_symm, unsigned int num_orb,
+                  unsigned int (* unocc_sym_counts)[2], uint8_t *occ_choice,
+                  double *virt_weights, uint8_t *virt_counts) {
     orb_pair occ = _tri_to_occ_pair(occ_orbs, num_elec, *occ_choice);
-    unsigned int sym_prod = orb_symm[occ.orb1 % num_orb] ^ orb_symm[occ.orb2 % num_orb];
+    uint8_t sym_prod = orb_symm[occ.orb1 % num_orb] ^ orb_symm[occ.orb2 % num_orb];
     unsigned int m_a_allow = _count_doub_virt(occ, orb_symm, num_orb, num_elec, unocc_sym_counts);
     size_t symm_idx;
     if (m_a_allow == 0) {
@@ -396,7 +396,7 @@ void symm_pair_wt(unsigned char *occ_orbs, unsigned int num_elec,
     occ_choice[0] = occ.orb2;
     occ_choice[1] = occ.orb1;
     unsigned int num_symm_pair, xor_row_idx, n_symm1, n_symm2;
-    unsigned char xor_idx[4][8] = {
+    uint8_t xor_idx[4][8] = {
         {0, 1, 2, 3, 4, 5, 6, 7},
         {1, 3, 5, 7, 0, 0, 0, 0},
         {2, 3, 6, 7, 0, 0, 0, 0},
@@ -446,13 +446,13 @@ void symm_pair_wt(unsigned char *occ_orbs, unsigned int num_elec,
     }
 }
 
-unsigned char virt_from_idx(long long det, unsigned char *lookup_row,
-                            unsigned char spin_shift, unsigned int index) {
+uint8_t virt_from_idx(uint8_t *det, uint8_t *lookup_row,
+                            uint8_t spin_shift, unsigned int index) {
     unsigned int symm_index;
-    unsigned char orbital;
+    uint8_t orbital;
     for (symm_index = 0; symm_index < lookup_row[0]; symm_index++) {
         orbital = spin_shift + lookup_row[1 + symm_index];
-        if (!(det & (1LL << orbital))) {
+        if (!read_bit(det, orbital)) {
             if (index == 0) {
                 return orbital;
             }

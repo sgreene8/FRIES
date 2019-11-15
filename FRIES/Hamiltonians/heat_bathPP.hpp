@@ -67,7 +67,7 @@ hb_info *set_up(unsigned int tot_orb, unsigned int n_orb,
  * \return sum of all single-electron weights before normalization
  */
 double calc_o1_probs(hb_info *tens, double *prob_arr, unsigned int n_elec,
-                     unsigned char *occ_orbs);
+                     uint8_t *occ_orbs);
 
 
 /*! \brief Calculate the normalized probabilities for choosing the second
@@ -90,7 +90,7 @@ double calc_o1_probs(hb_info *tens, double *prob_arr, unsigned int n_elec,
  * \return sum of all single-electron weights before normalization
  */
 double calc_o2_probs(hb_info *tens, double *prob_arr, unsigned int n_elec,
-                     unsigned char *occ_orbs, unsigned char *o1);
+                     uint8_t *occ_orbs, uint8_t *o1);
 
 
 /*! \brief Calculate the normalized probabilities for choosing the first
@@ -109,8 +109,8 @@ double calc_o2_probs(hb_info *tens, double *prob_arr, unsigned int n_elec,
  *                          excitations occur
  * \return sum of weights for all unoccupied orbitals before normalization
  */
-double calc_u1_probs(hb_info *tens, double *prob_arr, unsigned char o1_orb,
-                     long long det);
+double calc_u1_probs(hb_info *tens, double *prob_arr, uint8_t o1_orb,
+                     uint8_t *det);
 
 
 /*! \brief Calculate the normalized probabilities for choosing the second
@@ -136,9 +136,9 @@ double calc_u1_probs(hb_info *tens, double *prob_arr, unsigned char o1_orb,
  *                          irreps are zeroed.
  * \return sum of weights for all unoccupied orbitals before normalization
  */
-double calc_u2_probs(hb_info *tens, double *prob_arr, unsigned char o1_orb,
-                     unsigned char o2_orb, unsigned char u1_orb,
-                     const Matrix<unsigned char> &lookup_tabl, unsigned char *symm,
+double calc_u2_probs(hb_info *tens, double *prob_arr, uint8_t o1_orb,
+                     uint8_t o2_orb, uint8_t u1_orb,
+                     const Matrix<uint8_t> &lookup_tabl, uint8_t *symm,
                      unsigned int *prob_len);
 
 
@@ -153,7 +153,7 @@ double calc_u2_probs(hb_info *tens, double *prob_arr, unsigned char o1_orb,
  *                          orbitals defining the excitation
  * \return the weight for the excitation
  */
-double calc_unnorm_wt(hb_info *tens, unsigned char *orbs);
+double calc_unnorm_wt(hb_info *tens, uint8_t *orbs);
 
 
 /*! \brief Calculate the normalized weight for a double excitation from a
@@ -175,9 +175,9 @@ double calc_unnorm_wt(hb_info *tens, unsigned char *orbs);
  *                          (length n_orb)
  * \return the weight for the excitation
  */
-double calc_norm_wt(hb_info *tens, unsigned char *orbs, unsigned char *occ,
-                    unsigned int n_elec, long long det,
-                    const Matrix<unsigned char> &lookup_tabl, unsigned char *symm);
+double calc_norm_wt(hb_info *tens, uint8_t *orbs, uint8_t *occ,
+                    unsigned int n_elec, uint8_t *det,
+                    const Matrix<uint8_t> &lookup_tabl, uint8_t *symm);
 
 
 /*! \brief Perform multinomial sampling on the double excitation part of the
@@ -204,11 +204,11 @@ double calc_norm_wt(hb_info *tens, unsigned char *orbs, unsigned char *occ,
  * \return number of excitations sampled (less than num_sampl if some excitations
  *  were null)
  */
-unsigned int hb_doub_multi(long long det, unsigned char *occ_orbs,
-                           unsigned int num_elec, unsigned char *orb_symm,
-                           hb_info *tens, const Matrix<unsigned char> &lookup_tabl,
+unsigned int hb_doub_multi(uint8_t *det, uint8_t *occ_orbs,
+                           unsigned int num_elec, uint8_t *orb_symm,
+                           hb_info *tens, const Matrix<uint8_t> &lookup_tabl,
                            unsigned int num_sampl, mt_struct *rn_ptr,
-                           unsigned char (* chosen_orbs)[4], double *prob_vec);
+                           uint8_t (* chosen_orbs)[4], double *prob_vec);
 
 
 #endif /* heat_bathPP_h */

@@ -28,7 +28,7 @@ size_t read_doub_csv(double *buf, char *fname) {
     return n_read;
 }
 
-size_t read_uchar_csv(unsigned char *buf, char *fname) {
+size_t read_uchar_csv(uint8_t *buf, char *fname) {
     int i =  0;
     size_t row_idx = 0;
     size_t n_col;
@@ -141,7 +141,7 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     unsigned int tot_orb = in_struct->n_orb + n_frz / 2;
     strcpy(buffer, hf_dir);
     strcat(buffer, "symm.txt");
-    in_struct->symm = (unsigned char *)malloc(sizeof(unsigned char) * tot_orb);
+    in_struct->symm = (uint8_t *)malloc(sizeof(uint8_t) * tot_orb);
     read_uchar_csv(in_struct->symm, buffer);
     in_struct->symm = &(in_struct->symm[n_frz / 2]);
     
@@ -262,7 +262,7 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct) {
     return 0;
 }
 
-size_t load_vec_txt(const char *prefix, long long *dets, void *vals, dtype type) {
+size_t load_vec_txt(const char *prefix, Matrix<uint8_t> &dets, void *vals, dtype type) {
     int my_rank = 0;
 #ifdef USE_MPI
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
@@ -286,20 +286,31 @@ size_t load_vec_txt(const char *prefix, long long *dets, void *vals, dtype type)
         int num_read_d = 1;
         int num_read_v = 1;
         size_t n_dets = 0;
+        long long in_det;
+        size_t byte_idx;
+        size_t max_size = dets.cols();
         
         if (type == DOUB) {
             double *val_arr = (double *)vals;
             while (num_read_d == 1 && num_read_v == 1) {
-                num_read_d = fscanf(file_d, "%lld\n", &dets[n_dets]);
+                num_read_d = fscanf(file_d, "%lld\n", &in_det);
                 num_read_v = fscanf(file_v, "%lf\n", &val_arr[n_dets]);
+                for (byte_idx = 0; byte_idx < 8 && byte_idx < max_size; byte_idx++) {
+                    dets(n_dets, byte_idx) = in_det & 255;
+                    in_det >>= 8;
+                }
                 n_dets++;
             }
         }
         else if (type == INT) {
             int *val_arr = (int *) vals;
             while (num_read_d == 1 && num_read_v == 1) {
-                num_read_d = fscanf(file_d, "%lld\n", &dets[n_dets]);
+                num_read_d = fscanf(file_d, "%lld\n", &in_det);
                 num_read_v = fscanf(file_v, "%d\n", &val_arr[n_dets]);
+                for (byte_idx = 0; byte_idx < 8 && byte_idx < max_size; byte_idx++) {
+                    dets(n_dets, byte_idx) = in_det & 255;
+                    in_det >>= 8;
+                }
                 n_dets++;
             }
         }

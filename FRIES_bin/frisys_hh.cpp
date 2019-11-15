@@ -59,7 +59,7 @@ int main(int argc, const char * argv[]) {
         OPT_STRING('y', "result_dir", &result_dir, "Directory in which to save output files"),
         OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
         OPT_INTEGER('i', "initiator", &init_thresh, "Number of walkers on a determinant required to make it an initiator."),
-        OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for save_vec())."),
+        OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())."),
         OPT_STRING('n', "ini_vec", &ini_path, "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)."),
         OPT_END(),
     };
@@ -111,7 +111,7 @@ int main(int argc, const char * argv[]) {
     }
     
     unsigned int n_orb = pow_int(hub_len, hub_dim);
-    long long ini_bit = 1LL << (2 * n_orb);
+    size_t det_size = CEILING(2 * n_orb, 8);
     
     // Rn generator
     mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, proc_rank, (unsigned int) time(NULL));
@@ -140,10 +140,11 @@ int main(int argc, const char * argv[]) {
     
     // Solution vector
     unsigned int spawn_length = matr_samp * 2 / n_procs;
-    DistVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb, n_elec, hub_len, n_procs);
+    DistVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb * 2, n_elec, n_procs, hub_len);
     sol_vec.proc_scrambler_ = proc_scrambler;
     
-    long long neel_det = gen_neel_det_1D(n_orb, n_elec, hub_dim);
+    uint8_t neel_det[det_size];
+    gen_neel_det_1D(n_orb, n_elec, neel_det);
     ref_proc = sol_vec.idx_to_proc(neel_det);
     
     // Initialize solution vector
@@ -151,21 +152,22 @@ int main(int argc, const char * argv[]) {
         sol_vec.load(load_dir);
     }
     else if (ini_path) {
-        long long *load_dets = sol_vec.indices();
+        // from an initial vector in .txt format
+        Matrix<uint8_t> &load_dets = sol_vec.indices();
         double *load_vals = sol_vec[0];
         
         size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, INT);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
-            sol_vec.add(load_dets[det_idx], load_vals[det_idx], ini_bit);
+            sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
         }
     }
     else {
         if (ref_proc == proc_rank) {
-            sol_vec.add(neel_det, 100, ini_bit);
+            sol_vec.add(neel_det, 100, 1);
         }
     }
-    sol_vec.perform_add(ini_bit);
+    sol_vec.perform_add();
     loc_norm = sol_vec.local_norm();
     sum_mpi_d(loc_norm, &glob_norm, proc_rank, n_procs);
     if (load_dir) {
@@ -234,13 +236,13 @@ int main(int argc, const char * argv[]) {
     }
     int *keep_exact = (int *)calloc(max_n_dets, sizeof(int));
     
-    long long ini_flag;
-    long long new_det;
+    int ini_flag;
     double matr_el;
     double recv_nums[n_procs];
+    uint8_t new_det[det_size];
     
     unsigned int iterat;
-    const Matrix<unsigned char> &neighb_orbs = sol_vec.neighb();
+    const Matrix<uint8_t> &neighb_orbs = sol_vec.neighb();
     for (iterat = 0; iterat < max_iter; iterat++) {
         sum_mpi_i(sol_vec.n_nonz(), &glob_n_nonz, proc_rank, n_procs);
         
@@ -265,19 +267,20 @@ int main(int argc, const char * argv[]) {
         }
         comp_len = comp_sub(comp_vec1, sol_vec.curr_size(), ndiv_vec, n_subwt, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
         
-        unsigned char spawn_orbs[2];
+        uint8_t spawn_orbs[2];
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
             weight_idx = comp_idx[samp_idx][0];
             det_idx = comp_idx[samp_idx][0];
             double *curr_el = sol_vec[det_idx];
-            long long curr_det = sol_vec.indices()[det_idx];
-            ini_flag = fabs(*curr_el) > init_thresh;
-            ini_flag <<= 2 * n_orb;
+            uint8_t *curr_det = sol_vec.indices()[det_idx];
+            ini_flag = fabs(*curr_el) > init_thresh;\
             int el_sign = 1 - 2 * signbit(*curr_el);
             
             matr_el = -eps * hub_t * (neighb_orbs(det_idx, 0) + neighb_orbs(det_idx, n_elec + 1)) * comp_vec2[samp_idx] * el_sign;
             idx_to_orbs((unsigned int) comp_idx[samp_idx][1], n_elec, neighb_orbs[det_idx], spawn_orbs);
-            new_det = curr_det ^ (1LL << spawn_orbs[0]) ^ (1LL << spawn_orbs[1]);
+            memcpy(new_det, curr_det, det_size);
+            zero_bit(new_det, spawn_orbs[0]);
+            set_bit(new_det, spawn_orbs[1]);
             sol_vec.add(new_det, matr_el, ini_flag);
         }
         
@@ -287,13 +290,13 @@ int main(int argc, const char * argv[]) {
             if (*curr_el != 0) {
                 double *diag_el = sol_vec.matr_el_at_pos(det_idx);
                 if (isnan(*diag_el)) {
-                    long long curr_det = sol_vec.indices()[det_idx];
+                    uint8_t *curr_det = sol_vec.indices()[det_idx];
                     *diag_el = hub_diag(curr_det, hub_len, sol_vec.tabl()) * hub_u - hf_en;
                 }
                 *curr_el *= 1 - eps * (*diag_el - en_shift);
             }
         }
-        sol_vec.perform_add(ini_bit);
+        sol_vec.perform_add();
         
         // Compression step
         unsigned int n_samp = target_nonz;
@@ -309,7 +312,7 @@ int main(int argc, const char * argv[]) {
         }
         
         // Calculate energy estimate
-        matr_el = calc_ref_ovlp(sol_vec.indices(), sol_vec[0], sol_vec.curr_size(), neel_det, sol_vec.tabl());
+        matr_el = calc_ref_ovlp(sol_vec.indices(), sol_vec[0], sol_vec.curr_size(), neel_det, sol_vec.tabl(), n_elec, hub_len);
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, ref_proc, MPI_COMM_WORLD);
 #else

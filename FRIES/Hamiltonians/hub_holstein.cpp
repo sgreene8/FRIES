@@ -5,11 +5,9 @@
 
 #include "hub_holstein.hpp"
 
-unsigned char gen_orb_list(long long det, byte_table *table, unsigned char *occ_orbs);
 
-
-void hub_multin(long long det, unsigned int n_elec, const unsigned char *neighbors,
-                unsigned int num_sampl, mt_struct *rn_ptr, unsigned char (* chosen_orbs)[2]) {
+void hub_multin(unsigned int n_elec, const uint8_t *neighbors,
+                unsigned int num_sampl, mt_struct *rn_ptr, uint8_t (* chosen_orbs)[2]) {
     unsigned int samp_idx, orb_idx;
     unsigned int n_choices;
     for (samp_idx = 0; samp_idx < num_sampl; samp_idx++) {
@@ -21,7 +19,7 @@ void hub_multin(long long det, unsigned int n_elec, const unsigned char *neighbo
 
 
 void idx_to_orbs(unsigned int chosen_idx, unsigned int n_elec,
-                 const unsigned char *neighbors, unsigned char *orbs) {
+                 const uint8_t *neighbors, uint8_t *orbs) {
     if (chosen_idx < neighbors[0]) {
         orbs[0] = neighbors[chosen_idx + 1];
         orbs[1] = neighbors[chosen_idx + 1] + 1;
@@ -37,8 +35,8 @@ void idx_to_orbs(unsigned int chosen_idx, unsigned int n_elec,
 }
 
 
-size_t hub_all(long long det, unsigned int n_elec, unsigned char *neighbors,
-               unsigned char (* chosen_orbs)[2]) {
+size_t hub_all(unsigned int n_elec, uint8_t *neighbors,
+               uint8_t (* chosen_orbs)[2]) {
     size_t n_ex = 0;
     unsigned int orb_idx;
     for (orb_idx = 0; orb_idx < neighbors[0]; orb_idx++) {
@@ -55,26 +53,60 @@ size_t hub_all(long long det, unsigned int n_elec, unsigned char *neighbors,
 }
 
 
-unsigned int hub_diag(long long det, unsigned int n_sites, byte_table *table) {
-    long long overlap = (det >> n_sites) & det;
+unsigned int hub_diag(uint8_t *det, unsigned int n_sites, byte_table *table) {
     unsigned int n_overlap = 0;
-    long long mask = 255;
-    unsigned char det_byte;
-    while (overlap != 0) {
-        det_byte = overlap & mask;
-        n_overlap += table->nums[det_byte];
-        overlap >>= 8;
+//    size_t n_bytes = CEILING(n_sites, 8);
+    size_t byte_idx;
+    
+    uint8_t later_byte;
+    uint8_t mask;
+    
+    for (byte_idx = 0; byte_idx < n_sites / 8; byte_idx++) {
+        later_byte = det[n_sites / 8 + byte_idx] >> n_sites % 8;
+        mask = later_byte & det[byte_idx];
+        n_overlap += table->nums[mask];
+
+        later_byte = det[n_sites / 8 + byte_idx + 1] << (8 - (n_sites % 8));
+        mask = later_byte & det[byte_idx];
+        n_overlap += table->nums[mask];
+    }
+    if (n_sites % 8) {
+        later_byte = det[n_sites / 8 + byte_idx];
+        later_byte &= (1 << (2 * n_sites % 8)) - 1;
+        later_byte >>= n_sites % 8;
+        mask = later_byte & det[byte_idx];
+        n_overlap += table->nums[mask];
+    }
+    
+    if ((n_sites / 8 + byte_idx + 1) < 2 * n_sites / 8) {
+        later_byte = det[n_sites / 8 + byte_idx + 1] << (8 - (n_sites % 8));
+        mask = later_byte & det[byte_idx];
+        n_overlap += table->nums[mask];
     }
     return n_overlap;
 }
 
 
-long long gen_neel_det_1D(unsigned int n_sites, unsigned int n_elec, unsigned int n_dim) {
-    long long ones = ((1LL << n_elec) - 1) / 3;
-    long long neel_state = ones << (n_sites + 1);
+void gen_neel_det_1D(unsigned int n_sites, unsigned int n_elec, uint8_t *det) {
+    size_t byte_idx;
+    for (byte_idx = 0; byte_idx < n_elec / 8; byte_idx++) {
+        det[byte_idx] = 255 / 3;
+    }
+    det[byte_idx] = ((1 << (n_elec % 8)) - 1) / 3;
     
-    neel_state |= ones;
+    for (byte_idx++; byte_idx <= n_sites / 10; byte_idx++) {
+        det[byte_idx] = 0;
+    }
     
-    return neel_state;
+    byte_idx = n_sites / 10;
+    det[byte_idx] |= (255 / 3) << ((n_sites + 1) % 8);
+    
+    for (byte_idx++; byte_idx < (n_sites + n_elec) / 8; byte_idx++) {
+        det[byte_idx] = (255 / 3) << 1;
+    }
+    det[byte_idx] = ((1 << ((n_sites + n_elec) % 8)) / 3) << 1;
+    for (byte_idx++; byte_idx <= (2 * n_sites) / 10; byte_idx++) {
+        det[byte_idx] = 0;
+    }
 }
 

@@ -9,7 +9,6 @@ list(APPEND FRIES_FILELIST
         Hamiltonians/molecule.cpp
         io_utils.cpp
         math_utils.c
-        vec_utils.cpp
         Ext_Libs/argparse.c
         Ext_Libs/csvparser.c
         Ext_Libs/heap.c)
