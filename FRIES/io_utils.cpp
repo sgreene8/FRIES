@@ -148,7 +148,7 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     strcpy(buffer, hf_dir);
     strcat(buffer, "hcore.txt");
     in_struct->hcore = new Matrix<double>(tot_orb, tot_orb);
-    size_t n_read = read_doub_csv((*(in_struct->hcore))[0], buffer);
+    size_t n_read = read_doub_csv((*(in_struct->hcore)).data(), buffer);
     if (n_read < tot_orb * tot_orb) {
         fprintf(stderr, "Error reading values from %s\n", buffer);
         return -1;

@@ -241,7 +241,7 @@ int main(int argc, const char * argv[]) {
     else if (ini_path) {
         // from an initial vector in .txt format
         Matrix<uint8_t> &load_dets = sol_vec.indices();
-        double *load_vals = sol_vec[0];
+        double *load_vals = sol_vec.values();
         
         size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, DOUB);
         
@@ -412,7 +412,7 @@ int main(int argc, const char * argv[]) {
         
         // Compression step
         unsigned int n_samp = target_nonz;
-        loc_norms[proc_rank] = find_preserve(sol_vec[0], srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
+        loc_norms[proc_rank] = find_preserve(sol_vec.values(), srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
         
         // Adjust shift
         if ((iterat + 1) % shift_interval == 0) {
@@ -422,8 +422,8 @@ int main(int argc, const char * argv[]) {
                 fprintf(norm_file, "%lf\n", glob_norm);
             }
         }
-        matr_el = sol_vec.dot(htrial_vec.indices(), htrial_vec[0], htrial_vec.curr_size(), htrial_hashes);
-        double denom = sol_vec.dot(trial_vec.indices(), trial_vec[0], trial_vec.curr_size(), trial_hashes);
+        matr_el = sol_vec.dot(htrial_vec.indices(), htrial_vec.values(), htrial_vec.curr_size(), htrial_hashes);
+        double denom = sol_vec.dot(trial_vec.indices(), trial_vec.values(), trial_vec.curr_size(), trial_hashes);
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
         MPI_Gather(&denom, 1, MPI_DOUBLE, recv_dens, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
@@ -449,7 +449,7 @@ int main(int argc, const char * argv[]) {
 #ifdef USE_MPI
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
 #endif
-        sys_comp(sol_vec[0], sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
+        sys_comp(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
         for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
             if (keep_exact[det_idx] && sol_vec.indices()[det_idx] != hf_det) {
                 sol_vec.del_at_pos(det_idx);

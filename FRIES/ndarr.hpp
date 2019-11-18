@@ -104,6 +104,12 @@ public:
     size_t cols() const {
         return cols_;
     }
+    
+    /*! \return Pointer to the  data in the matrix*/
+    mat_type *data() const {
+        return data_;
+    }
+    
 private:
     size_t rows_, cols_, tot_size_;
     mat_type* data_;

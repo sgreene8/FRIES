@@ -476,7 +476,7 @@ int main(int argc, const char * argv[]) {
         }
         comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, n_subwt, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
         
-        uint8_t *spawn_dets = (uint8_t *)subwt_mem[0];
+        uint8_t *spawn_dets = (uint8_t *)subwt_mem.data();
         size_t num_added = 0;
         keep_idx.reshape(spawn_length, 1);
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
@@ -584,7 +584,7 @@ int main(int argc, const char * argv[]) {
         
         // Compression step
         unsigned int n_samp = target_nonz;
-        loc_norms[proc_rank] = find_preserve(sol_vec[0], srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
+        loc_norms[proc_rank] = find_preserve(sol_vec.values(), srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
         if (proc_rank == hf_proc) {
             fprintf(nkept_file, "%u\n", target_nonz - n_samp);
         }
@@ -597,8 +597,8 @@ int main(int argc, const char * argv[]) {
                 fprintf(norm_file, "%lf\n", glob_norm);
             }
         }
-        matr_el = sol_vec.dot(htrial_vec.indices(), htrial_vec[0], htrial_vec.curr_size(), htrial_hashes);
-        double denom = sol_vec.dot(trial_vec.indices(), trial_vec[0], trial_vec.curr_size(), trial_hashes);
+        matr_el = sol_vec.dot(htrial_vec.indices(), htrial_vec.values(), htrial_vec.curr_size(), htrial_hashes);
+        double denom = sol_vec.dot(trial_vec.indices(), trial_vec.values(), trial_vec.curr_size(), trial_hashes);
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
         MPI_Gather(&denom, 1, MPI_DOUBLE, recv_dens, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
@@ -625,7 +625,7 @@ int main(int argc, const char * argv[]) {
 #ifdef USE_MPI
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
 #endif
-        sys_comp(sol_vec[0], sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
+        sys_comp(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
         for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
             if (keep_exact[det_idx] && sol_vec.indices()[det_idx] != hf_det) {
                 sol_vec.del_at_pos(det_idx);

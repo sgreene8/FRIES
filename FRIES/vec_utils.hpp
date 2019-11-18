@@ -23,25 +23,24 @@ using namespace std;
 
 
 #ifdef USE_MPI
-#define CONV_MPI(type)(type ? MPI_INT : MPI_DOUBLE)
-template<typename T>
-struct mpi_type
-{
-};
+inline void mpi_atoav(double *sendv, int *send_cts, int *disps, double *recvv, int *recv_cts) {
+    MPI_Alltoallv(sendv, send_cts, disps, MPI_DOUBLE, recvv, recv_cts, disps, MPI_DOUBLE, MPI_COMM_WORLD);
+}
 
-// template specialization
-template<>
-struct mpi_type<double>
-{
-    static constexpr int value = 0;
-};
 
-template<>
-struct mpi_type<int>
-{
-    static constexpr int value = 1;
-};
+inline void mpi_atoav(int *sendv, int *send_cts, int *disps, int *recvv, int *recv_cts) {
+    MPI_Alltoallv(sendv, send_cts, disps, MPI_DOUBLE, recvv, recv_cts, disps, MPI_INT, MPI_COMM_WORLD);
+}
 
+
+inline void mpi_allgathv_inplace(int *arr, int *nums, int *disps) {
+    MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, arr, nums, disps, MPI_INT, MPI_COMM_WORLD);
+}
+
+
+inline void mpi_allgathv_inplace(double *arr, int *nums, int *disps) {
+    MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, arr, nums, disps, MPI_DOUBLE, MPI_COMM_WORLD);
+}
 #endif
 
 template <class el_type>
@@ -102,9 +101,6 @@ private:
     int *displacements_; ///< Array positions in buffers corresponding to each
     DistVec<el_type> *parent_vec_; ///<The DistVec object to which elements are added
     uint8_t n_bytes_; ///< Number of bytes used to encode each index in the send and receive buffers
-#ifdef USE_MPI
-    static constexpr int my_mpi_type = mpi_type<el_type>::value;
-#endif
     
 /*! \brief Increase the size of the buffer for temporarily storing added elements
  */
@@ -151,9 +147,6 @@ class DistVec {
     Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
     int n_nonz_; ///< Current number of nonzero elements in vector
     unsigned int hub_dim_; ///< If vector indices represent states in the Hilbert space of the Hubbard model, number of lattice dimensions; 0 otherwise
-#ifdef USE_MPI
-    static constexpr int my_mpi_type = mpi_type<el_type>::value;
-#endif
 public:
     unsigned int *proc_scrambler_; ///< Array of random numbers used in the hash function for assigning vector indices to MPI
     
@@ -297,12 +290,6 @@ public:
      */
     void add(uint8_t *idx, el_type val, int ini_flag) {
         if (val != 0) {
-            if (gen_orb_list(idx, occ_orbs_[curr_size_]) != occ_orbs_.cols()) {
-                uint8_t n_bytes = indices_.cols();
-                char det_txt[n_bytes];
-                print_str(idx, n_bytes, det_txt);
-                fprintf(stderr, "Error: determinant %s created with an incorrect number of electrons.\n", det_txt);
-            }
             adder_.add(idx, val, ini_flag);
         }
     }
@@ -353,8 +340,8 @@ public:
     }
     
     /*! \returns The array used to store values in the DistVec object */
-    void *values() const {
-        return (void *)values_.data();
+    el_type *values() const {
+        return (el_type *)values_.data();
     }
     
     Matrix<uint8_t> &indices() {
@@ -532,7 +519,7 @@ public:
         char buffer[100];
         sprintf(buffer, "%sdets%d.dat", path, my_rank);
         FILE *file_p = fopen(buffer, "wb");
-        fwrite(indices_[0], indices_.cols(), curr_size_, file_p);
+        fwrite(indices_.data(), indices_.cols(), curr_size_, file_p);
         fclose(file_p);
         
         sprintf(buffer, "%svals%d.dat", path, my_rank);
@@ -565,7 +552,7 @@ public:
             fprintf(stderr, "Error: could not open saved binary vector file at %s\n", buffer);
             return;
         }
-        n_dets = fread(indices_[0], n_bytes, 10000000, file_p);
+        n_dets = fread(indices_.data(), n_bytes, 10000000, file_p);
         fclose(file_p);
         
         sprintf(buffer, "%svals%d.dat", path, my_rank);
@@ -628,11 +615,11 @@ public:
             indices_.reshape(tot_size, n_bytes);
             values_.resize(tot_size);
         }
-        memmove(indices_[disps[my_rank] * n_bytes], indices_[0], vec_sizes[my_rank] * n_bytes);
+        memmove(indices_[disps[my_rank] * n_bytes], indices_.data(), vec_sizes[my_rank] * n_bytes);
         memmove(&values_.data()[disps[my_rank]], values_.data(), vec_sizes[my_rank] * el_size);
     #ifdef USE_MPI
-        MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, indices_[0], idx_sizes, disps, MPI_UINT8_T, MPI_COMM_WORLD);
-        MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, values_.data(), vec_sizes, disps, CONV_MPI(my_mpi_type), MPI_COMM_WORLD);
+        MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, indices_.data(), idx_sizes, disps, MPI_UINT8_T, MPI_COMM_WORLD);
+        mpi_allgathv_inplace(values_.data(), vec_sizes, disps);
     #endif
         curr_size_ = tot_size;
     }
@@ -643,9 +630,6 @@ template <class el_type>
 void Adder<el_type>::add(uint8_t *idx, el_type val, int ini_flag) {
     int proc_idx = parent_vec_->idx_to_proc(idx);
     int *count = &send_cts_[proc_idx];
-    if (count[0] < 0) {
-        printf("stop\n");
-    }
     if (*count == send_vals_.cols()) {
         enlarge_();
     }
@@ -675,8 +659,8 @@ void Adder<el_type>::perform_add() {
         recv_idx_cts[proc_idx] = recv_cts_[proc_idx] * n_bytes_;
     }
     
-    MPI_Alltoallv(send_idx_[0], send_idx_cts, displacements_, MPI_UINT8_T, recv_idx_[0], recv_idx_cts, displacements_, MPI_UINT8_T, MPI_COMM_WORLD);
-    MPI_Alltoallv(send_vals_[0], send_cts_, displacements_, CONV_MPI(my_mpi_type), recv_vals_[0], recv_cts_, displacements_, CONV_MPI(my_mpi_type), MPI_COMM_WORLD);
+    MPI_Alltoallv(send_idx_.data(), send_idx_cts, displacements_, MPI_UINT8_T, recv_idx_.data(), recv_idx_cts, displacements_, MPI_UINT8_T, MPI_COMM_WORLD);
+    mpi_atoav(send_vals_.data(), send_cts_, displacements_, recv_vals_.data(), recv_cts_);
 #else
     for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         int cpy_size = send_cts_[proc_idx];

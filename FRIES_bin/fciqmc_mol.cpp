@@ -219,7 +219,7 @@ int main(int argc, const char * argv[]) {
         sgnv_vals = (double *)malloc(sizeof(double) * n_sgnv);
         
         if (proc_rank == 0) {
-            memcpy(sgnv_dets[0], load_dets[0], det_size * n_sgnv);
+            memcpy(sgnv_dets.data(), load_dets.data(), det_size * n_sgnv);
             memcpy(sgnv_vals, load_vals, sizeof(double) * n_sgnv);
         }
     }
@@ -232,7 +232,7 @@ int main(int argc, const char * argv[]) {
         sgnv_vals[0] = 1;
     }
 #ifdef USE_MPI
-    MPI_Bcast(sgnv_dets[0], n_sgnv * det_size, MPI_UINT8_T, 0, MPI_COMM_WORLD);
+    MPI_Bcast(sgnv_dets.data(), n_sgnv * det_size, MPI_UINT8_T, 0, MPI_COMM_WORLD);
     MPI_Bcast(sgnv_vals, n_sgnv, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
     
@@ -280,7 +280,7 @@ int main(int argc, const char * argv[]) {
     else if (ini_path) {
         // from an initial vector in .txt format
         Matrix<uint8_t> &load_dets = sol_vec.indices();
-        int *load_vals = sol_vec[0];
+        int *load_vals = sol_vec.values();
         
         size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, INT);
         
@@ -469,8 +469,8 @@ int main(int argc, const char * argv[]) {
         }
         
         // Calculate energy estimate
-        matr_el = sol_vec.dot(htrial_vec.indices(), htrial_vec[0], htrial_vec.curr_size(), htrial_hashes);
-        double denom = sol_vec.dot(trial_vec.indices(), trial_vec[0], trial_vec.curr_size(), trial_hashes);
+        matr_el = sol_vec.dot(htrial_vec.indices(), htrial_vec.values(), htrial_vec.curr_size(), htrial_hashes);
+        double denom = sol_vec.dot(trial_vec.indices(), trial_vec.values(), trial_vec.curr_size(), trial_hashes);
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
         MPI_Gather(&denom, 1, MPI_DOUBLE, recv_dens, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);

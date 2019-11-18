@@ -154,7 +154,7 @@ int main(int argc, const char * argv[]) {
     else if (ini_path) {
         // from an initial vector in .txt format
         Matrix<uint8_t> &load_dets = sol_vec.indices();
-        double *load_vals = sol_vec[0];
+        double *load_vals = sol_vec.values();
         
         size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, INT);
         
@@ -300,7 +300,7 @@ int main(int argc, const char * argv[]) {
         
         // Compression step
         unsigned int n_samp = target_nonz;
-        loc_norms[proc_rank] = find_preserve(sol_vec[0], srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
+        loc_norms[proc_rank] = find_preserve(sol_vec.values(), srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
         
         // Adjust shift
         if ((iterat + 1) % shift_interval == 0) {
@@ -312,7 +312,7 @@ int main(int argc, const char * argv[]) {
         }
         
         // Calculate energy estimate
-        matr_el = calc_ref_ovlp(sol_vec.indices(), sol_vec[0], sol_vec.curr_size(), neel_det, sol_vec.tabl(), n_elec, hub_len);
+        matr_el = calc_ref_ovlp(sol_vec.indices(), sol_vec.values(), sol_vec.curr_size(), neel_det, sol_vec.tabl(), n_elec, hub_len);
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, ref_proc, MPI_COMM_WORLD);
 #else
@@ -323,7 +323,7 @@ int main(int argc, const char * argv[]) {
             if (isnan(*diag_el)) {
                 *diag_el = hub_diag(neel_det, hub_len, sol_vec.tabl()) * hub_u - hf_en;
             }
-            double ref_element = sol_vec[0][0];
+            double ref_element = *(sol_vec[0]);
             matr_el = *diag_el * ref_element;
             for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
                 matr_el += recv_nums[proc_idx] * hub_t;
