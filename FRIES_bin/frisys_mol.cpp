@@ -30,6 +30,7 @@ int main(int argc, const char * argv[]) {
     const char *load_dir = NULL;
     const char *ini_path = NULL;
     const char *trial_path = NULL;
+    const char *determ_path = NULL;
     unsigned int target_nonz = 0;
     unsigned int matr_samp = 0;
     unsigned int max_n_dets = 0;
@@ -47,6 +48,7 @@ int main(int argc, const char * argv[]) {
         OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous systematic FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())."),
         OPT_STRING('n', "ini_vec", &ini_path, "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)."),
         OPT_STRING('t', "trial_vec", &trial_path, "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text files)."),
+        OPT_STRING('s', "det_space", &determ_path, "Path to a .txt file containing the determinants used to define the deterministic space to use in a semistochastic calculation.")
         OPT_END(),
     };
     
