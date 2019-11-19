@@ -159,12 +159,12 @@ int main(int argc, const char * argv[]) {
         size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, INT);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
-            sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
+            sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1, 0);
         }
     }
     else {
         if (ref_proc == proc_rank) {
-            sol_vec.add(neel_det, 100, 1);
+            sol_vec.add(neel_det, 100, 1, 0);
         }
     }
     sol_vec.perform_add();
@@ -281,7 +281,7 @@ int main(int argc, const char * argv[]) {
             memcpy(new_det, curr_det, det_size);
             zero_bit(new_det, spawn_orbs[0]);
             set_bit(new_det, spawn_orbs[1]);
-            sol_vec.add(new_det, matr_el, ini_flag);
+            sol_vec.add(new_det, matr_el, ini_flag, 0);
         }
         
         // Death/cloning step

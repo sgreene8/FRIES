@@ -297,53 +297,79 @@ size_t load_vec_txt(const char *prefix, Matrix<uint8_t> &dets, void *vals, dtype
     if (my_rank == 0) {
         char buffer[100];
         sprintf(buffer, "%sdets", prefix);
-        FILE *file_d = fopen(buffer, "r");
-        if (!file_d) {
-            fprintf(stderr, "Warning: could not find file: %s\n", buffer);
-        }
+        size_t n_dets = read_dets(buffer, dets);
+        
         sprintf(buffer, "%svals", prefix);
         FILE *file_v = fopen(buffer, "r");
         if (!file_v) {
             fprintf(stderr, "Warning: could not find file: %s\n", buffer);
-        }
-        if (!file_d || !file_v) {
             return 0;
         }
-        int num_read_d = 1;
         int num_read_v = 1;
+        size_t n_vals = 0;
+        
+        if (type == DOUB) {
+            double *val_arr = (double *)vals;
+            while (num_read_v == 1) {
+                num_read_v = fscanf(file_v, "%lf\n", &val_arr[n_vals]);
+                n_vals++;
+            }
+        }
+        else if (type == INT) {
+            int *val_arr = (int *) vals;
+            while (num_read_v == 1) {
+                num_read_v = fscanf(file_v, "%d\n", &val_arr[n_vals]);
+                n_vals++;
+            }
+        }
+        else {
+            fprintf(stderr, "Error: data type %d not supported in function load_vec_txt.\n", type);
+            return 0;
+        }
+        n_vals--;
+        if (n_vals > n_dets) {
+            fprintf(stderr, "Warning: fewer determinants than values read in\n");
+            return n_dets;
+        }
+        else if (n_vals < n_dets) {
+            fprintf(stderr, "Warning: fewer values than determinants read in\n");
+        }
+        return n_vals;
+    }
+    else {
+        return 0;
+    }
+}
+
+
+size_t read_dets(const char *path, Matrix<uint8_t> &dets) {
+    int my_rank = 0;
+#ifdef USE_MPI
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+#endif
+    
+    if (my_rank == 0) {
+        FILE *file_d = fopen(path, "r");
+        if (!file_d) {
+            fprintf(stderr, "Error: could not find file: %s\n", path);
+            return 0;
+        }
+        
+        int num_read_d = 1;
         size_t n_dets = 0;
         long long in_det;
         size_t byte_idx;
         size_t max_size = dets.cols();
         
-        if (type == DOUB) {
-            double *val_arr = (double *)vals;
-            while (num_read_d == 1 && num_read_v == 1) {
-                num_read_d = fscanf(file_d, "%lld\n", &in_det);
-                num_read_v = fscanf(file_v, "%lf\n", &val_arr[n_dets]);
-                for (byte_idx = 0; byte_idx < 8 && byte_idx < max_size; byte_idx++) {
-                    dets(n_dets, byte_idx) = in_det & 255;
-                    in_det >>= 8;
-                }
-                n_dets++;
+        while (num_read_d == 1) {
+            num_read_d = fscanf(file_d, "%lld\n", &in_det);
+            for (byte_idx = 0; byte_idx < 8 && byte_idx < max_size; byte_idx++) {
+                dets(n_dets, byte_idx) = in_det & 255;
+                in_det >>= 8;
             }
+            n_dets++;
         }
-        else if (type == INT) {
-            int *val_arr = (int *) vals;
-            while (num_read_d == 1 && num_read_v == 1) {
-                num_read_d = fscanf(file_d, "%lld\n", &in_det);
-                num_read_v = fscanf(file_v, "%d\n", &val_arr[n_dets]);
-                for (byte_idx = 0; byte_idx < 8 && byte_idx < max_size; byte_idx++) {
-                    dets(n_dets, byte_idx) = in_det & 255;
-                    in_det >>= 8;
-                }
-                n_dets++;
-            }
-        }
-        else {
-            fprintf(stderr, "Error: data type %d not supported in function load_vec_txt.\n", type);
-        }
-        return --n_dets;
+        return n_dets - 1;
     }
     else {
         return 0;
