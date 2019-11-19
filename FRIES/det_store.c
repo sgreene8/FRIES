@@ -129,6 +129,7 @@ void set_bit(uint8_t *bit_str, uint8_t bit_idx) {
 void print_str(uint8_t *bit_str, uint8_t n_bytes, char *out_str) {
     uint8_t byte_idx;
     for (byte_idx = 0; byte_idx < n_bytes; byte_idx++) {
-        sprintf(&out_str[byte_idx], "%x", bit_str[byte_idx]);
+        sprintf(&out_str[byte_idx * 2], "%02x", bit_str[byte_idx]);
     }
+    out_str[byte_idx * 2] = '\0';
 }
