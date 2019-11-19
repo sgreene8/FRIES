@@ -18,7 +18,6 @@
 #include <FRIES/mpi_switch.h>
 #include <FRIES/ndarr.hpp>
 #include <FRIES/compress_utils.hpp>
-#include <FRIES/io_utils.hpp>
 #include <vector>
 
 using namespace std;
