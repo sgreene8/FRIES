@@ -299,7 +299,7 @@ int main(int argc, const char * argv[]) {
     }
     sol_vec.perform_add();
     loc_norm = sol_vec.local_norm();
-    sum_mpi_d(loc_norm, &glob_norm, proc_rank, n_procs);
+    sum_mpi(loc_norm, &glob_norm, proc_rank, n_procs);
     if (load_dir) {
         last_norm = glob_norm;
     }
@@ -458,9 +458,9 @@ int main(int argc, const char * argv[]) {
         // Adjust shift
         if ((iterat + 1) % shift_interval == 0) {
             loc_norm = sol_vec.local_norm();
-            sum_mpi_d(loc_norm, &glob_norm, proc_rank, n_procs);
+            sum_mpi(loc_norm, &glob_norm, proc_rank, n_procs);
             adjust_shift(&en_shift, glob_norm, &last_norm, target_norm, shift_damping / eps / shift_interval);
-            sum_mpi_i((int)n_nonz, &glob_nnonz, proc_rank, n_procs);
+            sum_mpi((int)n_nonz, &glob_nnonz, proc_rank, n_procs);
             if (proc_rank == hf_proc) {
                 fprintf(walk_file, "%u\n", (unsigned int) glob_norm);
                 fprintf(shift_file, "%lf\n", en_shift);

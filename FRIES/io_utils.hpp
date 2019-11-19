@@ -20,7 +20,15 @@
  * \param [in] fname    Path of file
  * \returns          Total number of values read from the file
  */
-size_t read_doub_csv(double *buf, char *fname);
+size_t read_csv(double *buf, char *fname);
+
+/*! \brief Read an array of unsigned integers from a .csv file
+ *
+ * \param [out] buf     Array in which read-in numbers are stored
+ * \param [in] fname    Path of file
+ * \returns          Total number of values read from the file
+ */
+size_t read_csv(int *buf, char *fname);
 
 
 /*! \brief Read an array of unsigned bytes from a .csv file
@@ -29,7 +37,7 @@ size_t read_doub_csv(double *buf, char *fname);
  * \param [in] fname    Path of file
  * \returns          Total number of values read from the file 
  */
-size_t read_uchar_csv(uint8_t *buf, char *fname);
+size_t read_csv(uint8_t *buf, char *fname);
 
 
 /*! \brief Data structure containing the output of a Hartree-Fock calculation */

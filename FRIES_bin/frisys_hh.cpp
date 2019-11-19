@@ -169,7 +169,7 @@ int main(int argc, const char * argv[]) {
     }
     sol_vec.perform_add();
     loc_norm = sol_vec.local_norm();
-    sum_mpi_d(loc_norm, &glob_norm, proc_rank, n_procs);
+    sum_mpi(loc_norm, &glob_norm, proc_rank, n_procs);
     if (load_dir) {
         last_one_norm = glob_norm;
     }
@@ -244,7 +244,7 @@ int main(int argc, const char * argv[]) {
     unsigned int iterat;
     const Matrix<uint8_t> &neighb_orbs = sol_vec.neighb();
     for (iterat = 0; iterat < max_iter; iterat++) {
-        sum_mpi_i(sol_vec.n_nonz(), &glob_n_nonz, proc_rank, n_procs);
+        sum_mpi(sol_vec.n_nonz(), &glob_n_nonz, proc_rank, n_procs);
         
         // Systematic matrix compression
         if (glob_n_nonz > matr_samp) {

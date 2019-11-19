@@ -40,9 +40,9 @@ double find_preserve(double *values, size_t *srt_idx, int *keep_idx,
     
     double el_magn = 0;
     size_t max_idx;
-    sum_mpi_d(loc_one_norm, global_norm, proc_rank, n_procs);
+    sum_mpi(loc_one_norm, global_norm, proc_rank, n_procs);
     while (glob_sampled > 0) {
-        sum_mpi_d(loc_one_norm, &glob_one_norm, proc_rank, n_procs);
+        sum_mpi(loc_one_norm, &glob_one_norm, proc_rank, n_procs);
         loc_sampled = 0;
         while (keep_going && heap_count > 0) {
             max_idx = srt_idx[0];
@@ -67,7 +67,7 @@ double find_preserve(double *values, size_t *srt_idx, int *keep_idx,
                 keep_going = 0;
             }
         }
-        sum_mpi_i(loc_sampled, &glob_sampled, proc_rank, n_procs);
+        sum_mpi(loc_sampled, &glob_sampled, proc_rank, n_procs);
         (*n_samp) -= glob_sampled;
         keep_going = 1;
     }
@@ -86,7 +86,7 @@ double find_preserve(double *values, size_t *srt_idx, int *keep_idx,
 }
 
 
-void sum_mpi_d(double local, double *global, int my_rank, int n_procs) {
+void sum_mpi(double local, double *global, int my_rank, int n_procs) {
     int proc_idx;
     double rec_vals[n_procs];
     rec_vals[my_rank] = local;
@@ -100,7 +100,7 @@ void sum_mpi_d(double local, double *global, int my_rank, int n_procs) {
 }
 
 
-void sum_mpi_i(int local, int *global, int my_rank, int n_procs) {
+void sum_mpi(int local, int *global, int my_rank, int n_procs) {
     int proc_idx;
     int rec_vals[n_procs];
     rec_vals[my_rank] = local;
@@ -160,7 +160,7 @@ double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
     double el_magn, sub_magn, keep_thresh, sub_remain;
     int last_pass = 0;
     while (glob_sampled > 0) {
-        sum_mpi_d(loc_one_norm, &glob_one_norm, proc_rank, n_procs);
+        sum_mpi(loc_one_norm, &glob_one_norm, proc_rank, n_procs);
         if (glob_one_norm < 0) {
             break;
         }
@@ -206,7 +206,7 @@ double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
                 }
             }
         }
-        sum_mpi_i(loc_sampled, &glob_sampled, proc_rank, n_procs);
+        sum_mpi(loc_sampled, &glob_sampled, proc_rank, n_procs);
         (*n_samp) -= glob_sampled;
         
         if (last_pass && glob_sampled) {

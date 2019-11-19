@@ -5,7 +5,7 @@
 
 #include "io_utils.hpp"
 
-size_t read_doub_csv(double *buf, char *fname) {
+size_t read_csv(double *buf, char *fname) {
     int i =  0;
     size_t row_idx = 0;
     size_t n_col;
@@ -28,7 +28,7 @@ size_t read_doub_csv(double *buf, char *fname) {
     return n_read;
 }
 
-size_t read_uchar_csv(uint8_t *buf, char *fname) {
+size_t read_csv(uint8_t *buf, char *fname) {
     int i =  0;
     size_t row_idx = 0;
     size_t n_col;
@@ -44,6 +44,32 @@ size_t read_uchar_csv(uint8_t *buf, char *fname) {
         n_read += n_col;
         for (i = 0 ; i < n_col ; i++) {
             sscanf(rowFields[i], "%u", &scan_val);
+            buf[n_col * row_idx + i] = scan_val;
+        }
+        CsvParser_destroy_row(row);
+        row_idx++;
+    }
+    CsvParser_destroy(csvparser);
+    return n_read;
+}
+
+
+size_t read_csv(int *buf, char *fname) {
+    int i =  0;
+    size_t row_idx = 0;
+    size_t n_col;
+    size_t n_read = 0;
+    
+    CsvParser *csvparser = CsvParser_new(fname, " ", 0);
+    CsvRow *row;
+    int scan_val;
+    
+    while ((row = CsvParser_getRow(csvparser)) ) {
+        const char **rowFields = CsvParser_getFields(row);
+        n_col = CsvParser_getNumFields(row);
+        n_read += n_col;
+        for (i = 0 ; i < n_col ; i++) {
+            sscanf(rowFields[i], "%d", &scan_val);
             buf[n_col * row_idx + i] = scan_val;
         }
         CsvParser_destroy_row(row);
@@ -142,13 +168,13 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     strcpy(buffer, hf_dir);
     strcat(buffer, "symm.txt");
     in_struct->symm = (uint8_t *)malloc(sizeof(uint8_t) * tot_orb);
-    read_uchar_csv(in_struct->symm, buffer);
+    read_csv(in_struct->symm, buffer);
     in_struct->symm = &(in_struct->symm[n_frz / 2]);
     
     strcpy(buffer, hf_dir);
     strcat(buffer, "hcore.txt");
     in_struct->hcore = new Matrix<double>(tot_orb, tot_orb);
-    size_t n_read = read_doub_csv((*(in_struct->hcore)).data(), buffer);
+    size_t n_read = read_csv((*(in_struct->hcore)).data(), buffer);
     if (n_read < tot_orb * tot_orb) {
         fprintf(stderr, "Error reading values from %s\n", buffer);
         return -1;
@@ -157,7 +183,7 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     strcpy(buffer, hf_dir);
     strcat(buffer, "eris.txt");
     in_struct->eris = new FourDArr(tot_orb, tot_orb, tot_orb, tot_orb);
-    n_read = read_doub_csv(in_struct->eris->data(), buffer);
+    n_read = read_csv(in_struct->eris->data(), buffer);
     if (n_read < tot_orb * tot_orb * tot_orb * tot_orb) {
         fprintf(stderr, "Error reading values from %s\n", buffer);
         return -1;

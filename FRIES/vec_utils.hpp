@@ -21,6 +21,9 @@
 
 using namespace std;
 
+// Forward declaration from io_utils.hpp
+size_t read_csv(int *buf, char *fname);
+
 
 #ifdef USE_MPI
 inline void mpi_atoav(double *sendv, int *send_cts, int *disps, double *recvv, int *recv_cts) {
