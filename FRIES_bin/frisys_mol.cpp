@@ -390,7 +390,7 @@ int main(int argc, const char * argv[]) {
         n_subwt = 2;
         subwt_mem.reshape(spawn_length, 2);
         keep_idx.reshape(spawn_length, 2);
-        for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
+        for (det_idx = n_determ; det_idx < sol_vec.curr_size(); det_idx++) {
             double *curr_el = sol_vec[det_idx];
             weight = fabs(*curr_el);
             comp_vec1[det_idx] = weight;
@@ -547,7 +547,7 @@ int main(int argc, const char * argv[]) {
             uint8_t *curr_det = sol_vec.indices()[det_idx];
             double *curr_el = sol_vec[det_idx];
             int ini_flag = fabs(*curr_el) > init_thresh;
-            int determ_flag = det_idx < n_determ;
+//            int determ_flag = det_idx < n_determ;
             int el_sign = 1 - 2 * (*curr_el < 0);
             uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
             if (orb_indices2[weight_idx][0] == 0) { // double excitation
@@ -579,7 +579,7 @@ int main(int argc, const char * argv[]) {
                     matr_el *= doub_det_parity(new_det, doub_orbs);
                     comp_vec1[num_added] = matr_el;
                     keep_idx(num_added, 0) = ini_flag;
-                    keep_idx(num_added, 1) = determ_flag;
+//                    keep_idx(num_added, 1) = determ_flag;
                     num_added++;
                 }
             }
@@ -598,6 +598,7 @@ int main(int argc, const char * argv[]) {
                     matr_el *= -eps / (1 - p_doub) * n_occ * orb_indices2[weight_idx][3] * el_sign * sing_det_parity(new_det, sing_orbs) * comp_vec2[samp_idx];
                     comp_vec1[num_added] = matr_el;
                     keep_idx(num_added, 0) = ini_flag;
+//                    keep_idx(num_added, 1) = determ_flag;
                     num_added++;
                 }
             }
@@ -607,7 +608,7 @@ int main(int argc, const char * argv[]) {
         for (samp_idx = 0; samp_idx < determ_h_size; samp_idx++) {
             det_idx = determ_from[samp_idx];
             double mat_vec = *(sol_vec[det_idx]) * determ_matr_el[samp_idx];
-            sol_vec.add(determ_to[samp_idx], mat_vec, 1, 2);
+            sol_vec.add(determ_to[samp_idx], mat_vec, 1, 0);
         }
         
 #pragma mark Death/cloning step
@@ -633,10 +634,10 @@ int main(int argc, const char * argv[]) {
                     break;
                 }
                 int ini_flag = keep_idx(samp_idx, 0);
-                int determ_flag = keep_idx(samp_idx, 1);
+//                int determ_flag = keep_idx(samp_idx, 1);
                 keep_idx(samp_idx, 0) = 0;
                 keep_idx(samp_idx, 1) = 0;
-                sol_vec.add(&spawn_dets[samp_idx * det_size], comp_vec1[samp_idx], ini_flag, determ_flag);
+                sol_vec.add(&spawn_dets[samp_idx * det_size], comp_vec1[samp_idx], ini_flag, 0);
                 num_added++;
                 samp_idx++;
             }
