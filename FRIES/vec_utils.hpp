@@ -573,12 +573,16 @@ public:
                 values_[n_nonz_] = values_[det_idx];
             }
             if (is_nonz) {
-                gen_orb_list(indices_[det_idx], occ_orbs_[n_nonz_]);
-                memmove(indices_[n_nonz_], indices_[det_idx], n_bytes);
+                uint8_t *new_idx = indices_[det_idx];
+                unsigned long long hash_val = idx_to_hash(new_idx);
+                ssize_t *idx_ptr = read_ht(vec_hash_, new_idx, hash_val, 1);
+                *idx_ptr = n_nonz_;
+                gen_orb_list(new_idx, occ_orbs_[n_nonz_]);
+                memmove(indices_[n_nonz_], new_idx, n_bytes);
                 matr_el_[n_nonz_] = NAN;
                 n_nonz_++;
                 if (hub_dim_) {
-                    find_neighbors_1D(indices_[det_idx], neighb_[det_idx], n_bits_ / 2);
+                    find_neighbors_1D(new_idx, neighb_[det_idx], n_bits_ / 2);
                 }
             }
         }
