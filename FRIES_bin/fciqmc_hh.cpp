@@ -156,17 +156,17 @@ int main(int argc, const char * argv[]) {
         size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, INT);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
-            sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
+            sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1, 0);
         }
     }
     else {
         if (ref_proc == proc_rank) {
-            sol_vec.add(neel_det, 100, 1);
+            sol_vec.add(neel_det, 100, 1, 0);
         }
     }
     sol_vec.perform_add();
     loc_norm = sol_vec.local_norm();
-    sum_mpi_d(loc_norm, &glob_norm, proc_rank, n_procs);
+    sum_mpi(loc_norm, &glob_norm, proc_rank, n_procs);
     if (load_dir) {
         last_norm = glob_norm;
     }
@@ -228,7 +228,6 @@ int main(int argc, const char * argv[]) {
     int glob_nnonz;
     int n_nonz;
     uint8_t new_det[det_size];
-    uint8_t tmp_orbs[n_elec * 2];
     
     for (iterat = 0; iterat < max_iter; iterat++) {
         n_nonz = 0;
@@ -262,7 +261,7 @@ int main(int argc, const char * argv[]) {
                 zero_bit(new_det, spawn_orbs[walker_idx][0]);
                 set_bit(new_det, spawn_orbs[walker_idx][1]);
                 spawn_walker = -walk_sign;
-                sol_vec.add(new_det, spawn_walker, ini_flag);
+                sol_vec.add(new_det, spawn_walker, ini_flag, 0);
             }
             
             // Death/cloning step
@@ -282,9 +281,9 @@ int main(int argc, const char * argv[]) {
         // Adjust shift
         if ((iterat + 1) % shift_interval == 0) {
             loc_norm = sol_vec.local_norm();
-            sum_mpi_d(loc_norm, &glob_norm, proc_rank, n_procs);
+            sum_mpi(loc_norm, &glob_norm, proc_rank, n_procs);
             adjust_shift(&en_shift, glob_norm, &last_norm, target_norm, shift_damping / eps / shift_interval);
-            sum_mpi_i((int)n_nonz, &glob_nnonz, proc_rank, n_procs);
+            sum_mpi((int)n_nonz, &glob_nnonz, proc_rank, n_procs);
             if (proc_rank == ref_proc) {
                 fprintf(walk_file, "%u\n", (unsigned int) glob_norm);
                 fprintf(shift_file, "%lf\n", en_shift);

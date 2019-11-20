@@ -17,9 +17,13 @@
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/mpi_switch.h>
 #include <FRIES/ndarr.hpp>
+#include <FRIES/compress_utils.hpp>
 #include <vector>
 
 using namespace std;
+
+// Forward declaration from io_utils.hpp
+size_t read_csv(int *buf, char *fname);
 
 
 #ifdef USE_MPI
@@ -60,7 +64,7 @@ public:
      * \param [in] n_procs  The number of processes
      * \param [in] vec         The vector to which elements will be added
      */
-    Adder(size_t size, int n_procs, DistVec<el_type> *vec) : n_bytes_(CEILING(vec->n_bits() + 1, 8)), send_idx_(n_procs, size * CEILING(vec->n_bits() + 1, 8)), send_vals_(n_procs, size), recv_idx_(n_procs, size * CEILING(vec->n_bits() + 1, 8)), recv_vals_(n_procs, size), parent_vec_(vec) {
+    Adder(size_t size, int n_procs, DistVec<el_type> *vec) : n_bytes_(CEILING(vec->n_bits() + 3, 8)), send_idx_(n_procs, size * CEILING(vec->n_bits() + 3, 8)), send_vals_(n_procs, size), recv_idx_(n_procs, size * CEILING(vec->n_bits() + 3, 8)), recv_vals_(n_procs, size), parent_vec_(vec) {
         send_cts_ = (int *)malloc(sizeof(int) * n_procs);
         recv_cts_ = (int *) malloc(sizeof(int) * n_procs);
         displacements_ = (int *) malloc(sizeof(int) * n_procs);
@@ -89,8 +93,10 @@ public:
      * \param [in] idx      Index of the element to be added
      * \param [in] val      Value of the added element
      * \param [in] ini_flag     Either 1 or 0, indicates initiator status of the added element
+     * \param [in] det_flag     0, 1, or 2. If 0, no restrictions. If 1, will not be added if destined for the
+     *                  dense subspace. If 2, will only be added if destined for the dense subspace.
      */
-    void add(uint8_t *idx, el_type val, int ini_flag);
+    void add(uint8_t *idx, el_type val, int proc_idx, int ini_flag, int det_flag);
 private:
     Matrix<uint8_t> send_idx_; ///< Send buffer for element indices
     Matrix<el_type> send_vals_; ///< Send buffer for element values
@@ -138,6 +144,7 @@ class DistVec {
     double *matr_el_; ///< Array of pre-calculated diagonal matrix elements associated with each vector element
     size_t max_size_; ///< Maximum number of vector elements that can be stored
     size_t curr_size_; ///< Current number of vector elements stored, including intermediate zeroes
+    size_t n_dense_; ///< The first \p n_dense elements in the DistVec object will always be stored, even if their corresponding values are 0
     hash_table *vec_hash_; ///< Hash table for quickly finding indices in \p indices_
     stack_entry *vec_stack_; ///< Pointer to top of stack for managing available positions in the indices array
     byte_table *tabl_; ///< Pointer to struct used to decompose determinant indices into lists of occupied orbitals
@@ -145,7 +152,7 @@ class DistVec {
     Matrix<uint8_t> neighb_; ///< Pointer to array containing information about empty neighboring orbitals for Hubbard model
     uint8_t n_bits_; ///< Number of bits used to encode each index of the vector
     Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
-    int n_nonz_; ///< Current number of nonzero elements in vector
+    int n_nonz_; ///< Current number of nonzero elements in vector, including all in the dense subspace
     unsigned int hub_dim_; ///< If vector indices represent states in the Hilbert space of the Hubbard model, number of lattice dimensions; 0 otherwise
 public:
     unsigned int *proc_scrambler_; ///< Array of random numbers used in the hash function for assigning vector indices to MPI
@@ -285,12 +292,13 @@ public:
      *
      * \param [in] idx          The index of the element in the vector
      * \param [in] val          The value of the added element
-     * \param [in] ini_flag     Either 1 or 0, indicating whether the added element
-     *                          came from an initiator element
+     * \param [in] ini_flag     Either 1 or 0. If 0, will only be added if addition is sign-coherent
+     * \param [in] det_flag     0, 1, or 2. If 0, no restrictions. If 1, will not be added if destined for the
+     *                  dense subspace. If 2, will only be added if destined for the dense subspace.
      */
-    void add(uint8_t *idx, el_type val, int ini_flag) {
+    void add(uint8_t *idx, el_type val, int ini_flag, int det_flag) {
         if (val != 0) {
-            adder_.add(idx, val, ini_flag);
+            adder_.add(idx, val, idx_to_proc(idx), ini_flag, det_flag);
         }
     }
 
@@ -425,9 +433,12 @@ public:
         for (el_idx = 0; el_idx < count; el_idx++) {
             uint8_t *new_idx = &indices[el_idx * n_bytes];
             int ini_flag = read_bit(new_idx, n_bits_);
+            int det_flag = read_bit(new_idx, n_bits_ + 1) | (read_bit(new_idx, n_bits_ + 2) << 1);
             zero_bit(new_idx, n_bits_);
+            zero_bit(new_idx, n_bits_ + 1);
+            zero_bit(new_idx, n_bits_ + 2);
             unsigned long long hash_val = idx_to_hash(new_idx);
-            ssize_t *idx_ptr = read_ht(vec_hash_, new_idx, hash_val, ini_flag);
+            ssize_t *idx_ptr = read_ht(vec_hash_, new_idx, hash_val, ini_flag && det_flag != 2);
             if (idx_ptr && *idx_ptr == -1) {
                 *idx_ptr = pop_stack();
                 if (*idx_ptr == -1) {
@@ -439,7 +450,7 @@ public:
                 }
                 values_[*idx_ptr] = 0;
                 if (gen_orb_list(new_idx, occ_orbs_[*idx_ptr]) != n_elec) {
-                    char det_txt[n_bytes];
+                    char det_txt[n_bytes * 2 + 1];
                     print_str(new_idx, n_bytes, det_txt);
                     fprintf(stderr, "Error: determinant %s created with an incorrect number of electrons.\n", det_txt);
                 }
@@ -450,10 +461,15 @@ public:
                     find_neighbors_1D(new_idx, neighb_[*idx_ptr], n_bits_ / 2);
                 }
             }
+            // det_flag is 0, 1, or 2. If 0, no restrictions. If 1, will not be added if destined for the
+            // dense subspace. If 2, will only be added if destined for the dense subspace.
+            if ((det_flag == 1 && *idx_ptr < n_dense_) || (det_flag == 2 && idx_ptr && *idx_ptr >= n_dense_)) {
+                continue;
+            }
             int del_bool = 0;
-            if (ini_flag || (idx_ptr && (values_[*idx_ptr] * vals[el_idx]) > 0)) {
+            if ((ini_flag && idx_ptr) || (idx_ptr && (values_[*idx_ptr] * vals[el_idx]) > 0)) {
                 values_[*idx_ptr] += vals[el_idx];
-                del_bool = values_[*idx_ptr] == 0;
+                del_bool = values_[*idx_ptr] == 0 && *idx_ptr >= n_dense_;
             }
             if (del_bool == 1) {
                 push_stack(*idx_ptr);
@@ -510,9 +526,9 @@ public:
      */
     void save(const char *path)  {
         int my_rank = 0;
-    #ifdef USE_MPI
+#ifdef USE_MPI
         MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-    #endif
+#endif
         
         size_t el_size = sizeof(el_type);
         
@@ -534,23 +550,37 @@ public:
      * [path]dets[MPI rank].dat, and the values from [path]vals[MPI rank].dat
      *
      * \param [in] path         Location from which to read the files
+     * \return Size of the dense subspace
      */
-    void load(const char *path) {
+    size_t load(const char *path) {
         int my_rank = 0;
-    #ifdef USE_MPI
+        int n_procs = 1;
+#ifdef USE_MPI
         MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-    #endif
+        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+#endif
+        
+        char buffer[100];
+        if (my_rank == 0) {
+            sprintf(buffer, "%sdense.txt", path);
+            int dense_sizes[n_procs];
+            read_csv(dense_sizes, buffer);
+#ifdef USE_MPI
+            MPI_Scatter(dense_sizes, 1, MPI_INT, &n_dense_, 1, MPI_INT, 0, MPI_COMM_WORLD);
+#else
+            n_dense_ = dense_sizes[my_rank];
+#endif
+        }
         
         size_t el_size = sizeof(el_type);
         
         size_t n_dets;
         size_t n_bytes = indices_.cols();
-        char buffer[100];
         sprintf(buffer, "%sdets%d.dat", path, my_rank);
         FILE *file_p = fopen(buffer, "rb");
         if (!file_p) {
             fprintf(stderr, "Error: could not open saved binary vector file at %s\n", buffer);
-            return;
+            return n_dense_;
         }
         n_dets = fread(indices_.data(), n_bytes, 10000000, file_p);
         fclose(file_p);
@@ -559,7 +589,7 @@ public:
         file_p = fopen(buffer, "rb");
         if (!file_p) {
             fprintf(stderr, "Error: could not open saved binary vector file at %s\n", buffer);
-            return;
+            return n_dense_;
         }
         fread(values_.data(), el_size, n_dets, file_p);
         fclose(file_p);
@@ -568,7 +598,7 @@ public:
         n_nonz_ = 0;
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
             int is_nonz = 0;
-            if (fabs(values_[det_idx]) > 1e-9) {
+            if (fabs(values_[det_idx]) > 1e-9 || det_idx < n_dense_) {
                 is_nonz = 1;
                 values_[n_nonz_] = values_[det_idx];
             }
@@ -587,6 +617,78 @@ public:
             }
         }
         curr_size_ = n_nonz_;
+        return n_dense_;
+    }
+    
+    /*! \brief Load all of the vector indices defining the dense subspace from disk, and initialize the corresponding vector elements to 0
+     *
+     * Indices must be stored on disk as ≤64-bit integers
+     *
+     * \param [in] read_path     Path to the file where the indices are stored
+     * \param [in] save_dir      Directory in which to store a file containing the length of the dense subspace on each MPI process
+     * \return Size of the dense subspace
+     */
+    size_t init_dense(const char *read_path, const char *save_dir) {
+        size_t n_loaded = read_dets(read_path, indices_);
+        size_t idx;
+        for (idx = 0; idx < n_loaded; idx++) {
+            add(indices_[idx], 1, 1, 0);
+        }
+        perform_add();
+        
+        n_dense_ = curr_size_;
+        bzero(values_.data(), n_dense_ * sizeof(el_type));
+
+        int n_procs = 1;
+        int my_rank = 0;
+#ifdef USE_MPI
+        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+        MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+#endif
+        int dense_sizes[n_procs];
+        dense_sizes[my_rank] = (int) n_dense_;
+#ifdef USE_MPI
+        MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, dense_sizes, 1, MPI_INT, MPI_COMM_WORLD);
+#endif
+        if (my_rank == 0) {
+            char buf[200];
+            sprintf(buf, "%sdense.txt", save_dir);
+            FILE *dense_f = fopen(buf, "w");
+            if (!dense_f) {
+                fprintf(stderr, "Error opening file at %s\n", buf);
+                return n_dense_;
+            }
+            int proc_idx;
+            for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+                fprintf(dense_f, "%d,", dense_sizes[proc_idx]);
+            }
+            fprintf(dense_f, "\n");
+            fclose(dense_f);
+        }
+        return n_dense_;
+    }
+    
+    
+    /*! \brief Calculate the one-norm of the vector in the dense subspace
+     * \return The total norm from all processes
+     */
+    el_type dense_norm() {
+        size_t det_idx;
+        el_type result = 0;
+        el_type element;
+        for (det_idx = 0; det_idx < n_dense_; det_idx++) {
+            element = values_[det_idx];
+            result += element >= 0 ? element : -element;
+        }
+        int n_procs = 1;
+        int my_rank = 0;
+#ifdef USE_MPI
+        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+        MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+#endif
+        el_type glob_norm;
+        sum_mpi(result, &glob_norm, my_rank, n_procs);
+        return glob_norm;
     }
     
     /*! \brief Collect all of the vector elements from other MPI processes and accumulate them in the vector on each process */
@@ -594,20 +696,20 @@ public:
         int n_procs = 1;
         int proc_idx;
         int my_rank = 0;
-    #ifdef USE_MPI
+#ifdef USE_MPI
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
         MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-    #endif
+#endif
         int vec_sizes[n_procs];
         int idx_sizes[n_procs];
         int n_bytes = (int) indices_.cols();
         vec_sizes[my_rank] = (int)curr_size_;
         idx_sizes[my_rank] = (int)curr_size_ * n_bytes;
-    #ifdef USE_MPI
+#ifdef USE_MPI
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, vec_sizes, 1, MPI_INT, MPI_COMM_WORLD);
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, idx_sizes, 1, MPI_INT, MPI_COMM_WORLD);
         MPI_Datatype mpi_type;
-    #endif
+#endif
         int tot_size = 0;
         int disps[n_procs];
         for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
@@ -621,26 +723,33 @@ public:
         }
         memmove(indices_[disps[my_rank] * n_bytes], indices_.data(), vec_sizes[my_rank] * n_bytes);
         memmove(&values_.data()[disps[my_rank]], values_.data(), vec_sizes[my_rank] * el_size);
-    #ifdef USE_MPI
+#ifdef USE_MPI
         MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, indices_.data(), idx_sizes, disps, MPI_UINT8_T, MPI_COMM_WORLD);
         mpi_allgathv_inplace(values_.data(), vec_sizes, disps);
-    #endif
+#endif
         curr_size_ = tot_size;
     }
 };
 
 
 template <class el_type>
-void Adder<el_type>::add(uint8_t *idx, el_type val, int ini_flag) {
-    int proc_idx = parent_vec_->idx_to_proc(idx);
+void Adder<el_type>::add(uint8_t *idx, el_type val, int proc_idx, int ini_flag, int det_flag) {
     int *count = &send_cts_[proc_idx];
     if (*count == send_vals_.cols()) {
         enlarge_();
     }
     uint8_t *cpy_idx = &send_idx_[proc_idx][*count * n_bytes_];
-    memcpy(cpy_idx, idx, CEILING((*parent_vec_).n_bits(), 8));
+    uint8_t idx_bits = parent_vec_->n_bits();
+    cpy_idx[n_bytes_ - 1] = 0; // To prevent buffer overflow in hash function after elements are added
+    memcpy(cpy_idx, idx, CEILING(idx_bits, 8));
     if (ini_flag) {
-        set_bit(cpy_idx, parent_vec_->n_bits());
+        set_bit(cpy_idx, idx_bits);
+    }
+    if (det_flag & 1) {
+        set_bit(cpy_idx, idx_bits + 1);
+    }
+    if (det_flag & 0b10) {
+        set_bit(cpy_idx, idx_bits + 2);
     }
     send_vals_(proc_idx, *count) = val;
     (*count)++;

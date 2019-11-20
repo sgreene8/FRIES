@@ -159,17 +159,17 @@ int main(int argc, const char * argv[]) {
         size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, INT);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
-            sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
+            sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1, 0);
         }
     }
     else {
         if (ref_proc == proc_rank) {
-            sol_vec.add(neel_det, 100, 1);
+            sol_vec.add(neel_det, 100, 1, 0);
         }
     }
     sol_vec.perform_add();
     loc_norm = sol_vec.local_norm();
-    sum_mpi_d(loc_norm, &glob_norm, proc_rank, n_procs);
+    sum_mpi(loc_norm, &glob_norm, proc_rank, n_procs);
     if (load_dir) {
         last_one_norm = glob_norm;
     }
@@ -244,7 +244,7 @@ int main(int argc, const char * argv[]) {
     unsigned int iterat;
     const Matrix<uint8_t> &neighb_orbs = sol_vec.neighb();
     for (iterat = 0; iterat < max_iter; iterat++) {
-        sum_mpi_i(sol_vec.n_nonz(), &glob_n_nonz, proc_rank, n_procs);
+        sum_mpi(sol_vec.n_nonz(), &glob_n_nonz, proc_rank, n_procs);
         
         // Systematic matrix compression
         if (glob_n_nonz > matr_samp) {
@@ -281,7 +281,7 @@ int main(int argc, const char * argv[]) {
             memcpy(new_det, curr_det, det_size);
             zero_bit(new_det, spawn_orbs[0]);
             set_bit(new_det, spawn_orbs[1]);
-            sol_vec.add(new_det, matr_el, ini_flag);
+            sol_vec.add(new_det, matr_el, ini_flag, 0);
         }
         
         // Death/cloning step

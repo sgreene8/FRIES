@@ -20,7 +20,15 @@
  * \param [in] fname    Path of file
  * \returns          Total number of values read from the file
  */
-size_t read_doub_csv(double *buf, char *fname);
+size_t read_csv(double *buf, char *fname);
+
+/*! \brief Read an array of unsigned integers from a .csv file
+ *
+ * \param [out] buf     Array in which read-in numbers are stored
+ * \param [in] fname    Path of file
+ * \returns          Total number of values read from the file
+ */
+size_t read_csv(int *buf, char *fname);
 
 
 /*! \brief Read an array of unsigned bytes from a .csv file
@@ -29,7 +37,7 @@ size_t read_doub_csv(double *buf, char *fname);
  * \param [in] fname    Path of file
  * \returns          Total number of values read from the file 
  */
-size_t read_uchar_csv(uint8_t *buf, char *fname);
+size_t read_csv(uint8_t *buf, char *fname);
 
 
 /*! \brief Data structure containing the output of a Hartree-Fock calculation */
@@ -100,12 +108,24 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct);
  * \param [in] prefix       prefix of files containing the vector, including the
  *                          directory. File names should be in the format
  *                          [prefix]dets and [prefix]vals
- * \param [out] dets        Matrix in which to store the element indices read in. Currently supports only reading in 64-bit integers
+ * \param [out] dets        Matrix in which to store the element indices read in. Currently supports only reading in integers less than 64 bits
  * \param [out] vals        Array of element values read in
  * \param [in] type         Data type of the vector
- * \return total number of elements in the vector on this MPI process
+ * \return total number of elements read in
  */
 size_t load_vec_txt(const char *prefix, Matrix<uint8_t> &dets, void *vals, dtype type);
+
+
+/*! \brief Read an array of determinants from disk
+ 
+* Determinants are loaded only onto the 0th MPI process
+* Determinants must be stored as ≤64-bit integers
+ *
+ * \param [in] path     Path to the file where the determinants are stored
+ * \param [out] dets        Matrix in which to store the element indices read in. Currently supports only reading in integers less than 64 bits
+ * \return total number of elements read in
+ */
+size_t read_dets(const char *path, Matrix<uint8_t> &dets);
 
 
 /*! \brief Save to disk the array of random numbers used to assign Slater

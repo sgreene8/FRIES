@@ -182,13 +182,13 @@ int main(int argc, const char * argv[]) {
         
         n_trial = load_vec_txt(trial_path, load_dets, load_vals, DOUB);
         for (det_idx = 0; det_idx < n_trial; det_idx++) {
-            trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
-            htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
+            trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1, 0);
+            htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1, 0);
         }
     }
     else { // Otherwise, use HF as trial vector
-        trial_vec.add(hf_det, 1, 1);
-        htrial_vec.add(hf_det, 1, 1);
+        trial_vec.add(hf_det, 1, 1, 0);
+        htrial_vec.add(hf_det, 1, 1, 0);
     }
     trial_vec.perform_add();
     htrial_vec.perform_add();
@@ -246,12 +246,12 @@ int main(int argc, const char * argv[]) {
         size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, DOUB);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
-            sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
+            sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1, 0);
         }
     }
     else {
         if (hf_proc == proc_rank) {
-            sol_vec.add(hf_det, 100, 1);
+            sol_vec.add(hf_det, 100, 1, 0);
         }
     }
     sol_vec.perform_add();
@@ -324,7 +324,7 @@ int main(int argc, const char * argv[]) {
     
     unsigned int iterat;
     for (iterat = 0; iterat < max_iter; iterat++) {
-        sum_mpi_i(sol_vec.n_nonz(), &glob_n_nonz, proc_rank, n_procs);
+        sum_mpi(sol_vec.n_nonz(), &glob_n_nonz, proc_rank, n_procs);
         
         // Systematic sampling to determine number of samples for each column
         if (proc_rank == 0) {
@@ -386,7 +386,7 @@ int main(int argc, const char * argv[]) {
                 if (fabs(matr_el) > 1e-9) {
                     memcpy(new_det, curr_det, det_size);
                     matr_el *= -eps / spawn_probs[walker_idx] / p_doub / n_walk * (*curr_el) * doub_det_parity(new_det, doub_orbs[walker_idx]);
-                    sol_vec.add(new_det, matr_el, ini_flag);
+                    sol_vec.add(new_det, matr_el, ini_flag, 0);
                 }
             }
             
@@ -397,7 +397,7 @@ int main(int argc, const char * argv[]) {
                 if (fabs(matr_el) > 1e-9) {
                     memcpy(new_det, curr_det, det_size);
                     matr_el *= -eps / spawn_probs[walker_idx] / (1 - p_doub) / n_walk * (*curr_el) * sing_det_parity(new_det, sing_orbs[walker_idx]);
-                    sol_vec.add(new_det, matr_el, ini_flag);
+                    sol_vec.add(new_det, matr_el, ini_flag, 0);
                 }
             }
             

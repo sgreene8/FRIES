@@ -81,7 +81,7 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
  * \param [in] my_rank  Rank of the local processor
  * \param [in] n_procs  Total number of MPI processes
  */
-void sum_mpi_d(double local, double *global, int my_rank, int n_procs);
+void sum_mpi(double local, double *global, int my_rank, int n_procs);
 
 
 /*! \brief Sum a variable across all MPI processes
@@ -91,7 +91,7 @@ void sum_mpi_d(double local, double *global, int my_rank, int n_procs);
  * \param [in] my_rank  Rank of the local processor
  * \param [in] n_procs  Total number of MPI processes
  */
-void sum_mpi_i(int local, int *global, int my_rank, int n_procs);
+void sum_mpi(int local, int *global, int my_rank, int n_procs);
 
 
 /*! \brief Set-up for performing systematic compression across many MPI processes

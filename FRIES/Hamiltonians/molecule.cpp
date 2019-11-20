@@ -177,7 +177,7 @@ void h_op(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
             memcpy(new_det, curr_det, n_bytes);
             matr_el *= sing_det_parity(new_det, sing_ex_orbs[ex_idx]);
             matr_el *= *curr_el * h_fac;
-            vec.add(new_det, matr_el, 1);
+            vec.add(new_det, matr_el, 1, 0);
         }
         
         uint8_t (*doub_ex_orbs)[4] = (uint8_t (*)[4])orbs_scratch;
@@ -187,7 +187,7 @@ void h_op(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
             memcpy(new_det, curr_det, n_bytes);
             matr_el *= doub_det_parity(new_det, doub_ex_orbs[ex_idx]);
             matr_el *= *curr_el * h_fac;
-            vec.add(new_det, matr_el, 1);
+            vec.add(new_det, matr_el, 1, 0);
         }
 
         double *diag_el = vec.matr_el_at_pos(det_idx);

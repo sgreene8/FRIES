@@ -167,7 +167,6 @@ int main(int argc, const char * argv[]) {
     uint8_t (*sing_orbs)[2] = (uint8_t (*)[2]) spawn_orbs;
     uint8_t (*doub_orbs)[4] = (uint8_t (*)[4]) spawn_orbs;
     
-    size_t n_trial;
     size_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
     DistVec<double> trial_vec(100, 100, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, 0);
     DistVec<double> htrial_vec(100 * n_ex, 100 * n_ex, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, 0);
@@ -177,15 +176,15 @@ int main(int argc, const char * argv[]) {
         Matrix<uint8_t> &load_dets = sol_vec.indices();
         double *load_vals = (double *)sol_vec.values();
         
-        n_trial = load_vec_txt(trial_path, load_dets, load_vals, DOUB);
+        size_t n_trial = load_vec_txt(trial_path, load_dets, load_vals, DOUB);
         for (det_idx = 0; det_idx < n_trial; det_idx++) {
-            trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
-            htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
+            trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1, 0);
+            htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1, 0);
         }
     }
     else { // Otherwise, use HF as trial vector
-        trial_vec.add(hf_det, 1, 1);
-        htrial_vec.add(hf_det, 1, 1);
+        trial_vec.add(hf_det, 1, 1, 0);
+        htrial_vec.add(hf_det, 1, 1, 0);
     }
     trial_vec.perform_add();
     htrial_vec.perform_add();
@@ -288,18 +287,18 @@ int main(int argc, const char * argv[]) {
             if (abs(load_vals[det_idx]) > max_vals) {
                 max_vals = abs(load_vals[det_idx]);
             }
-            sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
+            sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1, 0);
         }
     }
     else {
         // from Hartree-Fock
         if (hf_proc == proc_rank) {
-            sol_vec.add(hf_det, 100, 1);
+            sol_vec.add(hf_det, 100, 1, 0);
         }
     }
     sol_vec.perform_add();
     loc_norm = sol_vec.local_norm();
-    sum_mpi_d(loc_norm, &glob_norm, proc_rank, n_procs);
+    sum_mpi(loc_norm, &glob_norm, proc_rank, n_procs);
     if (load_dir) {
         last_norm = glob_norm;
     }
@@ -423,7 +422,7 @@ int main(int argc, const char * argv[]) {
                 if (spawn_walker != 0) {
                     memcpy(new_det, curr_det, det_size);
                     spawn_walker *= -doub_det_parity(new_det, doub_orbs[walker_idx]) * walk_sign;
-                    sol_vec.add(new_det, spawn_walker, ini_flag);
+                    sol_vec.add(new_det, spawn_walker, ini_flag, 0);
                 }
             }
             
@@ -437,7 +436,7 @@ int main(int argc, const char * argv[]) {
                 if (spawn_walker != 0) {
                     memcpy(new_det, curr_det, det_size);
                     spawn_walker *= -sing_det_parity(new_det, sing_orbs[walker_idx]) * walk_sign;
-                    sol_vec.add(new_det, spawn_walker, ini_flag);
+                    sol_vec.add(new_det, spawn_walker, ini_flag, 0);
                 }
             }
             
@@ -458,9 +457,9 @@ int main(int argc, const char * argv[]) {
         // Adjust shift
         if ((iterat + 1) % shift_interval == 0) {
             loc_norm = sol_vec.local_norm();
-            sum_mpi_d(loc_norm, &glob_norm, proc_rank, n_procs);
+            sum_mpi(loc_norm, &glob_norm, proc_rank, n_procs);
             adjust_shift(&en_shift, glob_norm, &last_norm, target_norm, shift_damping / eps / shift_interval);
-            sum_mpi_i((int)n_nonz, &glob_nnonz, proc_rank, n_procs);
+            sum_mpi((int)n_nonz, &glob_nnonz, proc_rank, n_procs);
             if (proc_rank == hf_proc) {
                 fprintf(walk_file, "%u\n", (unsigned int) glob_norm);
                 fprintf(shift_file, "%lf\n", en_shift);

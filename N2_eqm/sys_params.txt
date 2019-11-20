@@ -1,0 +1,10 @@
+n_elec
+14
+n_frozen
+4
+n_orb
+26
+eps
+0.001
+hf_energy
+-132.6489437382

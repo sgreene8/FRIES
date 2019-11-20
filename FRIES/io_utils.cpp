@@ -5,7 +5,7 @@
 
 #include "io_utils.hpp"
 
-size_t read_doub_csv(double *buf, char *fname) {
+size_t read_csv(double *buf, char *fname) {
     int i =  0;
     size_t row_idx = 0;
     size_t n_col;
@@ -28,7 +28,7 @@ size_t read_doub_csv(double *buf, char *fname) {
     return n_read;
 }
 
-size_t read_uchar_csv(uint8_t *buf, char *fname) {
+size_t read_csv(uint8_t *buf, char *fname) {
     int i =  0;
     size_t row_idx = 0;
     size_t n_col;
@@ -44,6 +44,32 @@ size_t read_uchar_csv(uint8_t *buf, char *fname) {
         n_read += n_col;
         for (i = 0 ; i < n_col ; i++) {
             sscanf(rowFields[i], "%u", &scan_val);
+            buf[n_col * row_idx + i] = scan_val;
+        }
+        CsvParser_destroy_row(row);
+        row_idx++;
+    }
+    CsvParser_destroy(csvparser);
+    return n_read;
+}
+
+
+size_t read_csv(int *buf, char *fname) {
+    int i =  0;
+    size_t row_idx = 0;
+    size_t n_col;
+    size_t n_read = 0;
+    
+    CsvParser *csvparser = CsvParser_new(fname, " ", 0);
+    CsvRow *row;
+    int scan_val;
+    
+    while ((row = CsvParser_getRow(csvparser)) ) {
+        const char **rowFields = CsvParser_getFields(row);
+        n_col = CsvParser_getNumFields(row);
+        n_read += n_col;
+        for (i = 0 ; i < n_col ; i++) {
+            sscanf(rowFields[i], "%d", &scan_val);
             buf[n_col * row_idx + i] = scan_val;
         }
         CsvParser_destroy_row(row);
@@ -142,13 +168,13 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     strcpy(buffer, hf_dir);
     strcat(buffer, "symm.txt");
     in_struct->symm = (uint8_t *)malloc(sizeof(uint8_t) * tot_orb);
-    read_uchar_csv(in_struct->symm, buffer);
+    read_csv(in_struct->symm, buffer);
     in_struct->symm = &(in_struct->symm[n_frz / 2]);
     
     strcpy(buffer, hf_dir);
     strcat(buffer, "hcore.txt");
     in_struct->hcore = new Matrix<double>(tot_orb, tot_orb);
-    size_t n_read = read_doub_csv((*(in_struct->hcore)).data(), buffer);
+    size_t n_read = read_csv((*(in_struct->hcore)).data(), buffer);
     if (n_read < tot_orb * tot_orb) {
         fprintf(stderr, "Error reading values from %s\n", buffer);
         return -1;
@@ -157,7 +183,7 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     strcpy(buffer, hf_dir);
     strcat(buffer, "eris.txt");
     in_struct->eris = new FourDArr(tot_orb, tot_orb, tot_orb, tot_orb);
-    n_read = read_doub_csv(in_struct->eris->data(), buffer);
+    n_read = read_csv(in_struct->eris->data(), buffer);
     if (n_read < tot_orb * tot_orb * tot_orb * tot_orb) {
         fprintf(stderr, "Error reading values from %s\n", buffer);
         return -1;
@@ -271,53 +297,79 @@ size_t load_vec_txt(const char *prefix, Matrix<uint8_t> &dets, void *vals, dtype
     if (my_rank == 0) {
         char buffer[100];
         sprintf(buffer, "%sdets", prefix);
-        FILE *file_d = fopen(buffer, "r");
-        if (!file_d) {
-            fprintf(stderr, "Warning: could not find file: %s\n", buffer);
-        }
+        size_t n_dets = read_dets(buffer, dets);
+        
         sprintf(buffer, "%svals", prefix);
         FILE *file_v = fopen(buffer, "r");
         if (!file_v) {
             fprintf(stderr, "Warning: could not find file: %s\n", buffer);
-        }
-        if (!file_d || !file_v) {
             return 0;
         }
-        int num_read_d = 1;
         int num_read_v = 1;
+        size_t n_vals = 0;
+        
+        if (type == DOUB) {
+            double *val_arr = (double *)vals;
+            while (num_read_v == 1) {
+                num_read_v = fscanf(file_v, "%lf\n", &val_arr[n_vals]);
+                n_vals++;
+            }
+        }
+        else if (type == INT) {
+            int *val_arr = (int *) vals;
+            while (num_read_v == 1) {
+                num_read_v = fscanf(file_v, "%d\n", &val_arr[n_vals]);
+                n_vals++;
+            }
+        }
+        else {
+            fprintf(stderr, "Error: data type %d not supported in function load_vec_txt.\n", type);
+            return 0;
+        }
+        n_vals--;
+        if (n_vals > n_dets) {
+            fprintf(stderr, "Warning: fewer determinants than values read in\n");
+            return n_dets;
+        }
+        else if (n_vals < n_dets) {
+            fprintf(stderr, "Warning: fewer values than determinants read in\n");
+        }
+        return n_vals;
+    }
+    else {
+        return 0;
+    }
+}
+
+
+size_t read_dets(const char *path, Matrix<uint8_t> &dets) {
+    int my_rank = 0;
+#ifdef USE_MPI
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+#endif
+    
+    if (my_rank == 0) {
+        FILE *file_d = fopen(path, "r");
+        if (!file_d) {
+            fprintf(stderr, "Error: could not find file: %s\n", path);
+            return 0;
+        }
+        
+        int num_read_d = 1;
         size_t n_dets = 0;
         long long in_det;
         size_t byte_idx;
         size_t max_size = dets.cols();
         
-        if (type == DOUB) {
-            double *val_arr = (double *)vals;
-            while (num_read_d == 1 && num_read_v == 1) {
-                num_read_d = fscanf(file_d, "%lld\n", &in_det);
-                num_read_v = fscanf(file_v, "%lf\n", &val_arr[n_dets]);
-                for (byte_idx = 0; byte_idx < 8 && byte_idx < max_size; byte_idx++) {
-                    dets(n_dets, byte_idx) = in_det & 255;
-                    in_det >>= 8;
-                }
-                n_dets++;
+        while (num_read_d == 1) {
+            num_read_d = fscanf(file_d, "%lld\n", &in_det);
+            for (byte_idx = 0; byte_idx < 8 && byte_idx < max_size; byte_idx++) {
+                dets(n_dets, byte_idx) = in_det & 255;
+                in_det >>= 8;
             }
+            n_dets++;
         }
-        else if (type == INT) {
-            int *val_arr = (int *) vals;
-            while (num_read_d == 1 && num_read_v == 1) {
-                num_read_d = fscanf(file_d, "%lld\n", &in_det);
-                num_read_v = fscanf(file_v, "%d\n", &val_arr[n_dets]);
-                for (byte_idx = 0; byte_idx < 8 && byte_idx < max_size; byte_idx++) {
-                    dets(n_dets, byte_idx) = in_det & 255;
-                    in_det >>= 8;
-                }
-                n_dets++;
-            }
-        }
-        else {
-            fprintf(stderr, "Error: data type %d not supported in function load_vec_txt.\n", type);
-        }
-        return --n_dets;
+        return n_dets - 1;
     }
     else {
         return 0;
