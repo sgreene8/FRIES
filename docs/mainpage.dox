@@ -13,7 +13,7 @@ The source code for this project is available at https://github.com/sgreene8/FRI
 
 \section doc Getting Started
 
-- How to install
+- \ref installation
 - \ref running
 
 */
