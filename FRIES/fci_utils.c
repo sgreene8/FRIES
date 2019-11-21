@@ -22,6 +22,7 @@ void gen_hf_bitstring(unsigned int n_orb, unsigned int n_elec, uint8_t *det) {
     for (; byte_idx < ((n_orb + n_elec / 2) / 8); byte_idx++) {
         det[byte_idx] = 255;
     }
+    byte_idx = (n_orb + n_elec / 2) / 8;
     det[byte_idx] = (1 << ((n_orb + n_elec / 2) % 8)) - 1;
     
     for (byte_idx++; byte_idx < CEILING(2 * n_orb, 8); byte_idx++) {
