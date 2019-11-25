@@ -33,7 +33,7 @@ inline void mpi_atoav(double *sendv, int *send_cts, int *disps, double *recvv, i
 
 
 inline void mpi_atoav(int *sendv, int *send_cts, int *disps, int *recvv, int *recv_cts) {
-    MPI_Alltoallv(sendv, send_cts, disps, MPI_DOUBLE, recvv, recv_cts, disps, MPI_INT, MPI_COMM_WORLD);
+    MPI_Alltoallv(sendv, send_cts, disps, MPI_INT, recvv, recv_cts, disps, MPI_INT, MPI_COMM_WORLD);
 }
 
 
@@ -67,10 +67,12 @@ public:
     Adder(size_t size, int n_procs, DistVec<el_type> *vec) : n_bytes_(CEILING(vec->n_bits() + 3, 8)), send_idx_(n_procs, size * CEILING(vec->n_bits() + 3, 8)), send_vals_(n_procs, size), recv_idx_(n_procs, size * CEILING(vec->n_bits() + 3, 8)), recv_vals_(n_procs, size), parent_vec_(vec) {
         send_cts_ = (int *)malloc(sizeof(int) * n_procs);
         recv_cts_ = (int *) malloc(sizeof(int) * n_procs);
-        displacements_ = (int *) malloc(sizeof(int) * n_procs);
+        idx_disp_ = (int *) malloc(sizeof(int) * n_procs);
+        val_disp_ = (int *) malloc(sizeof(int) * n_procs);
         int proc_idx;
         for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-            displacements_[proc_idx] = proc_idx * (int)size * n_bytes_;
+            val_disp_[proc_idx] = proc_idx * (int)size;
+            idx_disp_[proc_idx] = proc_idx * (int)size * n_bytes_;
             send_cts_[proc_idx] = 0;
         }
     }
@@ -78,7 +80,8 @@ public:
     ~Adder() {
         free(send_cts_);
         free(recv_cts_);
-        free(displacements_);
+        free(idx_disp_);
+        free(val_disp_);
     }
     
     Adder(const Adder &a) = delete;
@@ -104,7 +107,8 @@ private:
     Matrix<el_type> recv_vals_; ///< Receive buffer for element values
     int *send_cts_; ///< Number of elements in the send buffer for each process
     int *recv_cts_; ///< Number of elements in the receive buffer for each process
-    int *displacements_; ///< Array positions in buffers corresponding to each
+    int *idx_disp_; ///< Displacements for MPI send/receive operations for indices
+    int *val_disp_; ///< Displacements for MPI send/receive operations for values
     DistVec<el_type> *parent_vec_; ///<The DistVec object to which elements are added
     uint8_t n_bytes_; ///< Number of bytes used to encode each index in the send and receive buffers
     
@@ -114,20 +118,22 @@ private:
         printf("Increasing storage capacity in adder\n");
         size_t n_proc = send_idx_.rows();
         int proc_idx;
-        size_t new_cols = send_idx_.cols() * 2;
+        size_t new_idx_cols = send_idx_.cols() * 2;
+        size_t new_val_cols = send_vals_.cols() * 2;
         
         int idx_counts[n_proc];
         for (proc_idx = 0; proc_idx < n_proc; proc_idx++) {
             idx_counts[proc_idx] = send_cts_[proc_idx] * n_bytes_;
         }
         
-        send_idx_.enlarge_cols(new_cols, idx_counts);
-        send_vals_.enlarge_cols(new_cols, send_cts_);
-        recv_idx_.reshape(n_proc, new_cols);
-        recv_vals_.reshape(n_proc, new_cols);
+        send_idx_.enlarge_cols(new_idx_cols, idx_counts);
+        send_vals_.enlarge_cols(new_val_cols, send_cts_);
+        recv_idx_.reshape(n_proc, new_idx_cols);
+        recv_vals_.reshape(n_proc, new_val_cols);
         
         for (proc_idx = 0; proc_idx < n_proc; proc_idx++) {
-            displacements_[proc_idx] = proc_idx * (int)new_cols;
+            idx_disp_[proc_idx] = proc_idx * (int)new_idx_cols;
+            val_disp_[proc_idx] = proc_idx * (int)new_val_cols;
         }
     }
 };
@@ -167,7 +173,7 @@ public:
      * \param [in] hub_dim  Number of Hubbard model dimensions, or 0 if the vector is not used for the Hubbard model
      */
     DistVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_bits,
-            unsigned int n_elec, int n_procs, unsigned int hub_dim) : values_(size), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, this), n_nonz_(0), neighb_(hub_dim ? size : 0, 2 * (n_elec + 1)), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), hub_dim_(hub_dim) {
+            unsigned int n_elec, int n_procs, unsigned int hub_dim) : values_(size), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, this), n_nonz_(0), neighb_(hub_dim ? size : 0, 2 * (n_elec + 1)), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), hub_dim_(hub_dim), n_dense_(0) {
         matr_el_ = (double *)malloc(sizeof(double) * size);
         vec_hash_ = setup_ht(size, rn_ptr, n_bits);
         tabl_ = gen_byte_table();
@@ -772,8 +778,8 @@ void Adder<el_type>::perform_add() {
         recv_idx_cts[proc_idx] = recv_cts_[proc_idx] * n_bytes_;
     }
     
-    MPI_Alltoallv(send_idx_.data(), send_idx_cts, displacements_, MPI_UINT8_T, recv_idx_.data(), recv_idx_cts, displacements_, MPI_UINT8_T, MPI_COMM_WORLD);
-    mpi_atoav(send_vals_.data(), send_cts_, displacements_, recv_vals_.data(), recv_cts_);
+    MPI_Alltoallv(send_idx_.data(), send_idx_cts, idx_disp_, MPI_UINT8_T, recv_idx_.data(), recv_idx_cts, idx_disp_, MPI_UINT8_T, MPI_COMM_WORLD);
+    mpi_atoav(send_vals_.data(), send_cts_, val_disp_, recv_vals_.data(), recv_cts_);
 #else
     for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         int cpy_size = send_cts_[proc_idx];
