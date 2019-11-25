@@ -9,6 +9,8 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
+#define __STDC_LIMIT_MACROS
+#include <stdint.h>
 #include <FRIES/io_utils.hpp>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/compress_utils.hpp>
