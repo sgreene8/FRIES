@@ -320,6 +320,7 @@ int main(int argc, const char * argv[]) {
     double weight;
     int glob_n_nonz; // Number of nonzero elements in whole vector (across all processors)
     double loc_norms[n_procs];
+    max_n_dets = (unsigned int)sol_vec.max_size();
     size_t *srt_arr = (size_t *)malloc(sizeof(size_t) * max_n_dets);
     for (det_idx = 0; det_idx < max_n_dets; det_idx++) {
         srt_arr[det_idx] = det_idx;
@@ -656,6 +657,16 @@ int main(int argc, const char * argv[]) {
                 }
             }
             num_added = 0;
+        }
+        
+        size_t new_max_dets = sol_vec.max_size();
+        if (new_max_dets > max_n_dets) {
+            keep_exact = (int *)realloc(keep_exact, sizeof(int) * new_max_dets);
+            srt_arr = (size_t *)realloc(srt_arr, sizeof(size_t) * new_max_dets);
+            for (; max_n_dets < new_max_dets; max_n_dets++) {
+                keep_exact[max_n_dets] = 0;
+                srt_arr[max_n_dets] = max_n_dets;
+            }
         }
         
 #pragma mark Vector compression step

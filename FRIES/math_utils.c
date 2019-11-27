@@ -63,7 +63,7 @@ unsigned int bits_between(uint8_t *bit_str, uint8_t a, uint8_t b) {
     n_bits += byte_counts[curr_int & 15];
     for (byte_idx++; byte_idx < max_byte; byte_idx++) {
         curr_int = bit_str[byte_idx];
-        n_bits = byte_counts[curr_int & 15];
+        n_bits += byte_counts[curr_int & 15];
         curr_int >>= 4;
         n_bits += byte_counts[curr_int & 15];
     }

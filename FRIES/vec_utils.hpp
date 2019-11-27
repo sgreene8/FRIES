@@ -368,6 +368,11 @@ public:
         return curr_size_;
     }
     
+    /*! \return The maximum number of elements the vector can store*/
+    size_t max_size() const {
+        return max_size_;
+    }
+    
     /*!\returns The current number of nonzero elements in the vector */
     int n_nonz() const {
         return n_nonz_;
@@ -719,7 +724,9 @@ public:
 #endif
         int tot_size = 0;
         int disps[n_procs];
+        int idx_disps[n_procs];
         for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+            idx_disps[proc_idx] = tot_size * n_bytes;
             disps[proc_idx] = tot_size;
             tot_size += vec_sizes[proc_idx];
         }
@@ -728,10 +735,10 @@ public:
             indices_.reshape(tot_size, n_bytes);
             values_.resize(tot_size);
         }
-        memmove(indices_[disps[my_rank] * n_bytes], indices_.data(), vec_sizes[my_rank] * n_bytes);
+        memmove(indices_[disps[my_rank]], indices_.data(), vec_sizes[my_rank] * n_bytes);
         memmove(&values_.data()[disps[my_rank]], values_.data(), vec_sizes[my_rank] * el_size);
 #ifdef USE_MPI
-        MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, indices_.data(), idx_sizes, disps, MPI_UINT8_T, MPI_COMM_WORLD);
+        MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, indices_.data(), idx_sizes, idx_disps, MPI_UINT8_T, MPI_COMM_WORLD);
         mpi_allgathv_inplace(values_.data(), vec_sizes, disps);
 #endif
         curr_size_ = tot_size;
