@@ -24,6 +24,7 @@ using namespace std;
 
 // Forward declaration from io_utils.hpp
 size_t read_csv(int *buf, char *fname);
+size_t read_dets(const char *path, Matrix<uint8_t> &dets);
 
 
 #ifdef USE_MPI
