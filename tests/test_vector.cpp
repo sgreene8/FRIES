@@ -36,8 +36,8 @@ TEST_CASE("Test bit string math", "[binary]") {
 
 
 TEST_CASE("Test vector indexing with bit strings", "[vec_idx]") {
-    uint8_t bit_str1[6];
-    uint8_t bit_str2[6];
+    uint8_t bit_str1[7];
+    uint8_t bit_str2[7];
     bit_str2[0] = 255;
     bit_str2[1] = 249;
     bit_str2[2] = 15;
@@ -68,6 +68,19 @@ TEST_CASE("Test vector indexing with bit strings", "[vec_idx]") {
     bit_str2[3] = 31;
     bit_str2[4] = 0;
     bit_str2[5] = 0;
+    gen_hf_bitstring(n_orb, n_elec, bit_str1);
+    REQUIRE(bit_str_equ(bit_str1, bit_str2, n_bytes) == 1);
+    
+    n_elec = 10;
+    n_orb = 26;
+    n_bytes = 7;
+    bit_str2[0] = 31;
+    bit_str2[1] = 0;
+    bit_str2[2] = 0;
+    bit_str2[3] = 124;
+    bit_str2[4] = 0;
+    bit_str2[5] = 0;
+    bit_str2[6] = 0;
     gen_hf_bitstring(n_orb, n_elec, bit_str1);
     REQUIRE(bit_str_equ(bit_str1, bit_str2, n_bytes) == 1);
 }

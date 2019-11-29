@@ -66,7 +66,7 @@ public:
      * \param [in] vec         The vector to which elements will be added
      */
     Adder(size_t size, int n_procs, DistVec<el_type> *vec) : n_bytes_(CEILING(vec->n_bits() + 3, 8)), send_idx_(n_procs, size * CEILING(vec->n_bits() + 3, 8)), send_vals_(n_procs, size), recv_idx_(n_procs, size * CEILING(vec->n_bits() + 3, 8)), recv_vals_(n_procs, size), parent_vec_(vec) {
-        send_cts_ = (int *)malloc(sizeof(int) * n_procs);
+        send_cts_ = (int *)malloc(sizeof(int) * n_procs); // 1 allocation
         recv_cts_ = (int *) malloc(sizeof(int) * n_procs);
         idx_disp_ = (int *) malloc(sizeof(int) * n_procs);
         val_disp_ = (int *) malloc(sizeof(int) * n_procs);
@@ -441,9 +441,10 @@ public:
     void add_elements(uint8_t *indices, el_type *vals, size_t count) {
         size_t el_idx;
         unsigned int n_elec = (unsigned int)occ_orbs_.cols();
-        uint8_t n_bytes = indices_.cols();
+        uint8_t add_n_bytes = CEILING(n_bits_ + 3, 8);
+        uint8_t vec_n_bytes = indices_.cols();
         for (el_idx = 0; el_idx < count; el_idx++) {
-            uint8_t *new_idx = &indices[el_idx * n_bytes];
+            uint8_t *new_idx = &indices[el_idx * add_n_bytes];
             int ini_flag = read_bit(new_idx, n_bits_);
             int det_flag = read_bit(new_idx, n_bits_ + 1) | (read_bit(new_idx, n_bits_ + 2) << 1);
             zero_bit(new_idx, n_bits_);
@@ -462,11 +463,11 @@ public:
                 }
                 values_[*idx_ptr] = 0;
                 if (gen_orb_list(new_idx, occ_orbs_[*idx_ptr]) != n_elec) {
-                    char det_txt[n_bytes * 2 + 1];
-                    print_str(new_idx, n_bytes, det_txt);
+                    char det_txt[vec_n_bytes * 2 + 1];
+                    print_str(new_idx, vec_n_bytes, det_txt);
                     fprintf(stderr, "Error: determinant %s created with an incorrect number of electrons.\n", det_txt);
                 }
-                memcpy(indices_[*idx_ptr], new_idx, n_bytes);
+                memcpy(indices_[*idx_ptr], new_idx, vec_n_bytes);
                 matr_el_[*idx_ptr] = NAN;
                 n_nonz_++;
                 if (hub_dim_) {
