@@ -12,3 +12,5 @@ C2/
 H2O/
 .ci/travis_deploy_key.pub
 .ci/travis_deploy_key
+initialize_qmc.py
+
