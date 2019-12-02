@@ -577,8 +577,8 @@ int main(int argc, const char * argv[]) {
                 if (fabs(matr_el) > 1e-9 && comp_vec2[samp_idx] > 1e-9) {
                     uint8_t *new_det = &spawn_dets[num_added * det_size];
                     memcpy(new_det, curr_det, det_size);
-//                    matr_el *= -eps / p_doub / calc_unnorm_wt(hb_probs, doub_orbs) * el_sign * par_sign * comp_vec2[samp_idx];
-                    matr_el *= -eps / p_doub / calc_norm_wt(hb_probs, doub_orbs, occ_orbs, n_elec_unf, curr_det, symm_lookup, symm) * el_sign * comp_vec2[samp_idx];
+                    matr_el *= -eps / p_doub / calc_unnorm_wt(hb_probs, doub_orbs) * el_sign * comp_vec2[samp_idx];
+//                    matr_el *= -eps / p_doub / calc_norm_wt(hb_probs, doub_orbs, occ_orbs, n_elec_unf, curr_det, symm_lookup, symm) * el_sign * comp_vec2[samp_idx];
                     matr_el *= doub_det_parity(new_det, doub_orbs);
                     comp_vec1[num_added] = matr_el;
                     keep_idx(num_added, 0) = ini_flag;
