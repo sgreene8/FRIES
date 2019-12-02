@@ -422,8 +422,8 @@ int main(int argc, const char * argv[]) {
             uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
             if (orb_indices1[samp_idx][0] == 0) { // double excitation
                 ndiv_vec[samp_idx] = 0;
-//                comp_vec2[samp_idx] *= calc_o1_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs);
-                calc_o1_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs);
+                comp_vec2[samp_idx] *= calc_o1_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs);
+//                calc_o1_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs);
             }
             else {
                 count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf, n_orb, n_irreps, symm_lookup, symm);
@@ -454,8 +454,8 @@ int main(int argc, const char * argv[]) {
             uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
             if (orb_indices2[samp_idx][0] == 0) { // double excitation
                 ndiv_vec[samp_idx] = 0;
-//                comp_vec1[samp_idx] *= calc_o2_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs, &orb_indices2[samp_idx][1]);
-                calc_o2_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs, &orb_indices2[samp_idx][1]);
+                comp_vec1[samp_idx] *= calc_o2_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs, &orb_indices2[samp_idx][1]);
+//                calc_o2_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs, &orb_indices2[samp_idx][1]);
             }
             else { // single excitation
                 count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf, n_orb, n_irreps, symm_lookup, symm);
@@ -491,8 +491,8 @@ int main(int argc, const char * argv[]) {
                 ndiv_vec[samp_idx] = 0;
                 uint8_t *occ_tmp = sol_vec.orbs_at_pos(det_idx);
                 orb_indices1[samp_idx][2] = occ_tmp[orb_indices1[samp_idx][2]];
-//                comp_vec2[samp_idx] *= calc_u1_probs(hb_probs, subwt_mem[samp_idx], o1_orb, sol_vec->indices[det_indices1[samp_idx]]);
-                calc_u1_probs(hb_probs, subwt_mem[samp_idx], o1_orb, sol_vec.indices()[det_idx]);
+                comp_vec2[samp_idx] *= calc_u1_probs(hb_probs, subwt_mem[samp_idx], o1_orb, sol_vec.indices()[det_idx]);
+//                calc_u1_probs(hb_probs, subwt_mem[samp_idx], o1_orb, sol_vec.indices()[det_idx]);
             }
             else { // single excitation
                 orb_indices1[samp_idx][3] = orb_indices2[weight_idx][3];
@@ -525,11 +525,11 @@ int main(int argc, const char * argv[]) {
                 else {
                     ndiv_vec[samp_idx] = 0;
                     orb_indices2[samp_idx][3] = u1_orb;
-//                comp_vec1[samp_idx] *= calc_u2_probs(hb_probs, subwt_mem[samp_idx], o1_orb, o2_orb, u1_orb, (uint8_t *)symm_lookup, symm, max_n_symm); // not normalizing
-                    double u2_norm = calc_u2_probs(hb_probs, subwt_mem[samp_idx], o1_orb, o2_orb, u1_orb, symm_lookup, symm, &max_n_symm);
-                    if (u2_norm == 0) {
-                        comp_vec1[samp_idx] = 0;
-                    }
+                comp_vec1[samp_idx] *= calc_u2_probs(hb_probs, subwt_mem[samp_idx], o1_orb, o2_orb, u1_orb, symm_lookup, symm, &max_n_symm); // not normalizing
+//                    double u2_norm = calc_u2_probs(hb_probs, subwt_mem[samp_idx], o1_orb, o2_orb, u1_orb, symm_lookup, symm, &max_n_symm);
+//                    if (u2_norm == 0) {
+//                        comp_vec1[samp_idx] = 0;
+//                    }
                 }
             }
             else {

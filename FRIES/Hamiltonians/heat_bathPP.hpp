@@ -24,14 +24,16 @@
 typedef struct {
     size_t n_orb; ///< Number of spatial orbitals in the Hartree-Fock Basis
     double *s_tens; ///< Single electron components of HB-PP factorization, length n_orb
+    double s_norm; ///< One-norm of single-electron components
     double *d_same; ///< Double-electron components of HB-PP factorization for same spins, stored as a 1-D array of length (n_orb choose 2)
     double *d_diff; ///< Double-electron components of HB-PP factorization for different spins, stored as a 2-D array of dimensions (n_orb x n_orb)
     double *exch_sqrt; ///< Square roots of exchange integrals <ia|ai>, stored as a 1-D array of length (n_orb choose 2)
     double *diag_sqrt; ///< Square roots of diagonal eris < p p | p p>, length n_orb
+    double *exch_norms; ///< Row sums of the matrix of square roots of exchange integrals
 } hb_info;
 
 
-/*! \brief Construct an hb_info struct using two-electron integrals from
+/*! \brief Calculate terms in the HB-PP factorization from two-electron integrals from
  * Hartree-Fock
  *
  * Double-electron components are defined for \f$ p \neq q \f$ as
