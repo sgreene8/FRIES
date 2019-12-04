@@ -513,9 +513,7 @@ int main(int argc, const char * argv[]) {
                 fflush(shift_file);
                 fflush(nonz_file);
                 fflush(walk_file);
-                if (sgnv_path) {
-                    fflush(sign_file);
-                }
+                fflush(sign_file);
             }
         }
     }
@@ -526,9 +524,7 @@ int main(int argc, const char * argv[]) {
         fclose(shift_file);
         fclose(nonz_file);
         fclose(walk_file);
-        if (sgnv_path) {
-            fclose(sign_file);
-        }
+        fclose(sign_file);
     }
 #ifdef USE_MPI
     MPI_Finalize();
