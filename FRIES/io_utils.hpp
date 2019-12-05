@@ -63,6 +63,8 @@ typedef struct {
     double elec_int; ///< On-site repulsion term
     double eps; ///< Suggested imaginary time step to use in DMC calculations
     double hf_en; ///< HF electronic energy
+    double elec_ph; ///< Electron-phonon coupling
+    double ph_freq; ///< Phonon energy
 } hh_input;
 
 
