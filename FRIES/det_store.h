@@ -140,7 +140,8 @@ void del_ht(hash_table *table, uint8_t *det, unsigned long long hash_val);
  *                          have at least (max(occ_orbs) + 1) elements
  * \return the calculated hash value
  */
-unsigned long long hash_fxn(uint8_t *occ_orbs, unsigned int n_elec, unsigned int *rand_nums);
+unsigned long long hash_fxn(uint8_t *occ_orbs, unsigned int n_elec, uint8_t *phonon_nums,
+                            unsigned int n_phonon, unsigned int *rand_nums);
 
 
 #ifdef __cplusplus

@@ -6,11 +6,14 @@
 
 #include "det_store.h"
 
-unsigned long long hash_fxn(uint8_t *occ_orbs, unsigned int n_elec, unsigned int *rand_nums) {
+unsigned long long hash_fxn(uint8_t *occ_orbs, unsigned int n_elec, uint8_t *phonon_nums, unsigned int n_phonon, unsigned int *rand_nums) {
     unsigned long long hash = 0;
     unsigned int i;
     for (i = 0; i < n_elec; i++) {
         hash = 1099511628211LL * hash + (i + 1) * rand_nums[occ_orbs[i]];
+    }
+    for (i = 0; i < n_phonon; i++) {
+        hash = 1099511628211LL * hash + (i + 1) * rand_nums[phonon_nums[i]];
     }
     return hash;
 }

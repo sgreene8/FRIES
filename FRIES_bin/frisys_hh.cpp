@@ -16,6 +16,7 @@
 #include <FRIES/compress_utils.hpp>
 #include <FRIES/Ext_Libs/argparse.h>
 #include <FRIES/Hamiltonians/hub_holstein.hpp>
+#include <FRIES/hh_vec.hpp>
 #define max_iter 10000
 
 static const char *const usage[] = {
@@ -105,6 +106,8 @@ int main(int argc, const char * argv[]) {
     unsigned int n_elec = in_data.n_elec;
     double hub_t = 1;
     double hub_u = in_data.elec_int;
+    double ph_freq = in_data.ph_freq;
+    double elec_ph = in_data.elec_ph;
     double hf_en = in_data.hf_en;
     
     if (hub_dim != 1) {
@@ -113,7 +116,8 @@ int main(int argc, const char * argv[]) {
     }
     
     unsigned int n_orb = pow_int(hub_len, hub_dim);
-    size_t det_size = CEILING(2 * n_orb, 8);
+    unsigned int ph_bits = 3;
+    size_t det_size = CEILING(2 * n_orb + ph_bits * n_orb, 8);
     
     // Rn generator
     mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, proc_rank, (unsigned int) time(NULL));
@@ -142,7 +146,7 @@ int main(int argc, const char * argv[]) {
     
     // Solution vector
     unsigned int spawn_length = matr_samp * 2 / n_procs;
-    DistVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb * 2, n_elec, n_procs, hub_len);
+    HubHolVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, hub_len, ph_bits, n_elec, n_procs);
     sol_vec.proc_scrambler_ = proc_scrambler;
     
     uint8_t neel_det[det_size];

@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <FRIES/Hamiltonians/molecule.hpp>
 #include <FRIES/Hamiltonians/hub_holstein.hpp>
-#include <FRIES/vec_utils.hpp>
+#include <FRIES/hh_vec.hpp>
 #include <FRIES/io_utils.hpp>
 
 TEST_CASE("Test diagonal matrix element evaluation", "[molec_diag]") {
@@ -29,7 +29,7 @@ TEST_CASE("Test diagonal matrix element evaluation", "[molec_diag]") {
     // Rn generator
     mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, (unsigned int) time(NULL));
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
-    DistVec<double> sol_vec(10, 0, rngen_ptr, 2 * n_orb, n_elec_unf, 0, 1);
+    DistVec<double> sol_vec(10, 0, rngen_ptr, 2 * n_orb, n_elec_unf, 1);
     
     uint8_t *hf_det = sol_vec.indices()[0];
     gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
@@ -181,9 +181,10 @@ TEST_CASE("Test generation of excitations in the Hubbard model", "[hub_excite]")
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
     
     // Solution vector
-    DistVec<int> sol_vec(1, 0, rngen_ptr, n_sites * 2, n_elec, n_sites, 1);
+    HubHolVec<int> sol_vec(1, 0, rngen_ptr, n_sites, 0, n_elec, 1);
+    
     Matrix<uint8_t> &neighb = sol_vec.neighb();
-    sol_vec.find_neighbors_1D(det, neighb[0], n_sites);
+    sol_vec.find_neighbors_1D(det, neighb[0]);
     
     REQUIRE(hub_all(n_elec, neighb[0], test_orbs) == 18);
     
@@ -205,9 +206,10 @@ TEST_CASE("Test identification of empty neighboring orbitals in a Hubbard determ
     // Solution vector
     mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, (unsigned int) time(NULL));
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
-    DistVec<int> sol_vec(1, 0, rngen_ptr, n_sites * 2, n_elec, n_sites, 1);
+    HubHolVec<int> sol_vec(1, 0, rngen_ptr, n_sites, 0, n_elec, 1);
+    
     uint8_t *neighb = sol_vec.neighb()[0];
-    sol_vec.find_neighbors_1D(det, neighb, n_sites);
+    sol_vec.find_neighbors_1D(det, neighb);
     
     uint8_t real_neigb[] = {5, 0, 2, 4, 7, 10, 0, 4, 2, 4, 7, 9, 0, 0};
     uint8_t neigb_idx;
