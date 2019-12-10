@@ -46,6 +46,18 @@ public:
     Matrix<uint8_t> *phonon_nums() {
         return phonon_nums_;
     }
+    
+    /*! \brief Calculate the total number of phonons at all sizes for a basis element
+     * \param [in] idx       Index of the basis element in the DistVector object
+     * \return Number of phonons
+     */
+    uint8_t tot_ph_at_idx(size_t idx) {
+        uint8_t phonons = 0;
+        for (size_t ph_idx = 0; ph_idx < n_sites_; ph_idx++) {
+            phonons += phonon_nums_(idx, ph_idx);
+        }
+        return phonons;
+    }
 
     /*! \brief Generate lists of occupied orbitals in a determinant that are
      *  adjacent to an empty orbital if the orbitals represent sites on a 1-D lattice
@@ -100,6 +112,29 @@ public:
             if ((curr_bit % 8) + ph_bits_ > 8) {
                 numbers[site_idx] += det[curr_byte + 1] << (8 - (curr_bit % 8));
             }
+        }
+    }
+    
+    /*! \brief Generate a new determinant by increasing the phonon number at one position
+     *
+     * \param [in] orig     Original determinant from which to create new determinant
+     * \param [out] new_det     Upon return, contains the bit-string representation of the new determinant
+     * \param [in] site_idx       Site index of the phonon number to be incremented
+     * \return 1 if new determinant was created successfully, 0 if not
+     */
+    int det_by_inc_ph(uint8_t *orig, uint8_t *new_det, uint8_t site_idx) {
+        uint8_t bit_idx = 2 * n_sites_ + site_idx * ph_bits_;
+        uint8_t mask1 = (1 << ((bit_idx % 8) + ph_bits_)) - (1 << (bit_idx % 8));
+        uint8_t ph_num = orig[bit_idx / 8] >> (bit_idx % 8);
+        if ((bit_idx % 8) + ph_bits_ > 8) {
+            ph_num |= orig[bit_idx / 8 + 1] << (8 - (bit_idx % 8));
+        }
+        ph_num++;
+        memcpy(new_det, orig, CEILING(DistVec<el_type>::n_bits_, 8));
+        new_det[bit_idx / 8] &= ~(((1 << ph_bits_) - 1) << (bit_idx % 8));
+        new_det[bit_idx / 8] |= ph_num << (bit_idx % 8);
+        if ((bit_idx % 8) + ph_bits_ > 8) {
+//            new_det[bit_idx / 8 + 1] &= ~(((1 << ())
         }
     }
     

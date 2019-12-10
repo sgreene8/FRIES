@@ -154,13 +154,13 @@ private:
     hash_table *vec_hash_; ///< Hash table for quickly finding indices in \p indices_
     stack_entry *vec_stack_; ///< Pointer to top of stack for managing available positions in the indices array
     byte_table *tabl_; ///< Pointer to struct used to decompose determinant indices into lists of occupied orbitals
-    uint8_t n_bits_; ///< Number of bits used to encode each index of the vector
     Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
     int n_nonz_; ///< Current number of nonzero elements in vector, including all in the dense subspace
 protected:
     size_t max_size_; ///< Maximum number of vector elements that can be stored
     size_t curr_size_; ///< Current number of vector elements stored, including intermediate zeroes
     Matrix<uint8_t> occ_orbs_; ///< Matrix containing lists of occupied orbitals for each determniant index
+    uint8_t n_bits_; ///< Number of bits used to encode each index of the vector
     
     
     void initialize_at_pos(size_t pos) {
@@ -561,7 +561,7 @@ public:
         n_nonz_ = 0;
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
             int is_nonz = 0;
-            double value;
+            double value = 0;
             if (fabs(values_[det_idx]) > 1e-9 || det_idx < n_dense_) {
                 is_nonz = 1;
                 value = values_[det_idx];
