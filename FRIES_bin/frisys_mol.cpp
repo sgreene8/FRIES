@@ -160,15 +160,19 @@ int main(int argc, const char * argv[]) {
 # pragma mark Set up trial vector
     size_t n_trial;
     size_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
-    DistVec<double> trial_vec(100, 100, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, 0);
-    DistVec<double> htrial_vec(100 * n_ex / n_procs, 100 * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, 0);
+    Matrix<uint8_t> &load_dets = sol_vec.indices();
+    double *load_vals = (double *)sol_vec.values();
+    if (trial_path) { // load trial vector from file
+        n_trial = load_vec_txt(trial_path, load_dets, load_vals, DOUB);
+    }
+    else {
+        n_trial = 1;
+    }
+    DistVec<double> trial_vec(n_trial, n_trial, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, 0);
+    DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, 0);
     trial_vec.proc_scrambler_ = proc_scrambler;
     htrial_vec.proc_scrambler_ = proc_scrambler;
     if (trial_path) { // load trial vector from file
-        Matrix<uint8_t> &load_dets = sol_vec.indices();
-        double *load_vals = (double *)sol_vec.values();
-        
-        n_trial = load_vec_txt(trial_path, load_dets, load_vals, DOUB);
         for (det_idx = 0; det_idx < n_trial; det_idx++) {
             trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1, 0);
             htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1, 0);
