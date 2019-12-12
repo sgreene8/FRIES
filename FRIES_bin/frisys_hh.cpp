@@ -116,7 +116,6 @@ int main(int argc, const char * argv[]) {
     }
     
     unsigned int n_orb = pow_int(hub_len, hub_dim);
-    size_t det_size = CEILING(2 * n_orb + ph_bits * n_orb, 8);
     
     // Rn generator
     mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, proc_rank, (unsigned int) time(NULL));
@@ -146,6 +145,7 @@ int main(int argc, const char * argv[]) {
     // Solution vector
     unsigned int spawn_length = matr_samp * 2 / n_procs;
     HubHolVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, hub_len, 3, n_elec, n_procs);
+    size_t det_size = CEILING(2 * n_orb + 3 * n_orb, 8);
     sol_vec.proc_scrambler_ = proc_scrambler;
     
     uint8_t neel_det[det_size];
