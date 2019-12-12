@@ -322,7 +322,7 @@ unsigned int sing_multin(uint8_t *det, uint8_t *occ_orbs, unsigned int num_elec,
     }
     
     for (unsigned int j = 0; j < num_sampl; j++) {
-        elec_idx = _sing_choose_occ(m_allow, num_elec, rn_ptr);
+        unsigned int elec_idx = _sing_choose_occ(m_allow, num_elec, rn_ptr);
         occ_orb = occ_orbs[elec_idx];
         occ_symm = orb_symm[occ_orb % num_orb];
         occ_spin = occ_orb / num_orb;
