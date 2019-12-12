@@ -130,7 +130,7 @@ int main(int argc, const char * argv[]) {
     
     // Solution vector
     unsigned int spawn_length = matr_samp * 2 / n_procs / n_procs;
-    DistVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, 0);
+    DistVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
     size_t det_size = CEILING(2 * n_orb, 8);
     size_t det_idx;
     
@@ -172,8 +172,8 @@ int main(int argc, const char * argv[]) {
     
     size_t n_trial;
     size_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
-    DistVec<double> trial_vec(100, 100, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, 0);
-    DistVec<double> htrial_vec(100 * n_ex / n_procs, 100 * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, 0);
+    DistVec<double> trial_vec(100, 100, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
+    DistVec<double> htrial_vec(100 * n_ex / n_procs, 100 * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
     trial_vec.proc_scrambler_ = proc_scrambler;
     htrial_vec.proc_scrambler_ = proc_scrambler;
     if (trial_path) { // load trial vector from file
