@@ -108,4 +108,13 @@ TEST_CASE("Test encoding and decoding of Holstein basis states", "[phonon_bits]"
     for (size_t site_idx = 0; site_idx < n_sites; site_idx++) {
         REQUIRE(ph_nums2[site_idx] == ph_nums1[site_idx]);
     }
+    
+    uint8_t excite_det[det_size];
+    sol_vec.det_by_inc_ph(det1, excite_det, 2);
+    ph_nums1[2]++;
+    sol_vec.decode_phonons(excite_det, ph_nums2);
+    
+    for (size_t site_idx = 0; site_idx < n_sites; site_idx++) {
+        REQUIRE(ph_nums2[site_idx] == ph_nums1[site_idx]);
+    }
 }

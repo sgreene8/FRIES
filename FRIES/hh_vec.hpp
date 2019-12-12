@@ -124,18 +124,27 @@ public:
      */
     int det_by_inc_ph(uint8_t *orig, uint8_t *new_det, uint8_t site_idx) {
         uint8_t bit_idx = 2 * n_sites_ + site_idx * ph_bits_;
-        uint8_t mask1 = (1 << ((bit_idx % 8) + ph_bits_)) - (1 << (bit_idx % 8));
-        uint8_t ph_num = orig[bit_idx / 8] >> (bit_idx % 8);
-        if ((bit_idx % 8) + ph_bits_ > 8) {
-            ph_num |= orig[bit_idx / 8 + 1] << (8 - (bit_idx % 8));
+        uint16_t det_segment = orig[bit_idx / 8];
+        uint8_t n_bytes = CEILING(DistVec<el_type>::n_bits_, 8);
+        if (bit_idx / 8 + 1 < n_bytes) {
+            det_segment |= orig[bit_idx / 8 + 1] << 8;
+        }
+        uint16_t mask = (1 << ((bit_idx % 8) + ph_bits_)) - (1 << (bit_idx % 8));
+        uint16_t ph_num = (det_segment & mask) >> (bit_idx % 8);
+        if (ph_num == ((1 << ph_bits_) - 1)) {
+            fprintf(stderr, "Warning: max phonon number reached\n");
+            return 0;
         }
         ph_num++;
-        memcpy(new_det, orig, CEILING(DistVec<el_type>::n_bits_, 8));
-        new_det[bit_idx / 8] &= ~(((1 << ph_bits_) - 1) << (bit_idx % 8));
-        new_det[bit_idx / 8] |= ph_num << (bit_idx % 8);
-        if ((bit_idx % 8) + ph_bits_ > 8) {
-//            new_det[bit_idx / 8 + 1] &= ~(((1 << ())
+        ph_num <<= (bit_idx % 8);
+        det_segment &= ~mask;
+        det_segment |= ph_num;
+        memcpy(new_det, orig, n_bytes);
+        new_det[bit_idx / 8] = det_segment & 255;
+        if (bit_idx / 8 + 1 < n_bytes) {
+            new_det[bit_idx / 8 + 1] |= det_segment >> 8;
         }
+        return 1;
     }
     
     
