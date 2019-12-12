@@ -275,7 +275,7 @@ int main(int argc, const char * argv[]) {
             det_idx = comp_idx[samp_idx][0];
             double *curr_el = sol_vec[det_idx];
             uint8_t *curr_det = sol_vec.indices()[det_idx];
-            ini_flag = fabs(*curr_el) > init_thresh;\
+            ini_flag = fabs(*curr_el) > init_thresh;
             int el_sign = 1 - 2 * signbit(*curr_el);
             
             matr_el = -eps * hub_t * (neighb_orbs(det_idx, 0) + neighb_orbs(det_idx, n_elec + 1)) * comp_vec2[samp_idx] * el_sign;
