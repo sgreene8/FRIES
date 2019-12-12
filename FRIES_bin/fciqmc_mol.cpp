@@ -260,6 +260,7 @@ int main(int argc, const char * argv[]) {
     FILE *shift_file = NULL;
     FILE *nonz_file = NULL;
     FILE *sign_file = NULL;
+    FILE *ini_file = NULL;
     
     // Initialize solution vector
     unsigned int max_vals = 0;
@@ -341,6 +342,9 @@ int main(int argc, const char * argv[]) {
         strcpy(file_path, result_dir);
         strcat(file_path, "nnonz.txt");
         nonz_file = fopen(file_path, "a");
+        strcpy(file_path, result_dir);
+        strcat(file_path, "nini.txt");
+        ini_file = fopen(file_path, "a");
         
         // Describe parameters of this calculation
         strcpy(file_path, result_dir);
@@ -375,8 +379,10 @@ int main(int argc, const char * argv[]) {
     unsigned int iterat;
     int glob_nnonz;
     int n_nonz;
+    size_t n_ini;
     for (iterat = 0; iterat < max_iter; iterat++) {
         n_nonz = 0;
+        n_ini = 0;
         for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
             int *curr_el = sol_vec[det_idx];
             uint8_t *curr_det = sol_vec.indices()[det_idx];
@@ -386,6 +392,7 @@ int main(int argc, const char * argv[]) {
             }
             n_nonz++;
             ini_flag = n_walk > init_thresh;
+            n_ini += ini_flag;
             walk_sign = 1 - ((*curr_el >> (sizeof(int) * 8 - 1)) & 2);
             
             // spawning step
@@ -493,6 +500,7 @@ int main(int argc, const char * argv[]) {
             fprintf(num_file, "%lf\n", matr_el);
             fprintf(den_file, "%lf\n", denom);
             printf("%6u, n walk: %7u, en est: %lf, shift: %lf\n", iterat, (unsigned int)glob_norm, matr_el / denom, en_shift);
+            fprintf(ini_file, "%zu\n", n_ini);
         }
         
         // Calculate sign of iterate

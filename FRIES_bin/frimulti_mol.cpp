@@ -223,6 +223,7 @@ int main(int argc, const char * argv[]) {
     FILE *den_file = NULL;
     FILE *shift_file = NULL;
     FILE *norm_file = NULL;
+    FILE *ini_file = NULL;
     
     // Initialize solution vector
     if (load_dir) {
@@ -286,6 +287,9 @@ int main(int argc, const char * argv[]) {
         strcpy(file_path, result_dir);
         strcat(file_path, "norm.txt");
         norm_file = fopen(file_path, "a");
+        strcpy(file_path, result_dir);
+        strcat(file_path, "nini.txt");
+        ini_file = fopen(file_path, "a");
         
         strcpy(file_path, result_dir);
         strcat(file_path, "params.txt");
@@ -328,7 +332,9 @@ int main(int argc, const char * argv[]) {
     int *keep_exact = (int *)calloc(max_n_dets, sizeof(int));
     
     unsigned int iterat;
+    size_t n_ini;
     for (iterat = 0; iterat < max_iter; iterat++) {
+        n_ini = 0;
         sum_mpi(sol_vec.n_nonz(), &glob_n_nonz, proc_rank, n_procs);
         
         // Systematic sampling to determine number of samples for each column
@@ -362,6 +368,7 @@ int main(int argc, const char * argv[]) {
             }
             
             ini_flag = weight > init_thresh;
+            n_ini += ini_flag;
             ini_flag <<= 2 * n_orb;
             
             // spawning step
@@ -446,6 +453,7 @@ int main(int argc, const char * argv[]) {
             fprintf(num_file, "%lf\n", matr_el);
             fprintf(den_file, "%lf\n", denom);
             printf("%6u, en est: %lf, shift: %lf, norm: %lf\n", iterat, matr_el / denom, en_shift, glob_norm);
+            fprintf(ini_file, "%zu\n", n_ini);
         }
         
         if (proc_rank == 0) {

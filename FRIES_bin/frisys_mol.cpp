@@ -251,6 +251,7 @@ int main(int argc, const char * argv[]) {
     FILE *norm_file = NULL;
     FILE *nkept_file = NULL;
     FILE *sign_file = NULL;
+    FILE *ini_file = NULL;
     
     size_t n_determ = 0; // Number of deterministic determinants on this process
     if (!load_dir && determ_path) {
@@ -323,6 +324,9 @@ int main(int argc, const char * argv[]) {
         strcpy(file_path, result_dir);
         strcat(file_path, "nkept.txt");
         nkept_file = fopen(file_path, "a");
+        strcpy(file_path, result_dir);
+        strcat(file_path, "nini.txt");
+        ini_file = fopen(file_path, "a");
         
         strcpy(file_path, result_dir);
         strcat(file_path, "params.txt");
@@ -428,7 +432,9 @@ int main(int argc, const char * argv[]) {
     }
     
     unsigned int iterat;
+    size_t n_ini;
     for (iterat = 0; iterat < max_iter; iterat++) {
+        n_ini = 0;
         sum_mpi(sol_vec.n_nonz(), &glob_n_nonz, proc_rank, n_procs);
         
         // Systematic matrix compression
@@ -665,6 +671,8 @@ int main(int argc, const char * argv[]) {
         for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
             double *curr_el = sol_vec[det_idx];
             if (*curr_el != 0) {
+                int ini_flag = fabs(*curr_el) > init_thresh;
+                n_ini += ini_flag;
                 double *diag_el = sol_vec.matr_el_at_pos(det_idx);
                 uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
                 if (isnan(*diag_el)) {
@@ -752,6 +760,7 @@ int main(int argc, const char * argv[]) {
             fprintf(num_file, "%lf\n", matr_el);
             fprintf(den_file, "%lf\n", denom);
             printf("%6u, en est: %.9lf, shift: %lf, norm: %lf\n", iterat, matr_el / denom, en_shift, glob_norm);
+            fprintf(ini_file, "%zu\n", n_ini);
         }
         
         // Calculate sign of iterate
