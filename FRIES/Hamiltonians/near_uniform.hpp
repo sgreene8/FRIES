@@ -11,8 +11,8 @@
 #ifndef near_uniform_h
 #define near_uniform_h
 
-#include <stdio.h>
-#include <math.h>
+#include <cstdio>
+#include <cmath>
 #include <cstdint>
 #include <FRIES/ndarr.hpp>
 #include <FRIES/det_store.h>
@@ -22,12 +22,12 @@
 #define n_irreps 8
 
 /*! \brief A pair of orbitals involved in a double excitation */
-typedef struct {
+struct orb_pair {
     uint8_t orb1; ///< The first spinorbital, possible values range from 0 to 2 * n_orb - 1
     uint8_t orb2; ///< The second spinorbital, possible values range from 0 to 2 * n_orb - 1
     uint8_t spin1; ///< Spin of the first orbital (0 or 1)
     uint8_t spin2; ///< Spin of the second orbital (0 or 1)
-} orb_pair;
+};
 
 
 

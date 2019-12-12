@@ -85,17 +85,16 @@ hb_info *set_up(unsigned int tot_orb, unsigned int n_orb,
 double calc_o1_probs(hb_info *tens, double *prob_arr, unsigned int n_elec,
                      uint8_t *occ_orbs) {
     double norm = 0;
-    unsigned int orb_idx;
-    for (orb_idx = 0; orb_idx < n_elec / 2; orb_idx++) {
+    for (unsigned int orb_idx = 0; orb_idx < n_elec / 2; orb_idx++) {
         prob_arr[orb_idx] = tens->s_tens[occ_orbs[orb_idx]];
         norm += prob_arr[orb_idx];
     }
-    for (orb_idx = n_elec / 2; orb_idx < n_elec; orb_idx++) {
+    for (unsigned int orb_idx = n_elec / 2; orb_idx < n_elec; orb_idx++) {
         prob_arr[orb_idx] = tens->s_tens[occ_orbs[orb_idx] - tens->n_orb];
         norm += prob_arr[orb_idx];
     }
     double inv_norm = 1. / norm;
-    for (orb_idx = 0; orb_idx < n_elec; orb_idx++) {
+    for (unsigned int orb_idx = 0; orb_idx < n_elec; orb_idx++) {
         prob_arr[orb_idx] *= inv_norm;
     }
     return norm;
@@ -105,30 +104,29 @@ double calc_o1_probs(hb_info *tens, double *prob_arr, unsigned int n_elec,
 double calc_o2_probs(hb_info *tens, double *prob_arr, unsigned int n_elec,
                      uint8_t *occ_orbs, uint8_t *o1) {
     double norm = 0;
-    unsigned int orb_idx;
     uint8_t o1_orb = occ_orbs[*o1];
     size_t n_orb = tens->n_orb;
     int o1_spin = o1_orb / n_orb;
     
     double *diff_tab = tens->d_diff;
     unsigned int offset = (1 - o1_spin) * n_elec / 2;
-    for (orb_idx = offset; orb_idx < (n_elec / 2 + offset); orb_idx++) {
+    for (unsigned int orb_idx = offset; orb_idx < (n_elec / 2 + offset); orb_idx++) {
         prob_arr[orb_idx] = diff_tab[(o1_orb % n_orb) * n_orb + occ_orbs[orb_idx] % n_orb];
         norm += prob_arr[orb_idx];
     }
     offset = o1_spin * n_elec / 2;
-    for (orb_idx = offset; orb_idx < *o1; orb_idx++) {
+    for (unsigned int orb_idx = offset; orb_idx < *o1; orb_idx++) {
         prob_arr[orb_idx] = tens->d_same[I_J_TO_TRI(occ_orbs[orb_idx] % n_orb, o1_orb % n_orb)];
         norm += prob_arr[orb_idx];
     }
-    for (orb_idx = *o1 + 1; orb_idx < (n_elec / 2 + offset); orb_idx++) {
+    for (unsigned int orb_idx = *o1 + 1; orb_idx < (n_elec / 2 + offset); orb_idx++) {
         prob_arr[orb_idx] = tens->d_same[I_J_TO_TRI(o1_orb % n_orb, occ_orbs[orb_idx] % n_orb)];
         norm += prob_arr[orb_idx];
     }
     prob_arr[*o1] = 0;
     
     double inv_norm = 1. / norm;
-    for (orb_idx = 0; orb_idx < n_elec; orb_idx++) {
+    for (unsigned int orb_idx = 0; orb_idx < n_elec; orb_idx++) {
         prob_arr[orb_idx] *= inv_norm;
     }
     *o1 = o1_orb;
@@ -141,10 +139,9 @@ double calc_u1_probs(hb_info *tens, double *prob_arr, uint8_t o1_orb,
     unsigned int n_orb = (unsigned int)tens->n_orb;
     int o1_spin = o1_orb / n_orb;
     unsigned int o1_spinless = o1_orb % n_orb;
-    unsigned int orb_idx;
     unsigned int offset = o1_spin * n_orb;
     double norm = 0;
-    for (orb_idx = 0; orb_idx < o1_spinless; orb_idx++) {
+    for (unsigned int orb_idx = 0; orb_idx < o1_spinless; orb_idx++) {
         if (!read_bit(det, orb_idx + offset)) {
             prob_arr[orb_idx] = tens->exch_sqrt[I_J_TO_TRI(orb_idx, o1_spinless)];
             norm += prob_arr[orb_idx];
@@ -154,7 +151,7 @@ double calc_u1_probs(hb_info *tens, double *prob_arr, uint8_t o1_orb,
         }
     }
     prob_arr[o1_spinless] = 0;
-    for (orb_idx = o1_spinless + 1; orb_idx < n_orb; orb_idx++) {
+    for (unsigned int orb_idx = o1_spinless + 1; orb_idx < n_orb; orb_idx++) {
         if (!read_bit(det, orb_idx + offset)) {
             prob_arr[orb_idx] = tens->exch_sqrt[I_J_TO_TRI(o1_spinless, orb_idx)];
             norm += prob_arr[orb_idx];
@@ -164,7 +161,7 @@ double calc_u1_probs(hb_info *tens, double *prob_arr, uint8_t o1_orb,
         }
     }
     double inv_norm = 1. / norm;
-    for (orb_idx = 0; orb_idx < n_orb; orb_idx++) {
+    for (unsigned int orb_idx = 0; orb_idx < n_orb; orb_idx++) {
         prob_arr[orb_idx] *= inv_norm;
     }
     return norm;
@@ -184,11 +181,10 @@ double calc_u2_probs(hb_info *tens, double *prob_arr, uint8_t o1_orb,
     if (*prob_len == 0) {
         *prob_len = num_u2;
     }
-    unsigned int orb_idx;
     uint8_t u2_orb;
     uint8_t min_o2_u2, max_o2_u2;
     double norm = 0;
-    for (orb_idx = 0; orb_idx < num_u2; orb_idx++) {
+    for (unsigned int orb_idx = 0; orb_idx < num_u2; orb_idx++) {
         u2_orb = lookup_tabl(u2_irrep, orb_idx + 1);
         if ((same_spin && u2_orb != u1_spinless) || !same_spin) {
             if (o2_spinless == u2_orb) {
@@ -205,12 +201,12 @@ double calc_u2_probs(hb_info *tens, double *prob_arr, uint8_t o1_orb,
             prob_arr[orb_idx] = 0;
         }
     }
-    for (orb_idx = num_u2; orb_idx < *prob_len; orb_idx++) {
+    for (unsigned int orb_idx = num_u2; orb_idx < *prob_len; orb_idx++) {
         prob_arr[orb_idx] = 0;
     }
     if (norm != 0) {
         double inv_norm = 1 / norm;
-        for (orb_idx = 0; orb_idx < num_u2; orb_idx++) {
+        for (unsigned int orb_idx = 0; orb_idx < num_u2; orb_idx++) {
             u2_orb = lookup_tabl(u2_irrep, orb_idx + 1);
             if ((same_spin && u2_orb != u1_spinless) || !same_spin) {
                 prob_arr[orb_idx] *= inv_norm;
@@ -415,17 +411,16 @@ unsigned int hb_doub_multi(uint8_t *det, uint8_t *occ_orbs,
     sample_alias(alias_idx, alias_probs, num_elec, chosen_orbs[0], num_sampl, 4, rn_ptr);
     
     unsigned int o1_samples[num_elec];
-    unsigned int samp_idx, elec_idx;
-    for (elec_idx = 0; elec_idx < num_elec; elec_idx++) {
+    for (unsigned int elec_idx = 0; elec_idx < num_elec; elec_idx++) {
         o1_samples[elec_idx] = 0;
     }
-    for (samp_idx = 0; samp_idx < num_sampl; samp_idx++) {
+    for (unsigned int samp_idx = 0; samp_idx < num_sampl; samp_idx++) {
         o1_samples[chosen_orbs[samp_idx][0]]++;
     }
     
     unsigned int loc_n_samp;
     unsigned int tot_sampled = 0;
-    for (elec_idx = 0; elec_idx < num_elec; elec_idx++) {
+    for (unsigned int elec_idx = 0; elec_idx < num_elec; elec_idx++) {
         loc_n_samp = o1_samples[elec_idx];
         if (loc_n_samp == 0) {
             continue;
@@ -442,7 +437,7 @@ unsigned int hb_doub_multi(uint8_t *det, uint8_t *occ_orbs,
         setup_alias(probs, alias_idx, alias_probs, num_orb);
         sample_alias(alias_idx, alias_probs, num_orb, &chosen_orbs[samp_begin][2], loc_n_samp, 4, rn_ptr);
         
-        for (samp_idx = samp_begin; samp_idx < samp_begin + loc_n_samp; samp_idx++) {
+        for (unsigned int samp_idx = samp_begin; samp_idx < samp_begin + loc_n_samp; samp_idx++) {
             uint8_t o2 = occ_orbs[chosen_orbs[samp_idx][1]];
             uint8_t u1 = chosen_orbs[samp_idx][2] + num_orb * (o1 / num_orb);
             uint8_t u2_symm = orb_symm[o1 % num_orb] ^ orb_symm[o2 % num_orb] ^ orb_symm[u1 % num_orb];

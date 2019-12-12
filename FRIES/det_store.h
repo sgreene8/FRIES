@@ -114,7 +114,7 @@ void print_str(uint8_t *bit_str, uint8_t n_bytes, char *out_str);
  * \return pointer to value in hash table, or NULL if key not found and create
  * is 0
  */
-ssize_t *read_ht(hash_table *table, uint8_t *det, unsigned long long hash_val,
+ssize_t *read_ht(hash_table *table, uint8_t *det, uintmax_t hash_val,
                  int create);
 
 
@@ -126,7 +126,7 @@ ssize_t *read_ht(hash_table *table, uint8_t *det, unsigned long long hash_val,
  * \param [in] hash_val     hash value for the determinant, calculated using
  *                          hash_fxn
  */
-void del_ht(hash_table *table, uint8_t *det, unsigned long long hash_val);
+void del_ht(hash_table *table, uint8_t *det, uintmax_t hash_val);
 
 
 /*! \brief Hash function for Slater determinants in bit-string representation
@@ -140,7 +140,7 @@ void del_ht(hash_table *table, uint8_t *det, unsigned long long hash_val);
  *                          have at least (max(occ_orbs) + 1) elements
  * \return the calculated hash value
  */
-unsigned long long hash_fxn(uint8_t *occ_orbs, unsigned int n_elec, unsigned int *rand_nums);
+uintmax_t hash_fxn(uint8_t *occ_orbs, unsigned int n_elec, unsigned int *rand_nums);
 
 
 #ifdef __cplusplus

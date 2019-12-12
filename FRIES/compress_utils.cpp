@@ -11,8 +11,7 @@ int round_binomially(double p, unsigned int n, mt_struct *mt_ptr) {
     int flr = floor(p);
     double prob = p - flr;
     int ret_val = flr * n;
-    unsigned int i;
-    for (i = 0; i < n; i++) {
+    for (unsigned int i = 0; i < n; i++) {
         ret_val += (genrand_mt(mt_ptr) / (1. + UINT32_MAX)) < prob;
     }
     return ret_val;
@@ -22,9 +21,8 @@ double find_preserve(double *values, size_t *srt_idx, int *keep_idx,
                      size_t count, unsigned int *n_samp, double *global_norm) {
     double loc_one_norm = 0;
     double glob_one_norm = 0;
-    size_t det_idx;
     size_t heap_count = count;
-    for (det_idx = 0; det_idx < count; det_idx++) {
+    for (size_t det_idx = 0; det_idx < count; det_idx++) {
         loc_one_norm += fabs(values[det_idx]);
     }
     int proc_rank = 0;
@@ -76,7 +74,7 @@ double find_preserve(double *values, size_t *srt_idx, int *keep_idx,
         *n_samp = 0;
     }
     else {
-        for (det_idx = 0; det_idx < count; det_idx++) {
+        for (size_t det_idx = 0; det_idx < count; det_idx++) {
             if (!keep_idx[det_idx]) {
                 loc_one_norm += fabs(values[det_idx]);
             }
@@ -87,35 +85,32 @@ double find_preserve(double *values, size_t *srt_idx, int *keep_idx,
 
 
 void sum_mpi(double local, double *global, int my_rank, int n_procs) {
-    int proc_idx;
     double rec_vals[n_procs];
     rec_vals[my_rank] = local;
 #ifdef USE_MPI
     MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, rec_vals, 1, MPI_DOUBLE, MPI_COMM_WORLD);
 #endif
     *global = 0;
-    for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         (*global) += rec_vals[proc_idx];
     }
 }
 
 
 void sum_mpi(int local, int *global, int my_rank, int n_procs) {
-    int proc_idx;
     int rec_vals[n_procs];
     rec_vals[my_rank] = local;
 #ifdef USE_MPI
     MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, rec_vals, 1, MPI_INT, MPI_COMM_WORLD);
 #endif
     *global = 0;
-    for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         (*global) += rec_vals[proc_idx];
     }
 }
 
 double seed_sys(double *norms, double *rn, unsigned int n_samp) {
     double lbound = 0;
-    int proc_idx = 0;
     int n_procs = 1;
     int my_rank = 0;
 #ifdef USE_MPI
@@ -123,11 +118,11 @@ double seed_sys(double *norms, double *rn, unsigned int n_samp) {
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 #endif
     double global_norm;
-    for (proc_idx = 0; proc_idx < my_rank; proc_idx++) {
+    for (int proc_idx = 0; proc_idx < my_rank; proc_idx++) {
         lbound += norms[proc_idx];
     }
     global_norm = lbound;
-    for (; proc_idx < n_procs; proc_idx++) {
+    for (int proc_idx = my_rank; proc_idx < n_procs; proc_idx++) {
         global_norm += norms[proc_idx];
     }
     *rn *= global_norm / n_samp;
@@ -144,8 +139,8 @@ double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
                      size_t count, unsigned int *n_samp, double *wt_remain) {
     double loc_one_norm = 0;
     double glob_one_norm = 0;
-    size_t det_idx, sub_idx;
-    for (det_idx = 0; det_idx < count; det_idx++) {
+    size_t sub_idx;
+    for (size_t det_idx = 0; det_idx < count; det_idx++) {
         loc_one_norm += values[det_idx];
         wt_remain[det_idx] = values[det_idx];
     }
@@ -165,7 +160,7 @@ double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
             break;
         }
         loc_sampled = 0;
-        for (det_idx = 0; det_idx < count; det_idx++) {
+        for (size_t det_idx = 0; det_idx < count; det_idx++) {
             el_magn = values[det_idx];
             keep_thresh = glob_one_norm / (*n_samp - loc_sampled);
             if (el_magn >= keep_thresh) {
@@ -216,7 +211,7 @@ double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
             last_pass = 1;
             glob_sampled = 1;
             loc_one_norm = 0;
-            for (det_idx = 0; det_idx < count; det_idx++) {
+            for (size_t det_idx = 0; det_idx < count; det_idx++) {
                 loc_one_norm += wt_remain[det_idx];
             }
         }
@@ -226,7 +221,7 @@ double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
         *n_samp = 0;
     }
     else {
-        for (det_idx = 0; det_idx < count; det_idx++) {
+        for (size_t det_idx = 0; det_idx < count; det_idx++) {
             loc_one_norm += wt_remain[det_idx];
         }
     }
@@ -237,7 +232,6 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
               unsigned int n_samp, int *keep_exact, double rand_num) {
     int n_procs = 1;
     int proc_rank = 0;
-    unsigned int proc_idx;
     double rn_sys = rand_num;
 #ifdef USE_MPI
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
@@ -245,7 +239,7 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
     MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
     double tmp_glob_norm = 0;
-    for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         tmp_glob_norm += loc_norms[proc_idx];
     }
     
@@ -259,9 +253,8 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
     }
     
     loc_norms[proc_rank] = 0;
-    size_t det_idx;
     double tmp_val;
-    for (det_idx = 0; det_idx < vec_len; det_idx++) {
+    for (size_t det_idx = 0; det_idx < vec_len; det_idx++) {
         tmp_val = vec_vals[det_idx];
         if (keep_exact[det_idx]) {
             loc_norms[proc_rank] += fabs(tmp_val);
@@ -304,7 +297,6 @@ size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
                size_t new_idx[][2]) {
     int n_procs = 1;
     int proc_rank = 0;
-    unsigned int proc_idx;
     double rn_sys = rand_num;
 #ifdef USE_MPI
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
@@ -312,7 +304,7 @@ size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
     MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
     double tmp_glob_norm = 0;
-    for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         tmp_glob_norm += loc_norms[proc_idx];
     }
     
@@ -326,11 +318,11 @@ size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
     }
     
     loc_norms[proc_rank] = 0;
-    size_t wt_idx, sub_idx;
+    size_t sub_idx;
     double tmp_val;
     size_t num_new = 0;
     double sub_lbound;
-    for (wt_idx = 0; wt_idx < count; wt_idx++) {
+    for (size_t wt_idx = 0; wt_idx < count; wt_idx++) {
         tmp_val = values[wt_idx];
         lbound += wt_remain[wt_idx];
         if (n_div[wt_idx] > 0) {
@@ -411,11 +403,10 @@ void setup_alias(double *probs, unsigned int *aliases, double *alias_probs,
                  size_t n_states) {
     size_t n_s = 0;
     size_t n_b = 0;
-    unsigned int i;
     unsigned int smaller[n_states];
     unsigned int bigger[n_states];
     unsigned int s, b;
-    for (i = 0; i < n_states; i++) {
+    for (unsigned int i = 0; i < n_states; i++) {
         aliases[i] = i;
         alias_probs[i] = n_states * probs[i];
         if (alias_probs[i] < 1) {
@@ -446,9 +437,8 @@ void setup_alias(double *probs, unsigned int *aliases, double *alias_probs,
 void sample_alias(unsigned int *aliases, double *alias_probs, size_t n_states,
                   uint8_t *samples, unsigned int n_samp, size_t samp_int,
                   mt_struct *mt_ptr) {
-    unsigned int samp_idx;
     uint8_t chosen_idx;
-    for (samp_idx = 0; samp_idx < n_samp; samp_idx++) {
+    for (unsigned int samp_idx = 0; samp_idx < n_samp; samp_idx++) {
         chosen_idx = genrand_mt(mt_ptr) / (1. + UINT32_MAX) * n_states;
         if (genrand_mt(mt_ptr) / (1. + UINT32_MAX) < alias_probs[chosen_idx]) {
             samples[samp_idx * samp_int] = chosen_idx;

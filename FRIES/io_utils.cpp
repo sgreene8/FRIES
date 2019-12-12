@@ -6,7 +6,6 @@
 #include "io_utils.hpp"
 
 size_t read_csv(double *buf, char *fname) {
-    int i =  0;
     size_t row_idx = 0;
     size_t n_col;
     size_t n_read = 0;
@@ -18,7 +17,7 @@ size_t read_csv(double *buf, char *fname) {
         const char **rowFields = CsvParser_getFields(row);
         n_col = CsvParser_getNumFields(row);
         n_read += n_col;
-        for (i = 0 ; i < n_col ; i++) {
+        for (int i = 0 ; i < n_col ; i++) {
             sscanf(rowFields[i], "%lf", &buf[n_col * row_idx + i]);
         }
         CsvParser_destroy_row(row);
@@ -29,7 +28,6 @@ size_t read_csv(double *buf, char *fname) {
 }
 
 size_t read_csv(uint8_t *buf, char *fname) {
-    int i =  0;
     size_t row_idx = 0;
     size_t n_col;
     size_t n_read = 0;
@@ -42,7 +40,7 @@ size_t read_csv(uint8_t *buf, char *fname) {
         const char **rowFields = CsvParser_getFields(row);
         n_col = CsvParser_getNumFields(row);
         n_read += n_col;
-        for (i = 0 ; i < n_col ; i++) {
+        for (int i = 0 ; i < n_col ; i++) {
             sscanf(rowFields[i], "%u", &scan_val);
             buf[n_col * row_idx + i] = scan_val;
         }
@@ -55,7 +53,6 @@ size_t read_csv(uint8_t *buf, char *fname) {
 
 
 size_t read_csv(int *buf, char *fname) {
-    int i =  0;
     size_t row_idx = 0;
     size_t n_col;
     size_t n_read = 0;
@@ -68,7 +65,7 @@ size_t read_csv(int *buf, char *fname) {
         const char **rowFields = CsvParser_getFields(row);
         n_col = CsvParser_getNumFields(row);
         n_read += n_col;
-        for (i = 0 ; i < n_col ; i++) {
+        for (int i = 0 ; i < n_col ; i++) {
             sscanf(rowFields[i], "%d", &scan_val);
             buf[n_col * row_idx + i] = scan_val;
         }
@@ -358,12 +355,11 @@ size_t read_dets(const char *path, Matrix<uint8_t> &dets) {
         int num_read_d = 1;
         size_t n_dets = 0;
         long long in_det;
-        size_t byte_idx;
         size_t max_size = dets.cols();
         
         while (num_read_d == 1) {
             num_read_d = fscanf(file_d, "%lld\n", &in_det);
-            for (byte_idx = 0; byte_idx < 8 && byte_idx < max_size; byte_idx++) {
+            for (size_t byte_idx = 0; byte_idx < 8 && byte_idx < max_size; byte_idx++) {
                 dets(n_dets, byte_idx) = in_det & 255;
                 in_det >>= 8;
             }

@@ -7,9 +7,9 @@
 #ifndef compress_utils_h
 #define compress_utils_h
 
-#include <stdio.h>
+#include <cstdio>
 #include <cstdint>
-#include <math.h>
+#include <cmath>
 #include <FRIES/Ext_Libs/heap.h>
 #include <FRIES/mpi_switch.h>
 #include <FRIES/det_store.h>

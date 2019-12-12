@@ -188,7 +188,7 @@ int main(int argc, const char * argv[]) {
     htrial_vec.perform_add();
     
     trial_vec.collect_procs();
-    unsigned long long *trial_hashes = (unsigned long long *)malloc(sizeof(long long) * trial_vec.curr_size());
+    uintmax_t *trial_hashes = (uintmax_t *)malloc(sizeof(uintmax_t) * trial_vec.curr_size());
     for (det_idx = 0; det_idx < trial_vec.curr_size(); det_idx++) {
         trial_hashes[det_idx] = sol_vec.idx_to_hash(trial_vec.indices()[det_idx]);
     }
@@ -196,7 +196,7 @@ int main(int argc, const char * argv[]) {
     // Calculate H * trial vector, and accumulate results on each processor
     h_op(htrial_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, 0, 1, hf_en);
     htrial_vec.collect_procs();
-    unsigned long long *htrial_hashes = (unsigned long long *)malloc(sizeof(long long) * htrial_vec.curr_size());
+    uintmax_t *htrial_hashes = (uintmax_t *)malloc(sizeof(uintmax_t) * htrial_vec.curr_size());
     for (det_idx = 0; det_idx < htrial_vec.curr_size(); det_idx++) {
         htrial_hashes[det_idx] = sol_vec.idx_to_hash(htrial_vec.indices()[det_idx]);
     }
@@ -233,7 +233,7 @@ int main(int argc, const char * argv[]) {
     MPI_Bcast(sgnv_vals, n_sgnv, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
     
-    unsigned long long *sgn_hashes = (unsigned long long *)malloc(sizeof(unsigned long long) * n_sgnv);
+    uintmax_t *sgn_hashes = (uintmax_t *)malloc(sizeof(uintmax_t) * n_sgnv);
     for (det_idx = 0; det_idx < n_sgnv; det_idx++) {
         sgn_hashes[det_idx] = sol_vec.idx_to_hash(sgnv_dets[det_idx]);
     }

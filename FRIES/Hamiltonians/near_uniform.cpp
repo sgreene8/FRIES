@@ -12,16 +12,15 @@
 
 void gen_symm_lookup(uint8_t *orb_symm,
                      Matrix<uint8_t> &lookup_tabl) {
-    unsigned int idx, count;
     uint8_t symm;
     size_t n_symm = lookup_tabl.rows();
     size_t n_orb = lookup_tabl.cols() - 1;
-    for (idx = 0; idx < n_symm; idx++) {
+    for (unsigned int idx = 0; idx < n_symm; idx++) {
         lookup_tabl(idx, 0) = 0;
     }
-    for (idx = 0; idx < n_orb; idx++) {
+    for (unsigned int idx = 0; idx < n_orb; idx++) {
         symm = orb_symm[idx];
-        count = lookup_tabl(symm, 0);
+        unsigned int count = lookup_tabl(symm, 0);
         lookup_tabl(symm, 1 + count) = idx;
         count++;
         lookup_tabl(symm, 0) = count;
@@ -29,11 +28,10 @@ void gen_symm_lookup(uint8_t *orb_symm,
 }
 
 void print_symm_lookup(Matrix<uint8_t> &lookup_tabl) {
-    unsigned int idx, orb_idx;
     size_t n_symm = lookup_tabl.rows();
-    for (idx = 0; idx < n_symm; idx++) {
+    for (unsigned int idx = 0; idx < n_symm; idx++) {
         printf("%u: ", idx);
-        for (orb_idx = 0; orb_idx < lookup_tabl(idx, 0); orb_idx++) {
+        for (unsigned int orb_idx = 0; orb_idx < lookup_tabl(idx, 0); orb_idx++) {
             printf("%u, ", lookup_tabl(idx, 1 + orb_idx));
         }
         printf("\n");
@@ -60,8 +58,8 @@ void count_symm_virt(unsigned int counts[][2], uint8_t *occ_orbs,
 
 unsigned int bin_sample(unsigned int n, double p, mt_struct *rn_ptr) {
     double rn;
-    unsigned int i, success = 0;
-    for (i = 0; i < n; i++) {
+    unsigned int success = 0;
+    for (unsigned int i = 0; i < n; i++) {
         rn = genrand_mt(rn_ptr) / (1. + UINT32_MAX);
         success += rn < p;
     }
@@ -101,7 +99,6 @@ unsigned int _count_doub_virt(orb_pair occ, uint8_t *orb_irreps,
     uint8_t sym_prod = (orb_irreps[occ.orb1 % n_orb] ^
                               orb_irreps[occ.orb2 % n_orb]);
     int same_symm = sym_prod == 0 && occ.spin1 == occ.spin2;
-    unsigned int i;
 
     if (occ.spin1 == occ.spin2){
         n_allow = n_orb - num_elec / 2;
@@ -110,7 +107,7 @@ unsigned int _count_doub_virt(orb_pair occ, uint8_t *orb_irreps,
         n_allow = 2 * n_orb - num_elec;
     }
 
-    for (i = 0; i < n_irreps; i++) {
+    for (unsigned int i = 0; i < n_irreps; i++) {
         if (virt_counts[i ^ sym_prod][occ.spin2] == same_symm)
             n_allow -= virt_counts[i][occ.spin1];
         if (occ.spin1 != occ.spin2 && virt_counts[i ^ sym_prod][occ.spin1] == same_symm)
@@ -307,13 +304,12 @@ unsigned int sing_multin(uint8_t *det, uint8_t *occ_orbs, unsigned int num_elec,
                          uint8_t *orb_symm, unsigned int num_orb, const Matrix<uint8_t> &lookup_tabl,
                          unsigned int (* unocc_sym_counts)[2], unsigned int num_sampl,
                          mt_struct *rn_ptr, uint8_t (* chosen_orbs)[2], double *prob_vec) {
-    unsigned int j, delta_s, num_allowed, occ_orb, occ_symm, occ_spin;
-    unsigned int elec_idx, virt_orb;
+    unsigned int delta_s, num_allowed, occ_orb, occ_symm, occ_spin;
     unsigned int m_allow[num_elec];
     
     delta_s = 0; // number of electrons with no symmetry-allowed excitations
     
-    for (elec_idx = 0; elec_idx < num_elec; elec_idx++) {
+    for (unsigned int elec_idx = 0; elec_idx < num_elec; elec_idx++) {
         occ_symm = orb_symm[occ_orbs[elec_idx] % num_orb];
         num_allowed = unocc_sym_counts[occ_symm][elec_idx / (num_elec / 2)];
         m_allow[elec_idx] = num_allowed;
@@ -325,13 +321,13 @@ unsigned int sing_multin(uint8_t *det, uint8_t *occ_orbs, unsigned int num_elec,
         return 0;
     }
     
-    for (j = 0; j < num_sampl; j++) {
+    for (unsigned int j = 0; j < num_sampl; j++) {
         elec_idx = _sing_choose_occ(m_allow, num_elec, rn_ptr);
         occ_orb = occ_orbs[elec_idx];
         occ_symm = orb_symm[occ_orb % num_orb];
         occ_spin = occ_orb / num_orb;
         
-        virt_orb = _sing_choose_virt(det, lookup_tabl[occ_symm], occ_spin * num_orb, rn_ptr);
+        unsigned int virt_orb = _sing_choose_virt(det, lookup_tabl[occ_symm], occ_spin * num_orb, rn_ptr);
         
         prob_vec[j] = (1. / m_allow[elec_idx] / (num_elec - delta_s));
         chosen_orbs[j][0] = occ_orb;
@@ -359,12 +355,10 @@ unsigned int count_sing_virt(uint8_t *occ_orbs, uint8_t num_elec,
                              uint8_t *orb_symm, uint8_t num_orb,
                              unsigned int (* unocc_sym_counts)[2],
                              uint8_t *occ_choice) {
-    unsigned int elec_idx, num_allowed = 0;
-    uint8_t occ_symm;
-    unsigned int virt_allowed;
-    for (elec_idx = 0; elec_idx < num_elec; elec_idx++) {
-        occ_symm = orb_symm[occ_orbs[elec_idx] % num_orb];
-        virt_allowed = unocc_sym_counts[occ_symm][elec_idx / (num_elec / 2)];
+    unsigned int num_allowed = 0;
+    for (unsigned int elec_idx = 0; elec_idx < num_elec; elec_idx++) {
+        uint8_t occ_symm = orb_symm[occ_orbs[elec_idx] % num_orb];
+        unsigned int virt_allowed = unocc_sym_counts[occ_symm][elec_idx / (num_elec / 2)];
         if (virt_allowed != 0) {
             if (num_allowed == *occ_choice) {
                 *occ_choice = occ_orbs[elec_idx];

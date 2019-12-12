@@ -6,9 +6,9 @@
 #ifndef io_utils_h
 #define io_utils_h
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstring>
+#include <cstdlib>
 #include <FRIES/Ext_Libs/csvparser.h>
 #include <FRIES/mpi_switch.h>
 #include <FRIES/vec_utils.hpp>
@@ -41,7 +41,7 @@ size_t read_csv(uint8_t *buf, char *fname);
 
 
 /*! \brief Data structure containing the output of a Hartree-Fock calculation */
-typedef struct {
+struct hf_input {
     unsigned int n_elec; ///< Total number of electrons (including frozen) in the system
     unsigned int n_frz; ///< Suggested number of core electrons to freeze
     unsigned int n_orb; ///< Number of spatial orbitals in the HF basis
@@ -50,20 +50,20 @@ typedef struct {
     double hf_en; ///< HF electronic energy
     double eps; ///< Suggested imaginary time step to use in DMC calculations
     uint8_t *symm; ///< Irreps of orbitals in the HF basis
-} hf_input;
+};
 
 
 /*! \brief Data structure describing the parameters of a Hubbard-Holstein
  * calculation
  */
-typedef struct {
+struct hh_input {
     unsigned int n_elec; ///< Total number of electrons in the system
     unsigned int lat_len; ///< Number of sites along one dimension of the lattice
     unsigned int n_dim; ///< Dimensionality of the lattice
     double elec_int; ///< On-site repulsion term
     double eps; ///< Suggested imaginary time step to use in DMC calculations
     double hf_en; ///< HF electronic energy
-} hh_input;
+};
 
 
 /*! \brief Read in parameters from a Hartree-Fock calculation:

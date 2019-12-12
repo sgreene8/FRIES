@@ -9,9 +9,9 @@
 #ifndef vec_utils_h
 #define vec_utils_h
 
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
+#include <cstdio>
+#include <cstring>
+#include <cmath>
 #include <FRIES/det_store.h>
 #include <FRIES/Hamiltonians/hub_holstein.hpp>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
@@ -70,8 +70,7 @@ public:
         recv_cts_ = (int *) malloc(sizeof(int) * n_procs);
         idx_disp_ = (int *) malloc(sizeof(int) * n_procs);
         val_disp_ = (int *) malloc(sizeof(int) * n_procs);
-        int proc_idx;
-        for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
             val_disp_[proc_idx] = proc_idx * (int)size;
             idx_disp_[proc_idx] = proc_idx * (int)size * n_bytes_;
             send_cts_[proc_idx] = 0;
@@ -118,12 +117,11 @@ private:
     void enlarge_() {
         printf("Increasing storage capacity in adder\n");
         size_t n_proc = send_idx_.rows();
-        int proc_idx;
         size_t new_idx_cols = send_idx_.cols() * 2;
         size_t new_val_cols = send_vals_.cols() * 2;
         
         int idx_counts[n_proc];
-        for (proc_idx = 0; proc_idx < n_proc; proc_idx++) {
+        for (int proc_idx = 0; proc_idx < n_proc; proc_idx++) {
             idx_counts[proc_idx] = send_cts_[proc_idx] * n_bytes_;
         }
         
@@ -132,7 +130,7 @@ private:
         recv_idx_.reshape(n_proc, new_idx_cols);
         recv_vals_.reshape(n_proc, new_val_cols);
         
-        for (proc_idx = 0; proc_idx < n_proc; proc_idx++) {
+        for (int proc_idx = 0; proc_idx < n_proc; proc_idx++) {
             idx_disp_[proc_idx] = proc_idx * (int)new_idx_cols;
             val_disp_[proc_idx] = proc_idx * (int)new_val_cols;
         }
@@ -205,15 +203,14 @@ public:
      * \return number of 1 bits in the bit string
      */
     uint8_t gen_orb_list(uint8_t *det, uint8_t *occ_orbs) {
-        unsigned int byte_idx, elec_idx;
-        uint8_t n_elec, det_byte, bit_idx;
+        unsigned int elec_idx;
+        uint8_t n_elec, det_byte;
         elec_idx = 0;
-        byte_idx = 0;
         uint8_t tot_elec = 0;
-        for (byte_idx = 0; byte_idx < indices_.cols(); byte_idx++) {
+        for (unsigned int byte_idx = 0; byte_idx < indices_.cols(); byte_idx++) {
             det_byte = det[byte_idx];
             n_elec = tabl_->nums[det_byte];
-            for (bit_idx = 0; bit_idx < n_elec; bit_idx++) {
+            for (uint8_t bit_idx = 0; bit_idx < n_elec; bit_idx++) {
                 occ_orbs[elec_idx + bit_idx] = (8 * byte_idx + tabl_->pos[det_byte][bit_idx]);
             }
             elec_idx = elec_idx + n_elec;
@@ -235,11 +232,10 @@ public:
      * \return the value of the dot product
      */
     double dot(Matrix<uint8_t> &idx2, double *vals2, size_t num2,
-               unsigned long long *hashes2) {
-        size_t hf_idx;
+               uintmax_t *hashes2) {
         ssize_t *ht_ptr;
         double numer = 0;
-        for (hf_idx = 0; hf_idx < num2; hf_idx++) {
+        for (size_t hf_idx = 0; hf_idx < num2; hf_idx++) {
             ht_ptr = read_ht(vec_hash_, idx2[hf_idx], hashes2[hf_idx], 0);
             if (ht_ptr) {
                 numer += vals2[hf_idx] * values_[*ht_ptr];
@@ -271,7 +267,7 @@ public:
         unsigned int n_elec = (unsigned int)occ_orbs_.cols();
         uint8_t orbs[n_elec];
         gen_orb_list(idx, orbs);
-        unsigned long long hash_val = hash_fxn(orbs, n_elec, proc_scrambler_);
+        uintmax_t hash_val = hash_fxn(orbs, n_elec, proc_scrambler_);
         int n_procs = 1;
 #ifdef USE_MPI
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
@@ -286,7 +282,7 @@ public:
      * \param [in] idx          Vector index
      * \return hash value
      */
-    unsigned long long idx_to_hash(uint8_t *idx) {
+    uintmax_t idx_to_hash(uint8_t *idx) {
         unsigned int n_elec = (unsigned int)occ_orbs_.cols();
         uint8_t orbs[n_elec];
         gen_orb_list(idx, orbs);
@@ -348,7 +344,7 @@ public:
      */
     void del_at_pos(size_t pos) {
         uint8_t *idx = indices_[pos];
-        unsigned long long hash_val = idx_to_hash(idx);
+        uintmax_t hash_val = idx_to_hash(idx);
         push_stack(pos);
         del_ht(vec_hash_, idx, hash_val);
         n_nonz_--;
@@ -402,12 +398,11 @@ public:
      */
     void find_neighbors_1D(uint8_t *det, uint8_t *neighbors, unsigned int n_sites) {
         size_t n_elec = occ_orbs_.cols();
-        size_t byte_idx = 0;
         size_t n_bytes = indices_.cols();
         uint8_t neib_bits[n_bytes];
         
         uint8_t mask = det[0] >> 1;
-        for (byte_idx = 1; byte_idx < n_bytes; byte_idx++) {
+        for (size_t byte_idx = 1; byte_idx < n_bytes; byte_idx++) {
             mask |= (det[byte_idx] & 1) << 7;
             neib_bits[byte_idx - 1] = det[byte_idx - 1] & ~mask;
             
@@ -422,7 +417,7 @@ public:
         
         mask = ~det[0] << 1;
         neib_bits[0] = det[0] & mask;
-        for (byte_idx = 1; byte_idx < n_bytes; byte_idx++) {
+        for (size_t byte_idx = 1; byte_idx < n_bytes; byte_idx++) {
             mask = ~det[byte_idx] << 1;
             mask |= (~det[byte_idx - 1] >> 7) & 1;
             neib_bits[byte_idx] = det[byte_idx] & mask;
@@ -439,18 +434,17 @@ public:
      * \param [in] count    Number of elements to be added
      */
     void add_elements(uint8_t *indices, el_type *vals, size_t count) {
-        size_t el_idx;
         unsigned int n_elec = (unsigned int)occ_orbs_.cols();
         uint8_t add_n_bytes = CEILING(n_bits_ + 3, 8);
         uint8_t vec_n_bytes = indices_.cols();
-        for (el_idx = 0; el_idx < count; el_idx++) {
+        for (size_t el_idx = 0; el_idx < count; el_idx++) {
             uint8_t *new_idx = &indices[el_idx * add_n_bytes];
             int ini_flag = read_bit(new_idx, n_bits_);
             int det_flag = read_bit(new_idx, n_bits_ + 1) | (read_bit(new_idx, n_bits_ + 2) << 1);
             zero_bit(new_idx, n_bits_);
             zero_bit(new_idx, n_bits_ + 1);
             zero_bit(new_idx, n_bits_ + 2);
-            unsigned long long hash_val = idx_to_hash(new_idx);
+            uintmax_t hash_val = idx_to_hash(new_idx);
             ssize_t *idx_ptr = read_ht(vec_hash_, new_idx, hash_val, ini_flag && det_flag != 2);
             if (idx_ptr && *idx_ptr == -1) {
                 *idx_ptr = pop_stack();
@@ -523,8 +517,7 @@ public:
      */
     double local_norm() {
         double norm = 0;
-        size_t idx;
-        for (idx = 0; idx < curr_size_; idx++) {
+        for (size_t idx = 0; idx < curr_size_; idx++) {
             norm += fabs(values_[idx]);
         }
         return norm;
@@ -607,9 +600,8 @@ public:
         fread(values_.data(), el_size, n_dets, file_p);
         fclose(file_p);
         
-        size_t det_idx;
         n_nonz_ = 0;
-        for (det_idx = 0; det_idx < n_dets; det_idx++) {
+        for (size_t det_idx = 0; det_idx < n_dets; det_idx++) {
             int is_nonz = 0;
             if (fabs(values_[det_idx]) > 1e-9 || det_idx < n_dense_) {
                 is_nonz = 1;
@@ -617,7 +609,7 @@ public:
             }
             if (is_nonz) {
                 uint8_t *new_idx = indices_[det_idx];
-                unsigned long long hash_val = idx_to_hash(new_idx);
+                uintmax_t hash_val = idx_to_hash(new_idx);
                 ssize_t *idx_ptr = read_ht(vec_hash_, new_idx, hash_val, 1);
                 *idx_ptr = n_nonz_;
                 gen_orb_list(new_idx, occ_orbs_[n_nonz_]);
@@ -643,8 +635,7 @@ public:
      */
     size_t init_dense(const char *read_path, const char *save_dir) {
         size_t n_loaded = read_dets(read_path, indices_);
-        size_t idx;
-        for (idx = 0; idx < n_loaded; idx++) {
+        for (size_t idx = 0; idx < n_loaded; idx++) {
             add(indices_[idx], 1, 1, 0);
         }
         perform_add();
@@ -671,8 +662,7 @@ public:
                 fprintf(stderr, "Error opening file at %s\n", buf);
                 return n_dense_;
             }
-            int proc_idx;
-            for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+            for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
                 fprintf(dense_f, "%d,", dense_sizes[proc_idx]);
             }
             fprintf(dense_f, "\n");
@@ -686,10 +676,9 @@ public:
      * \return The total norm from all processes
      */
     el_type dense_norm() {
-        size_t det_idx;
         el_type result = 0;
         el_type element;
-        for (det_idx = 0; det_idx < n_dense_; det_idx++) {
+        for (size_t det_idx = 0; det_idx < n_dense_; det_idx++) {
             element = values_[det_idx];
             result += element >= 0 ? element : -element;
         }
@@ -707,7 +696,6 @@ public:
     /*! \brief Collect all of the vector elements from other MPI processes and accumulate them in the vector on each process */
     void collect_procs() {
         int n_procs = 1;
-        int proc_idx;
         int my_rank = 0;
 #ifdef USE_MPI
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
@@ -726,7 +714,7 @@ public:
         int tot_size = 0;
         int disps[n_procs];
         int idx_disps[n_procs];
-        for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
             idx_disps[proc_idx] = tot_size * n_bytes;
             disps[proc_idx] = tot_size;
             tot_size += vec_sizes[proc_idx];
@@ -773,7 +761,6 @@ void Adder<el_type>::add(uint8_t *idx, el_type val, int proc_idx, int ini_flag, 
 template <class el_type>
 void Adder<el_type>::perform_add() {
     int n_procs = 1;
-    int proc_idx;
     
     size_t el_size = sizeof(el_type);
 #ifdef USE_MPI
@@ -782,7 +769,7 @@ void Adder<el_type>::perform_add() {
     
     int send_idx_cts[n_procs];
     int recv_idx_cts[n_procs];
-    for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         send_idx_cts[proc_idx] = send_cts_[proc_idx] * n_bytes_;
         recv_idx_cts[proc_idx] = recv_cts_[proc_idx] * n_bytes_;
     }
@@ -790,7 +777,7 @@ void Adder<el_type>::perform_add() {
     MPI_Alltoallv(send_idx_.data(), send_idx_cts, idx_disp_, MPI_UINT8_T, recv_idx_.data(), recv_idx_cts, idx_disp_, MPI_UINT8_T, MPI_COMM_WORLD);
     mpi_atoav(send_vals_.data(), send_cts_, val_disp_, recv_vals_.data(), recv_cts_);
 #else
-    for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         int cpy_size = send_cts_[proc_idx];
         recv_cts_[proc_idx] = cpy_size;
         memcpy(recv_idx_[proc_idx], send_idx_[proc_idx], cpy_size * n_bytes_);
@@ -798,7 +785,7 @@ void Adder<el_type>::perform_add() {
     }
 #endif
     // Move elements from receiving buffers to vector
-    for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         send_cts_[proc_idx] = 0;
         parent_vec_->add_elements(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx]);
     }

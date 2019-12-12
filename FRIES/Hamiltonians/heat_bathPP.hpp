@@ -10,9 +10,9 @@
 #ifndef heat_bathPP_h
 #define heat_bathPP_h
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cmath>
 #include <FRIES/compress_utils.hpp>
 #include <FRIES/ndarr.hpp>
 
@@ -21,14 +21,14 @@
  * \brief Data structure used to store the elements defining the intermediate
  * matrices in the HB-PP factorization
  */
-typedef struct {
+struct hb_info {
     size_t n_orb; ///< Number of spatial orbitals in the Hartree-Fock Basis
     double *s_tens; ///< Single electron components of HB-PP factorization, length n_orb
     double *d_same; ///< Double-electron components of HB-PP factorization for same spins, stored as a 1-D array of length (n_orb choose 2)
     double *d_diff; ///< Double-electron components of HB-PP factorization for different spins, stored as a 2-D array of dimensions (n_orb x n_orb)
     double *exch_sqrt; ///< Square roots of exchange integrals <ia|ai>, stored as a 1-D array of length (n_orb choose 2)
     double *diag_sqrt; ///< Square roots of diagonal eris < p p | p p>, length n_orb
-} hb_info;
+};
 
 
 /*! \brief Construct an hb_info struct using two-electron integrals from

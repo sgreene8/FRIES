@@ -6,9 +6,9 @@
 #ifndef hub_holstein_h
 #define hub_holstein_h
 
-#include <stdio.h>
+#include <cstdio>
 #define __STDC_LIMIT_MACROS
-#include <stdint.h>
+#include <cstdint>
 #include <FRIES/fci_utils.h>
 #include <FRIES/math_utils.h>
 #include <FRIES/Ext_Libs/dcmt/dc.h>

@@ -5,7 +5,7 @@
 #ifndef molecule_h
 #define molecule_h
 
-#include <stdio.h>
+#include <cstdio>
 #include <FRIES/fci_utils.h>
 #include <FRIES/vec_utils.hpp>
 #include <FRIES/ndarr.hpp>
