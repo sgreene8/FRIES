@@ -153,7 +153,6 @@ private:
     size_t n_dense_; ///< The first \p n_dense elements in the DistVec object will always be stored, even if their corresponding values are 0
     hash_table *vec_hash_; ///< Hash table for quickly finding indices in \p indices_
     stack_entry *vec_stack_; ///< Pointer to top of stack for managing available positions in the indices array
-    byte_table *tabl_; ///< Pointer to struct used to decompose determinant indices into lists of occupied orbitals
     Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
     int n_nonz_; ///< Current number of nonzero elements in vector, including all in the dense subspace
 protected:
@@ -161,6 +160,7 @@ protected:
     size_t curr_size_; ///< Current number of vector elements stored, including intermediate zeroes
     Matrix<uint8_t> occ_orbs_; ///< Matrix containing lists of occupied orbitals for each determniant index
     uint8_t n_bits_; ///< Number of bits used to encode each index of the vector
+    byte_table *tabl_; ///< Pointer to struct used to decompose determinant indices into lists of occupied orbitals
     
     
     void initialize_at_pos(size_t pos) {
@@ -217,12 +217,11 @@ public:
      * \return number of 1 bits in the bit string
      */
     uint8_t gen_orb_list(uint8_t *det, uint8_t *occ_orbs) {
-        unsigned int byte_idx, elec_idx;
+        unsigned int elec_idx;
         uint8_t n_elec, det_byte, bit_idx;
         elec_idx = 0;
-        byte_idx = 0;
         uint8_t tot_elec = 0;
-        for (byte_idx = 0; byte_idx < indices_.cols(); byte_idx++) {
+        for (unsigned int byte_idx = 0; byte_idx < indices_.cols(); byte_idx++) {
             det_byte = det[byte_idx];
             n_elec = tabl_->nums[det_byte];
             for (bit_idx = 0; bit_idx < n_elec; bit_idx++) {

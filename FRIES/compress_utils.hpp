@@ -118,8 +118,6 @@ double seed_sys(double *norms, double *rn, unsigned int n_samp);
  * \param [in] n_div    Number of uniform intervals into which each element is
  *                      divided. If =0, this element is divided nonuniformly
  *                      according to sub_wts at this position (length \p count)
- * \param [in] n_sub    Length of 2nd dimension of \p sub_wts and \p keep_idx
- *                      arrays
  * \param [in] sub_weights  2-d array of sub-weights for vector elements divided
  *                      nonuniformly; each nonzero row must sum to 1. Elements
  *                      in rows corresponding to nonzero elements of n_div are
@@ -138,7 +136,7 @@ double seed_sys(double *norms, double *rn, unsigned int n_samp);
  * \return sum of magnitudes of elements on this local MPI process that are not
  * preserved exactly
  */
-double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
+double find_keep_sub(double *values, unsigned int *n_div,
                      const Matrix<double> &sub_weights, Matrix<int> &keep_idx,
                      size_t count, unsigned int *n_samp, double *wt_remain);
 
@@ -151,8 +149,6 @@ double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
  * \param [in] n_div    Number of uniform intervals into which each element is
  *                      divided. If =0, this element is divided nonuniformly
  *                      according to sub_wts at this position (length \p count)
- * \param [in] n_sub    Length of 2nd dimension of \p sub_wts and \p keep_idx
- *                      arrays
  * \param [in] sub_weights  2-d array of sub-weights for vector elements divided
  *                      nonuniformly; each nonzero row must sum to 1. Elements
  *                      in rows corresponding to nonzero elements of n_div are
@@ -175,7 +171,7 @@ double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
  *                      subdivided element
  * \return Number of elements in compressed vector on this processor
  */
-size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
+size_t sys_sub(double *values, unsigned int *n_div,
                const Matrix<double> &sub_weights, Matrix<int> &keep_idx,
                size_t count, unsigned int n_samp, double *wt_remain,
                double *loc_norms, double rand_num, double *new_vals,
@@ -190,9 +186,7 @@ size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
  * \param [in] count    Length of vector to compress
  * \param [in] n_div    Number of uniform intervals into which each element is
  *                      divided. If =0, this element is divided nonuniformly
- *                      according to sub_wts at this position (length \p count)
- * \param [in] n_sub    Length of 2nd dimension of \p sub_wts and \p keep_idx
- *                      arrays
+ *                      according to \p sub_weights at this position (length \p count)
  * \param [in] sub_weights  2-d array of sub-weights for vector elements divided
  *                      nonuniformly; each nonzero row must sum to 1. Elements
  *                      in rows corresponding to nonzero elements of n_div are
@@ -212,7 +206,7 @@ size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
  *                      subdivided element
  * \return number of elements in the compressed array (at most n_samp)
  */
-size_t comp_sub(double *values, size_t count, unsigned int *n_div, size_t n_sub,
+size_t comp_sub(double *values, size_t count, unsigned int *n_div,
                 Matrix<double> &sub_weights, Matrix<int> &keep_idx,
                 unsigned int n_samp, double *wt_remain, double rand_num,
                 double *new_vals, size_t new_idx[][2]);

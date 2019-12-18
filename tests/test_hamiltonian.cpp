@@ -223,3 +223,26 @@ TEST_CASE("Test identification of empty neighboring orbitals in a Hubbard determ
         REQUIRE(real_neigb[n_elec + 1 + neigb_idx + 1] == neighb[n_elec + 1 + neigb_idx + 1]);
     }
 }
+
+
+TEST_CASE("Test counting of singly/doubly occupied sites in a Hubbard-Holstein basis state", "[hub_sites]") {
+    uint8_t det[2];
+    det[0] = 0b01010101;
+    det[1] = 0b110;
+    
+    int n_elec = 6;
+    int n_sites = 6;
+    
+    // Solution vector
+    mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, (unsigned int) time(NULL));
+    sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
+    HubHolVec<int> sol_vec(1, 0, rngen_ptr, n_sites, 0, n_elec, 1);
+    
+    uint8_t occ[n_elec];
+    sol_vec.gen_orb_list(det, occ);
+    
+    REQUIRE(idx_of_doub(0, n_elec, occ, det, n_sites) == 0);
+    REQUIRE(idx_of_doub(1, n_elec, occ, det, n_sites) == 4);
+    REQUIRE(idx_of_sing(0, n_elec, occ, det, n_sites) == 2);
+    REQUIRE(idx_of_sing(1, n_elec, occ, det, n_sites) == 9);
+}

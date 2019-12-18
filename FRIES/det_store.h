@@ -76,9 +76,9 @@ int bit_str_equ(uint8_t *str1, uint8_t *str2, uint8_t n_bytes);
 /*! \brief Read the nth bit from a bit string
  * \param [in] bit_str      The bit string to read from
  * \param [in] bit_idx      The index of the bit to read
- * \return The value of the bit
+ * \return The value of the bit (0 or 1)
  */
-int read_bit(uint8_t *bit_str, uint8_t bit_idx);
+int read_bit(const uint8_t *bit_str, uint8_t bit_idx);
 
 
 /*! \brief Set the nth bit of a bit string to 0

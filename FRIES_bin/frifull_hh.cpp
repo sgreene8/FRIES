@@ -1,6 +1,6 @@
 /*! \file
  *
- * \brief Perform FRI with systematic matrix compression on the Hubbard model.
+ * \brief Perform FRI without matrix compression on the Hubbard-Holstein model.
  *
  */
 
@@ -24,15 +24,6 @@ static const char *const usage[] = {
     "frisys_hh [options]",
     NULL,
 };
-
-int pow_int(int base, int exp) {
-    unsigned int idx;
-    int result = 1;
-    for (idx = 0; idx < exp; idx++) {
-        result *= base;
-    }
-    return result;
-}
 
 int main(int argc, const char * argv[]) {
     int n_procs = 1;
@@ -115,7 +106,7 @@ int main(int argc, const char * argv[]) {
         return 0;
     }
     
-    unsigned int n_orb = pow_int(hub_len, hub_dim);
+    unsigned int n_orb = hub_len;
     
     // Rn generator
     mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, proc_rank, (unsigned int) time(NULL));
@@ -219,22 +210,7 @@ int main(int argc, const char * argv[]) {
         fclose(param_f);
     }
     
-    double *comp_vec1 = (double *)malloc(sizeof(double) * spawn_length);
-    double *comp_vec2 = (double *)malloc(sizeof(double) * spawn_length);
-    size_t (*comp_idx)[2] = (size_t (*)[2])malloc(sizeof(size_t) * 2 * spawn_length);
-    unsigned int *ndiv_vec = (unsigned int *)malloc(sizeof(unsigned int) * spawn_length);
-    double *wt_remain = (double *)calloc(spawn_length, sizeof(double));
-    size_t comp_len;
-    size_t samp_idx, weight_idx;
-    Matrix<int> keep_idx(spawn_length, 3);
-    Matrix<double> subwt_mem(spawn_length, 3);
-    size_t *det_indices = (size_t *)malloc(sizeof(size_t) * spawn_length);
-    uint8_t ex_type[spawn_length];
-    
     // Parameters for systematic sampling
-    double rn_sys = 0;
-    double weight;
-    int glob_n_nonz; // Number of nonzero elements in whole vector (across all processors)
     double loc_norms[n_procs];
     size_t *srt_arr = (size_t *)malloc(sizeof(size_t) * max_n_dets);
     for (det_idx = 0; det_idx < max_n_dets; det_idx++) {
@@ -250,90 +226,10 @@ int main(int argc, const char * argv[]) {
     unsigned int iterat;
     const Matrix<uint8_t> &neighb_orbs = sol_vec.neighb();
     for (iterat = 0; iterat < max_iter; iterat++) {
-        sum_mpi(sol_vec.n_nonz(), &glob_n_nonz, proc_rank, n_procs);
-        
-        // Systematic matrix compression
-        if (glob_n_nonz > matr_samp) {
-            fprintf(stderr, "Warning: target number of matrix samples (%u) is less than number of nonzero vector elements (%d)\n", matr_samp, glob_n_nonz);
-        }
         for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
             double *curr_el = sol_vec[det_idx];
-            weight = fabs(*curr_el);
-            comp_vec1[det_idx] = weight;
-            if (weight > 0) {
-                double *diag_el = sol_vec.matr_el_at_pos(det_idx);
-                if (isnan(*diag_el)) {
-                    uint8_t *curr_det = sol_vec.indices()[det_idx];
-                    *diag_el = hub_diag(curr_det, hub_len, sol_vec.tabl());
-                }
-                subwt_mem(det_idx, 0) = (neighb_orbs(det_idx, 0) + neighb_orbs(det_idx, n_elec + 1)) * hub_t;
-                subwt_mem(det_idx, 1) = *diag_el * 4 * elec_ph;
-                subwt_mem(det_idx, 2) = (n_elec - *diag_el * 2) * 2 * elec_ph;
-                double norm = subwt_mem(det_idx, 0) + n_elec * 2 * elec_ph;
-                subwt_mem(det_idx, 0) /= norm;
-                subwt_mem(det_idx, 1) /= norm;
-                comp_vec1[det_idx] *= norm;
-                ndiv_vec[det_idx] = 0;
-            }
-            else {
-                ndiv_vec[det_idx] = 1;
-            }
-        }
-        if (proc_rank == 0) {
-            rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
-        }
-        comp_len = comp_sub(comp_vec1, sol_vec.curr_size(), ndiv_vec, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
-        
-        for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
-            det_idx = comp_idx[samp_idx][0];
-            det_indices[samp_idx] = det_idx;
-            ex_type[samp_idx] = comp_idx[samp_idx][1];
-            if (ex_type[samp_idx] == 0) { // electronic hop
-                ndiv_vec[samp_idx] = neighb_orbs(det_idx, 0) + neighb_orbs(det_idx, n_elec + 1);
-            }
-            else { // phonon (de-) excitation
-                double *diag_el;
-                if (ex_type[samp_idx] == 1) { // doubly occupied
-                    diag_el = sol_vec.matr_el_at_pos(det_idx);
-                    ndiv_vec[samp_idx] = *diag_el * 2;
-                }
-                else { // singly occupied
-                    diag_el = sol_vec.matr_el_at_pos(det_idx);
-                    ndiv_vec[samp_idx] = (n_elec - *diag_el * 2) * 2;
-                }
-            }
-        }
-        if (proc_rank == 0) {
-            rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
-        }
-        comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec1, comp_idx);
-        
-        uint8_t spawn_orbs[2];
-        for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
-            weight_idx = comp_idx[samp_idx][0];
-            det_idx = det_indices[weight_idx];
-            double *curr_el = sol_vec[det_idx];
-            uint8_t *curr_det = sol_vec.indices()[det_idx];
-            ini_flag = fabs(*curr_el) > init_thresh;
-            int el_sign = 1 - 2 * signbit(*curr_el);
-            
-            matr_el = -eps * comp_vec1[samp_idx] * el_sign;
-            if (ex_type[weight_idx] == 0) { // electronic hop
-                matr_el *= -1; // for -t
-                idx_to_orbs((unsigned int) comp_idx[samp_idx][1], n_elec, neighb_orbs[det_idx], spawn_orbs);
-                memcpy(new_det, curr_det, det_size);
-                zero_bit(new_det, spawn_orbs[0]);
-                set_bit(new_det, spawn_orbs[1]);
-            }
-            else {
-//                uint8_t site =
-            }
-            sol_vec.add(new_det, matr_el, ini_flag, 0);
-        }
-        
-        // Death/cloning step
-        for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
-            double *curr_el = sol_vec[det_idx];
+
+            // Death/cloning step
             if (*curr_el != 0) {
                 double *diag_el = sol_vec.matr_el_at_pos(det_idx);
                 *curr_el *= 1 - eps * (*diag_el * hub_u - hf_en - en_shift);

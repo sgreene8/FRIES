@@ -35,6 +35,46 @@ void idx_to_orbs(unsigned int chosen_idx, unsigned int n_elec,
 }
 
 
+uint8_t idx_of_doub(unsigned int chosen_idx, unsigned int n_elec,
+                    const uint8_t *occ, const uint8_t *det, unsigned int n_sites) {
+    uint8_t n_doub = 0;
+    for (size_t elec_idx = 0; elec_idx < n_elec / 2; elec_idx++) {
+        if (read_bit(det, occ[elec_idx] + n_sites)) {
+            if (n_doub == chosen_idx) {
+                return occ[elec_idx];
+            }
+            n_doub++;
+        }
+    }
+    fprintf(stderr, "Error in idx_of_doub: index %u not found\n", chosen_idx);
+    return 255;
+}
+
+
+uint8_t idx_of_sing(unsigned int chosen_idx, unsigned int n_elec,
+                    const uint8_t *occ, const uint8_t *det, unsigned int n_sites) {
+    uint8_t n_sing = 0;
+    for (size_t elec_idx = 0; elec_idx < n_elec / 2; elec_idx++) {
+        if (read_bit(det, occ[elec_idx] + n_sites) == 0) {
+            if (n_sing == chosen_idx) {
+                return occ[elec_idx];
+            }
+            n_sing++;
+        }
+    }
+    for (size_t elec_idx = n_elec / 2; elec_idx < n_elec; elec_idx++) {
+        if (read_bit(det, occ[elec_idx] - n_sites) == 0) {
+            if (n_sing == chosen_idx) {
+                return occ[elec_idx];
+            }
+            n_sing++;
+        }
+    }
+    fprintf(stderr, "Error in idx_of_doub: index %u not found\n", chosen_idx);
+    return 255;
+}
+
+
 size_t hub_all(unsigned int n_elec, uint8_t *neighbors,
                uint8_t (* chosen_orbs)[2]) {
     size_t n_ex = 0;

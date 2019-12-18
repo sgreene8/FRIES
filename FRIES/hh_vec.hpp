@@ -29,6 +29,38 @@ public:
         
     }
     
+    
+    /*! \brief Generate list of occupied orbitals from bit-string representation of
+     *  a determinant
+     *
+     * This implementation uses the procedure in Sec. 3.1 of Booth et al. (2014)
+     * \param [in] det          bit string to be parsed
+     * \param [out] occ_orbs    Occupied orbitals in the determinant
+     * \return number of 1 bits in the bit string
+     */
+    uint8_t gen_orb_list(uint8_t *det, uint8_t *occ_orbs) {
+        unsigned int byte_idx, elec_idx;
+        uint8_t n_elec, det_byte, bit_idx;
+        elec_idx = 0;
+        uint8_t tot_elec = 0;
+        uint8_t max_byte = CEILING(n_sites_ * 2, 8);
+        byte_table *table = DistVec<el_type>::tabl_;
+        for (byte_idx = 0; byte_idx < max_byte; byte_idx++) {
+            det_byte = det[byte_idx];
+            if ((n_sites_ * 2 % 8) > 0 && (byte_idx == max_byte - 1)) {
+                det_byte &= (1 << (n_sites_ * 2 % 8)) - 1;
+            }
+            n_elec = table->nums[det_byte];
+            for (bit_idx = 0; bit_idx < n_elec; bit_idx++) {
+                occ_orbs[elec_idx + bit_idx] = (8 * byte_idx + table->pos[det_byte][bit_idx]);
+            }
+            elec_idx = elec_idx + n_elec;
+            tot_elec += n_elec;
+        }
+        
+        return tot_elec;
+    }
+    
     /*! \brief Double the maximum number of elements that can be stored */
     void expand() {
         DistVec<el_type>::expand();
@@ -101,6 +133,13 @@ public:
     }
     
     
+    /*! \brief Calculate the phonon quantum numbers from a bit-string representation of a determinant
+     *
+     * Calculates the phonon quanta at each lattice site
+     *
+     * \param [in] det      Bit-string representation of determinant
+     * \param [out] numbers     Array in which to store the decoded numbers
+     */
     void decode_phonons(uint8_t *det, uint8_t *numbers) {
         uint8_t mask = (1 << ph_bits_) - 1;
         size_t curr_bit;
@@ -115,14 +154,15 @@ public:
         }
     }
     
-    /*! \brief Generate a new determinant by increasing the phonon number at one position
+    /*! \brief Generate a new determinant by changing the phonon number at one position
      *
      * \param [in] orig     Original determinant from which to create new determinant
      * \param [out] new_det     Upon return, contains the bit-string representation of the new determinant
      * \param [in] site_idx       Site index of the phonon number to be incremented
+     * \param [in] change       +1 if phonon number should be increased, -1 if should be decreased
      * \return 1 if new determinant was created successfully, 0 if not
      */
-    int det_by_inc_ph(uint8_t *orig, uint8_t *new_det, uint8_t site_idx) {
+    int det_from_ph(uint8_t *orig, uint8_t *new_det, uint8_t site_idx, int change) {
         uint8_t bit_idx = 2 * n_sites_ + site_idx * ph_bits_;
         uint16_t det_segment = orig[bit_idx / 8];
         uint8_t n_bytes = CEILING(DistVec<el_type>::n_bits_, 8);
@@ -131,8 +171,11 @@ public:
         }
         uint16_t mask = (1 << ((bit_idx % 8) + ph_bits_)) - (1 << (bit_idx % 8));
         uint16_t ph_num = (det_segment & mask) >> (bit_idx % 8);
-        if (ph_num == ((1 << ph_bits_) - 1)) {
+        if (change == 1 && ph_num == ((1 << ph_bits_) - 1)) {
             fprintf(stderr, "Warning: max phonon number reached\n");
+            return 0;
+        }
+        if (change == -1 && ph_num == 0) {
             return 0;
         }
         ph_num++;
@@ -145,6 +188,19 @@ public:
             new_det[bit_idx / 8 + 1] |= det_segment >> 8;
         }
         return 1;
+    }
+    
+    
+    /*! \brief Calculate the sum of all phonon quantum numbers for a basis element
+     * \param [in] idx      Index of the basis element in the vector
+     */
+    unsigned int total_ph(size_t idx) {
+        unsigned int sum = 0;
+        uint8_t *ph_row = phonon_nums_[idx];
+        for (size_t ph_idx = 0; ph_idx < n_sites_; ph_idx++) {
+            sum += ph_row[ph_idx];
+        }
+        return sum;
     }
     
     

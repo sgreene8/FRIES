@@ -110,7 +110,7 @@ TEST_CASE("Test encoding and decoding of Holstein basis states", "[phonon_bits]"
     }
     
     uint8_t excite_det[det_size];
-    sol_vec.det_by_inc_ph(det1, excite_det, 2);
+    sol_vec.det_from_ph(det1, excite_det, 2, 1);
     ph_nums1[2]++;
     sol_vec.decode_phonons(excite_det, ph_nums2);
     
