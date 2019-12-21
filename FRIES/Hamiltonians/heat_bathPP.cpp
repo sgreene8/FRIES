@@ -258,36 +258,42 @@ double calc_norm_wt(hb_info *tens, uint8_t *orbs, uint8_t *occ,
     uint8_t min_o2_u2 = o2 < u2 ? o2 : u2;
     uint8_t max_o2_u2 = o2 > u2 ? o2 : u2;
     int same_sp = (orbs[0] / n_orb) == (orbs[1] / n_orb);
-    double weight;
     size_t orb_idx;
+    
+    uint8_t occ_spatial[n_elec];
+    for (orb_idx = 0; orb_idx < n_elec; orb_idx++) {
+        occ_spatial[orb_idx] = occ[orb_idx] % n_orb;
+    }
+    
+    double weight;
     double s_denom = 0;
     for (orb_idx = 0; orb_idx < n_elec; orb_idx++) {
-        s_denom += tens->s_tens[occ[orb_idx] % n_orb];
+        s_denom += tens->s_tens[occ_spatial[orb_idx]];
     }
     double *diff_tab = tens->d_diff;
     double d1_denom = 0;
     unsigned int offset = (1 - o1_spin) * n_elec / 2;
     for (orb_idx = offset; orb_idx < (n_elec / 2 + offset); orb_idx++) {
-        d1_denom += diff_tab[o1 * n_orb + occ[orb_idx] % n_orb];;
+        d1_denom += diff_tab[o1 * n_orb + occ_spatial[orb_idx]];
     }
     offset = o1_spin * n_elec / 2;
-    for (orb_idx = offset; (occ[orb_idx] % n_orb) < o1; orb_idx++) {
-        d1_denom += tens->d_same[I_J_TO_TRI(occ[orb_idx] % n_orb, o1)];
+    for (orb_idx = offset; occ_spatial[orb_idx] < o1; orb_idx++) {
+        d1_denom += tens->d_same[I_J_TO_TRI(occ_spatial[orb_idx], o1)];
     }
     for (orb_idx++; orb_idx < (n_elec / 2 + offset); orb_idx++) {
-        d1_denom += tens->d_same[I_J_TO_TRI(o1, occ[orb_idx] % n_orb)];
+        d1_denom += tens->d_same[I_J_TO_TRI(o1, occ_spatial[orb_idx])];
     }
     double d2_denom = 0;
     offset = (1 - o2_spin) * n_elec / 2;
     for (orb_idx = offset; orb_idx < (n_elec / 2 + offset); orb_idx++) {
-        d2_denom += diff_tab[o2 * n_orb + occ[orb_idx] % n_orb];;
+        d2_denom += diff_tab[o2 * n_orb + occ_spatial[orb_idx]];;
     }
     offset = o2_spin * n_elec / 2;
-    for (orb_idx = offset; (occ[orb_idx] % n_orb) < o2; orb_idx++) {
-        d2_denom += tens->d_same[I_J_TO_TRI(occ[orb_idx] % n_orb, o2)];
+    for (orb_idx = offset; occ_spatial[orb_idx] < o2; orb_idx++) {
+        d2_denom += tens->d_same[I_J_TO_TRI(occ_spatial[orb_idx], o2)];
     }
     for (orb_idx++; orb_idx < (n_elec / 2 + offset); orb_idx++) {
-        d2_denom += tens->d_same[I_J_TO_TRI(o2, occ[orb_idx] % n_orb)];
+        d2_denom += tens->d_same[I_J_TO_TRI(o2, occ_spatial[orb_idx])];
     }
     
     double e1_virt = 0;
