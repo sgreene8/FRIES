@@ -223,11 +223,24 @@ int main(int argc, const char * argv[]) {
     double recv_nums[n_procs];
     uint8_t new_det[det_size];
     
+    uint8_t (*spawn_orbs)[2] = (uint8_t (*)[2])malloc(sizeof(uint8_t) * n_elec * 2);
+    
     unsigned int iterat;
-    const Matrix<uint8_t> &neighb_orbs = sol_vec.neighb();
+    Matrix<uint8_t> &neighb_orbs = sol_vec.neighb();
     for (iterat = 0; iterat < max_iter; iterat++) {
         for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
             double *curr_el = sol_vec[det_idx];
+            uint8_t *curr_det = sol_vec.indices()[det_idx];
+            ini_flag = fabs(*curr_el) > init_thresh;
+            
+            size_t n_success = hub_all(n_elec, neighb_orbs[det_idx], spawn_orbs);
+            
+            for (size_t ex_idx = 0; ex_idx < n_success; ex_idx++) {
+                memcpy(new_det, curr_det, det_size);
+                zero_bit(new_det, spawn_orbs[ex_idx][0]);
+                set_bit(new_det, spawn_orbs[ex_idx][1]);
+                sol_vec.add(new_det, eps * hub_t * (*curr_el), ini_flag, 0);
+            }
 
             // Death/cloning step
             if (*curr_el != 0) {
