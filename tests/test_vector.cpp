@@ -86,6 +86,28 @@ TEST_CASE("Test generation of Hartree-Fock bit strings", "[hf_bits]") {
 }
 
 
+TEST_CASE("Test generation of Neel bit strings", "[neel_bits]") {
+    unsigned int n_elec = 6;
+    unsigned int n_sites = 6;
+    
+    uint8_t str1[10];
+    uint8_t str2[10];
+    
+    gen_neel_det_1D(n_sites, n_elec, str1);
+    str2[0] = 0b10010101;
+    str2[1] = 0b1010;
+    
+    REQUIRE(bit_str_equ(str1, str2, 2));
+    
+    n_elec = 2;
+    n_sites = 2;
+    gen_neel_det_1D(n_sites, n_elec, str1);
+    str2[0] = 0b1001;
+    
+    REQUIRE(bit_str_equ(str1, str2, 1));
+}
+
+
 TEST_CASE("Test encoding and decoding of Holstein basis states", "[phonon_bits]") {
     uint8_t n_sites = 5;
     uint8_t ph_bits = 3;

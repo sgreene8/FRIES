@@ -271,20 +271,6 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct) {
     }
     
     str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strncmp(buffer, "hf_energy", 9) == 0;
-    if (success) {
-        str_p = fgets(buffer, sizeof(buffer), file_p);
-        success = !(!str_p);
-    }
-    if (success) {
-        sscanf(buffer, "%lf", &(in_struct->hf_en));
-    }
-    else {
-        fprintf(stderr, "Error: could not find hf_energy parameter in %s\n", hh_path);
-        return -1;
-    }
-    
-    str_p = fgets(buffer, sizeof(buffer), file_p);
     success = strncmp(buffer, "omega", 5) == 0;
     if (success) {
         str_p = fgets(buffer, sizeof(buffer), file_p);
@@ -294,7 +280,7 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct) {
         sscanf(buffer, "%lf", &(in_struct->ph_freq));
     }
     else {
-        fprintf(stderr, "Error: could not find phonon frequency parameter in %s\n", hh_path);
+        fprintf(stderr, "Error: could not find phonon frequency parameter (omega) in %s\n", hh_path);
         return -1;
     }
     
@@ -308,7 +294,21 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct) {
         sscanf(buffer, "%lf", &(in_struct->elec_ph));
     }
     else {
-        fprintf(stderr, "Error: could not find electron-phonon interaction parameter in %s\n", hh_path);
+        fprintf(stderr, "Error: could not find electron-phonon interaction parameter (g) in %s\n", hh_path);
+        return -1;
+    }
+    
+    str_p = fgets(buffer, sizeof(buffer), file_p);
+    success = strncmp(buffer, "hf_energy", 9) == 0;
+    if (success) {
+        str_p = fgets(buffer, sizeof(buffer), file_p);
+        success = !(!str_p);
+    }
+    if (success) {
+        sscanf(buffer, "%lf", &(in_struct->hf_en));
+    }
+    else {
+        fprintf(stderr, "Error: could not find hf_energy parameter in %s\n", hh_path);
         return -1;
     }
     

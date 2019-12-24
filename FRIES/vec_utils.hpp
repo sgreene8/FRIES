@@ -147,23 +147,24 @@ private:
 template <class el_type>
 class DistVec {
 private:
-    Matrix<uint8_t> indices_; ///< Array of indices of vector elements
     std::vector<el_type> values_; ///< Array of values of vector elements
     double *matr_el_; ///< Array of pre-calculated diagonal matrix elements associated with each vector element
     size_t n_dense_; ///< The first \p n_dense elements in the DistVec object will always be stored, even if their corresponding values are 0
     hash_table *vec_hash_; ///< Hash table for quickly finding indices in \p indices_
     stack_entry *vec_stack_; ///< Pointer to top of stack for managing available positions in the indices array
-    Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
     int n_nonz_; ///< Current number of nonzero elements in vector, including all in the dense subspace
 protected:
+    Matrix<uint8_t> indices_; ///< Array of indices of vector elements
     size_t max_size_; ///< Maximum number of vector elements that can be stored
     size_t curr_size_; ///< Current number of vector elements stored, including intermediate zeroes
     Matrix<uint8_t> occ_orbs_; ///< Matrix containing lists of occupied orbitals for each determniant index
     uint8_t n_bits_; ///< Number of bits used to encode each index of the vector
     byte_table *tabl_; ///< Pointer to struct used to decompose determinant indices into lists of occupied orbitals
+private:
+    Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
+protected:
     
-    
-    void initialize_at_pos(size_t pos) {
+    virtual void initialize_at_pos(size_t pos) {
         values_[pos] = 0;
         matr_el_[pos] = NAN;
         uint8_t n_bytes = indices_.cols();
@@ -216,21 +217,8 @@ public:
      * \param [out] occ_orbs    Occupied orbitals in the determinant
      * \return number of 1 bits in the bit string
      */
-    uint8_t gen_orb_list(uint8_t *det, uint8_t *occ_orbs) {
-        unsigned int elec_idx;
-        uint8_t n_elec, det_byte, bit_idx;
-        elec_idx = 0;
-        uint8_t tot_elec = 0;
-        for (unsigned int byte_idx = 0; byte_idx < indices_.cols(); byte_idx++) {
-            det_byte = det[byte_idx];
-            n_elec = tabl_->nums[det_byte];
-            for (bit_idx = 0; bit_idx < n_elec; bit_idx++) {
-                occ_orbs[elec_idx + bit_idx] = (8 * byte_idx + tabl_->pos[det_byte][bit_idx]);
-            }
-            elec_idx = elec_idx + n_elec;
-            tot_elec += n_elec;
-        }
-        return tot_elec;
+    virtual uint8_t gen_orb_list(uint8_t *det, uint8_t *occ_orbs) {
+        return find_bits(det, occ_orbs, indices_.cols(), tabl_);
     }
 
     /*! \brief Calculate dot product

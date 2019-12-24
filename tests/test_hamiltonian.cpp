@@ -85,6 +85,10 @@ TEST_CASE("Test evaluation of Hubbard matrix elements", "[hubbard]") {
     // 101 011
     det[0] = 0b11101011;
     REQUIRE(hub_diag(det, n_sites, tabl) == 1);
+    
+    n_sites = 4;
+    det[0] = 0b00100010;
+    REQUIRE(hub_diag(det, n_sites, tabl) == 1);
 }
 
 

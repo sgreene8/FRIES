@@ -112,7 +112,9 @@ unsigned int hub_diag(uint8_t *det, unsigned int n_sites, byte_table *table) {
     }
     if (n_sites % 8) {
         later_byte = det[n_sites / 8 + byte_idx];
-        later_byte &= (1 << (2 * n_sites % 8)) - 1;
+        if ((2 * n_sites % 8) != 0) {
+            later_byte &= (1 << (2 * n_sites % 8)) - 1;
+        }
         later_byte >>= n_sites % 8;
         mask = later_byte & det[byte_idx];
         n_overlap += table->nums[mask];
@@ -144,8 +146,15 @@ void gen_neel_det_1D(unsigned int n_sites, unsigned int n_elec, uint8_t *det) {
     for (byte_idx++; byte_idx < (n_sites + n_elec) / 8; byte_idx++) {
         det[byte_idx] = (255 / 3) << 1;
     }
-    det[byte_idx] = ((1 << ((n_sites + n_elec) % 8)) / 3) << 1;
-    for (byte_idx++; byte_idx <= (2 * n_sites) / 10; byte_idx++) {
+    byte_idx = (n_sites + n_elec) / 8;
+    if (byte_idx == n_sites / 8) {
+        det[byte_idx] &= (1 << (n_sites % 8)) - 1;
+        det[byte_idx] |= ((1 << (n_elec % 8)) / 3) << (1 + n_sites % 8);
+    }
+    else {
+        det[byte_idx] = ((1 << ((n_sites + n_elec) % 8)) / 3) << 1;
+    }
+    for (byte_idx++; byte_idx <= (2 * n_sites) / 8; byte_idx++) {
         det[byte_idx] = 0;
     }
 }

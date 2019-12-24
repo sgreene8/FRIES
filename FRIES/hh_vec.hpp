@@ -118,7 +118,7 @@ public:
         zero_bit(neib_bits, n_sites_ - 1);
         zero_bit(neib_bits, 2 * n_sites_ - 1); // open boundary conditions
         
-        neighbors[0] = DistVec<el_type>::gen_orb_list(neib_bits, &neighbors[1]);
+        neighbors[0] = find_bits(neib_bits, &neighbors[1], n_bytes, DistVec<el_type>::tabl_);
         
         mask = ~det[0] << 1;
         neib_bits[0] = det[0] & mask;
@@ -129,7 +129,7 @@ public:
         }
         zero_bit(neib_bits, n_sites_); // open boundary conditions
         
-        neighbors[n_elec + 1] = DistVec<el_type>::gen_orb_list(neib_bits, &neighbors[n_elec + 1 + 1]);
+        neighbors[n_elec + 1] = find_bits(neib_bits, &neighbors[n_elec + 1 + 1], n_bytes, DistVec<el_type>::tabl_);
     }
     
     

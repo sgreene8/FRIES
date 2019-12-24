@@ -117,7 +117,7 @@ T calc_ref_ovlp(Matrix<uint8_t> &dets, T *vals, size_t n_dets, uint8_t *ref_det,
             }
             mask = not_occ & ((ref_left & not_occ_left) | (ref_right & not_occ_right));
             
-            if (byte_idx == (CEILING(2 * n_sites, 8) - 1)) {
+            if (byte_idx == (CEILING(2 * n_sites, 8) - 1) && (2 * n_sites % 8 != 0)) {
                 mask &= (1 << (2 * n_sites % 8)) - 1;
             }
             

@@ -38,9 +38,7 @@ int main(int argc, const char * argv[]) {
     const char *params_path = NULL;
     const char *result_dir = "./";
     const char *load_dir = NULL;
-    const char *ini_path = NULL;
     unsigned int target_nonz = 0;
-    unsigned int matr_samp = 0;
     unsigned int max_n_dets = 0;
     unsigned int init_thresh = 0;
     unsigned int tmp_norm = 0;
@@ -49,12 +47,10 @@ int main(int argc, const char * argv[]) {
         OPT_STRING('d', "params_path", &params_path, "Path to the file that contains the parameters defining the Hamiltonian, number of electrons, number of sites, etc."),
         OPT_INTEGER('t', "target", &tmp_norm, "Target one-norm of solution vector"),
         OPT_INTEGER('m', "vec_nonz", &target_nonz, "Target number of nonzero vector elements to keep after each iteration"),
-        OPT_INTEGER('M', "mat_nonz", &matr_samp, "Target number of nonzero matrix elements to keep after each iteration"),
         OPT_STRING('y', "result_dir", &result_dir, "Directory in which to save output files"),
         OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
         OPT_INTEGER('i', "initiator", &init_thresh, "Number of walkers on a determinant required to make it an initiator."),
         OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())."),
-        OPT_STRING('n', "ini_vec", &ini_path, "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)."),
         OPT_END(),
     };
     
@@ -69,10 +65,6 @@ int main(int argc, const char * argv[]) {
     }
     if (target_nonz == 0) {
         fprintf(stderr, "Error: target number of nonzero vector elements not specified\n");
-        return 0;
-    }
-    if (matr_samp == 0) {
-        fprintf(stderr, "Error: target number of nonzero matrix elements not specified\n");
         return 0;
     }
     if (max_n_dets == 0) {
@@ -134,7 +126,7 @@ int main(int argc, const char * argv[]) {
     }
     
     // Solution vector
-    unsigned int spawn_length = matr_samp * 2 / n_procs;
+    unsigned int spawn_length = n_elec * 4 * max_n_dets / n_procs;
     HubHolVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, hub_len, 3, n_elec, n_procs);
     size_t det_size = CEILING(2 * n_orb + 3 * n_orb, 8);
     sol_vec.proc_scrambler_ = proc_scrambler;
@@ -146,17 +138,6 @@ int main(int argc, const char * argv[]) {
     // Initialize solution vector
     if (load_dir) {
         sol_vec.load(load_dir);
-    }
-    else if (ini_path) {
-        // from an initial vector in .txt format
-        Matrix<uint8_t> &load_dets = sol_vec.indices();
-        double *load_vals = sol_vec.values();
-        
-        size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, INT);
-        
-        for (det_idx = 0; det_idx < n_dets; det_idx++) {
-            sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1, 0);
-        }
     }
     else {
         if (ref_proc == proc_rank) {
@@ -197,15 +178,12 @@ int main(int argc, const char * argv[]) {
         strcpy(file_path, result_dir);
         strcat(file_path, "params.txt");
         FILE *param_f = fopen(file_path, "w");
-        fprintf(param_f, "FRI calculation\nHubbard-Holstein parameters path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nInitiator threshold: %u\nMatrix nonzero: %u\nVector nonzero: %u\n", params_path, eps, target_norm, init_thresh, matr_samp, target_nonz);
+        fprintf(param_f, "FRI calculation\nHubbard-Holstein parameters path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nInitiator threshold: %u\nVector nonzero: %u\n", params_path, eps, target_norm, init_thresh, target_nonz);
         if (load_dir) {
             fprintf(param_f, "Restarting calculation from %s\n", load_dir);
         }
-        else if (ini_path) {
-            fprintf(param_f, "Initializing calculation from vector at path %s\n", ini_path);
-        }
         else {
-            fprintf(param_f, "Initializing calculation from HF unit vector\n");
+            fprintf(param_f, "Initializing calculation from Neel unit vector\n");
         }
         fclose(param_f);
     }
@@ -245,6 +223,9 @@ int main(int argc, const char * argv[]) {
             // Death/cloning step
             if (*curr_el != 0) {
                 double *diag_el = sol_vec.matr_el_at_pos(det_idx);
+                if (isnan(*diag_el)) {
+                    *diag_el = hub_diag(curr_det, hub_len, sol_vec.tabl());
+                }
                 *curr_el *= 1 - eps * (*diag_el * hub_u - hf_en - en_shift);
             }
         }
@@ -272,17 +253,14 @@ int main(int argc, const char * argv[]) {
 #endif
         if (proc_rank == ref_proc) {
             double *diag_el = sol_vec.matr_el_at_pos(0);
-            if (isnan(*diag_el)) {
-                *diag_el = hub_diag(neel_det, hub_len, sol_vec.tabl()) * hub_u - hf_en;
-            }
             double ref_element = *(sol_vec[0]);
-            matr_el = *diag_el * ref_element;
+            matr_el = (*diag_el * hub_u - hf_en) * ref_element;
             for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-                matr_el += recv_nums[proc_idx] * hub_t;
+                matr_el += recv_nums[proc_idx] * -hub_t;
             }
             fprintf(num_file, "%lf\n", matr_el);
             fprintf(den_file, "%lf\n", ref_element);
-            printf("%6u, n walk: %lf, en est: %lf, shift: %lf, n_neel: %lf\n", iterat, glob_norm, matr_el / ref_element, en_shift, ref_element);
+            printf("%6u, norm: %lf, en est: %lf, shift: %lf, n_neel: %lf\n", iterat, glob_norm, matr_el / ref_element, en_shift, ref_element);
         }
         
         // Save vector snapshot to disk
