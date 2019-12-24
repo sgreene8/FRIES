@@ -449,27 +449,27 @@ int main(int argc, const char * argv[]) {
         for (det_idx = n_determ; det_idx < sol_vec.curr_size(); det_idx++) {
             double *curr_el = sol_vec[det_idx];
             weight = fabs(*curr_el);
-            comp_vec1[det_idx] = weight;
+            comp_vec1[det_idx - n_determ] = weight;
             if (weight > 0) {
-                subwt_mem(det_idx, 0) = p_doub;
-                subwt_mem(det_idx, 1) = (1 - p_doub);
-                ndiv_vec[det_idx] = 0;
+                subwt_mem(det_idx - n_determ, 0) = p_doub;
+                subwt_mem(det_idx - n_determ, 1) = (1 - p_doub);
+                ndiv_vec[det_idx - n_determ] = 0;
             }
             else {
-                ndiv_vec[det_idx] = 1;
+                ndiv_vec[det_idx - n_determ] = 1;
             }
         }
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec1, sol_vec.curr_size(), ndiv_vec, n_subwt, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
+        comp_len = comp_sub(comp_vec1, sol_vec.curr_size() - n_determ, ndiv_vec, n_subwt, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
         
 #pragma mark  First occupied orbital
         n_subwt = n_elec_unf;
         subwt_mem.reshape(spawn_length, n_elec_unf);
         keep_idx.reshape(spawn_length, n_elec_unf);
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
-            det_idx = comp_idx[samp_idx][0];
+            det_idx = comp_idx[samp_idx][0] + n_determ;
             det_indices1[samp_idx] = det_idx;
             orb_indices1[samp_idx][0] = comp_idx[samp_idx][1];
             uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
