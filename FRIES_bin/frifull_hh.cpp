@@ -201,7 +201,7 @@ int main(int argc, const char * argv[]) {
     double recv_nums[n_procs];
     uint8_t new_det[det_size];
     
-    uint8_t (*spawn_orbs)[2] = (uint8_t (*)[2])malloc(sizeof(uint8_t) * n_elec * 2);
+    uint8_t (*spawn_orbs)[2] = (uint8_t (*)[2])malloc(sizeof(uint8_t) * n_elec * 2 * 2);
     
     unsigned int iterat;
     Matrix<uint8_t> &neighb_orbs = sol_vec.neighb();
