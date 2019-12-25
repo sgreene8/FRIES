@@ -14,6 +14,8 @@ target_link_libraries(fciqmc_hh PRIVATE fries)
 add_executable(frisys_hh frisys_hh.cpp)
 target_link_libraries(frisys_hh PRIVATE fries)
 
+add_executable(frifull_hh frifull_hh.cpp)
+target_link_libraries(frifull_hh PRIVATE fries)
 
 install(
     TARGETS
