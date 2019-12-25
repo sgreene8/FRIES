@@ -89,6 +89,16 @@ TEST_CASE("Test evaluation of Hubbard matrix elements", "[hubbard]") {
     n_sites = 4;
     det[0] = 0b00100010;
     REQUIRE(hub_diag(det, n_sites, tabl) == 1);
+    
+    n_sites = 5;
+    det[0] = 0b1000010;
+    det[1] = 0;
+    REQUIRE(hub_diag(det, n_sites, tabl) == 1);
+    
+    n_sites = 5;
+    det[0] = 255;
+    det[1] = 255;
+    REQUIRE(hub_diag(det, n_sites, tabl) == n_sites);
 }
 
 
@@ -127,9 +137,9 @@ TEST_CASE("Test calculation of overlap with neel state in Hubbard model", "[neel
     n_sites = 10;
     n_elec = 10;
     gen_neel_det_1D(n_sites, n_elec, bit_str1);
-    bit_str2[0] = 85;
-    bit_str2[1] = 169;
-    bit_str2[2] = 10;
+    bit_str2[0] = 0b01010101;
+    bit_str2[1] = 0b10101001;
+    bit_str2[2] = 0b1010;
     
     // Returning correct neel state
     REQUIRE(bit_str_equ(bit_str1, bit_str2, 3));
@@ -138,7 +148,7 @@ TEST_CASE("Test calculation of overlap with neel state in Hubbard model", "[neel
     REQUIRE(hub_diag(bit_str1, n_sites, tabl) == 0);
     
     // correctly ignore bits after 2 * n_sites
-    bit_str2[2] = 250;
+    bit_str2[2] = 0b11111010;
     REQUIRE(hub_diag(bit_str2, n_sites, tabl) == 0);
     
     zero_bit(bit_str2, 15);
