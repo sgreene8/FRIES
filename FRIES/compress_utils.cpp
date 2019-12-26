@@ -161,12 +161,13 @@ double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
         }
         loc_sampled = 0;
         for (size_t det_idx = 0; det_idx < count; det_idx++) {
+            int *keep_row = keep_idx[det_idx];
             el_magn = values[det_idx];
             keep_thresh = glob_one_norm / (*n_samp - loc_sampled);
             if (el_magn >= keep_thresh) {
                 if (n_div[det_idx] > 0) {
-                    if (el_magn / n_div[det_idx] >= keep_thresh && !keep_idx[det_idx][0]) {
-                        keep_idx[det_idx][0] = 1;
+                    if (el_magn / n_div[det_idx] >= keep_thresh && !keep_row[0]) {
+                        keep_row[0] = 1;
                         wt_remain[det_idx] = 0;
                         loc_sampled += n_div[det_idx];
                         loc_one_norm -= el_magn;
@@ -178,11 +179,12 @@ double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
                 }
                 else {
                     sub_remain = 0;
+                    const double *subwt_row = sub_weights[det_idx];
                     for (sub_idx = 0; sub_idx < n_sub; sub_idx++) {
-                        if (!keep_idx[det_idx][sub_idx]) {
-                            sub_magn = el_magn * sub_weights[det_idx][sub_idx];
+                        if (!keep_row[sub_idx]) {
+                            sub_magn = el_magn * subwt_row[sub_idx];
                             if (sub_magn >= keep_thresh && fabs(sub_magn) > 1e-10) {
-                                keep_idx[det_idx][sub_idx] = 1;
+                                keep_row[sub_idx] = 1;
                                 loc_sampled++;
                                 loc_one_norm -= sub_magn;
                                 glob_one_norm -= sub_magn;
