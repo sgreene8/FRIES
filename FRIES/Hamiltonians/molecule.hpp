@@ -11,6 +11,19 @@
 #include <FRIES/ndarr.hpp>
 
 
+/*! \brief Factorization (distribution) used to compress the Hamiltonian for a molecule
+ * In the near-uniform distribution, the weights in each branch of the hierarchical matrix structure are uniform
+ * In the heat-bath Power-Pitzer distribution, the weights are calculated based on the two-electron integrals
+ * at the beginning of the calculation, and normalized for each determinant
+ * In the unnormalized heat-bath Power-Pitzer distribution, the heat-bath weights are normalized for all determinants
+ * at the beginning of the calculation
+ */
+typedef enum {
+    near_uni,
+    heat_bath,
+    unnorm_heat_bath
+} h_dist;
+
 /*! \brief Calculate a double excitation matrix element
  *
  * The parity of the excitation, i.e. from the ordering of the orbitals, is not

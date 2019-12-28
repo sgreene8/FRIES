@@ -50,6 +50,7 @@ hb_info *set_up(unsigned int tot_orb, unsigned int n_orb,
     hb_obj->d_same = d_same;
     
     double *s_tens = (double *)calloc(n_orb, sizeof(double));
+    hb_obj->s_norm = 0;
     for (i = 0; i < n_orb; i++) {
         for (j = 0; j < i; j++) {
             s_tens[i] += d_same[I_J_TO_TRI(j, i)];
@@ -60,6 +61,7 @@ hb_info *set_up(unsigned int tot_orb, unsigned int n_orb,
         for (j = 0; j < n_orb; j++) {
             s_tens[i] += d_diff[i * n_orb + j];
         }
+        hb_obj->s_norm += s_tens[i];
     }
     hb_obj->s_tens = s_tens;
     
@@ -78,6 +80,18 @@ hb_info *set_up(unsigned int tot_orb, unsigned int n_orb,
         diag_part[j] = sqrt(fabs(eris(j + half_frz, j + half_frz, j + half_frz, j + half_frz)));
     }
     hb_obj->diag_sqrt = diag_part;
+    
+    double *exch_norms = (double *)calloc(n_orb, sizeof(double));
+    for (i = 0; i < n_orb; i++) {
+        for (j = 0; j < i; j++) {
+            exch_norms[i] += exch_mat[I_J_TO_TRI(j, i)];
+        }
+        exch_norms[i] += diag_part[i];
+        for (j = i + 1; j < n_orb; j++) {
+            exch_norms[i] += exch_mat[I_J_TO_TRI(i, j)];
+        }
+    }
+    hb_obj->exch_norms = exch_norms;
     return hb_obj;
 }
 
@@ -97,6 +111,7 @@ double calc_o1_probs(hb_info *tens, double *prob_arr, unsigned int n_elec,
     for (unsigned int orb_idx = 0; orb_idx < n_elec; orb_idx++) {
         prob_arr[orb_idx] *= inv_norm;
     }
+    norm /= tens->s_norm;
     return norm;
 }
 
@@ -129,6 +144,7 @@ double calc_o2_probs(hb_info *tens, double *prob_arr, unsigned int n_elec,
     for (unsigned int orb_idx = 0; orb_idx < n_elec; orb_idx++) {
         prob_arr[orb_idx] *= inv_norm;
     }
+    norm /= tens->s_tens[o1_orb % n_orb];
     *o1 = o1_orb;
     return norm;
 }
@@ -164,6 +180,7 @@ double calc_u1_probs(hb_info *tens, double *prob_arr, uint8_t o1_orb,
     for (unsigned int orb_idx = 0; orb_idx < n_orb; orb_idx++) {
         prob_arr[orb_idx] *= inv_norm;
     }
+    norm /= tens->exch_norms[o1_spinless];
     return norm;
 }
 
@@ -213,6 +230,7 @@ double calc_u2_probs(hb_info *tens, double *prob_arr, uint8_t o1_orb,
             }
         }
     }
+    norm /= tens->exch_norms[o2_spinless];
     return norm;
 }
 
@@ -233,11 +251,11 @@ double calc_unnorm_wt(hb_info *tens, uint8_t *orbs) {
         uint8_t max_o1_u2 = o1 > u2 ? o1 : u2;
         uint8_t min_o2_u1 = o2 < u1 ? o2 : u1;
         uint8_t max_o2_u1 = o2 > u1 ? o2 : u1;
-        weight = (tens->s_tens[o1] + tens->s_tens[o2]) * tens->d_same[I_J_TO_TRI(o1, o2)] * (tens->exch_sqrt[I_J_TO_TRI(min_o1_u1, max_o1_u1)] * tens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)] + tens->exch_sqrt[I_J_TO_TRI(min_o1_u2, max_o1_u2)] * tens->exch_sqrt[I_J_TO_TRI(min_o2_u1, max_o2_u1)]);
+        weight = 2 * tens->d_same[I_J_TO_TRI(o1, o2)] * (tens->exch_sqrt[I_J_TO_TRI(min_o1_u1, max_o1_u1)] * tens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)] + tens->exch_sqrt[I_J_TO_TRI(min_o1_u2, max_o1_u2)] * tens->exch_sqrt[I_J_TO_TRI(min_o2_u1, max_o2_u1)]) / tens->s_norm / tens->exch_norms[o1] / tens->exch_norms[o2];
     }
     else {
         double *diff_tab = tens->d_diff;
-        weight = (tens->s_tens[o1] * diff_tab[o1 * n_orb + o2] + tens->s_tens[o2] * diff_tab[o2 * n_orb + o1]) * tens->exch_sqrt[I_J_TO_TRI(min_o1_u1, max_o1_u1)] * tens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)];
+        weight = (1 * diff_tab[o1 * n_orb + o2] + 1 * diff_tab[o2 * n_orb + o1]) * tens->exch_sqrt[I_J_TO_TRI(min_o1_u1, max_o1_u1)] * tens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)] / tens->s_norm / tens->exch_norms[o1] / tens->exch_norms[o2];
     }
     return weight;
 }
