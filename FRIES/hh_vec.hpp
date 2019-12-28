@@ -61,6 +61,42 @@ public:
         return tot_elec;
     }
     
+    
+    /*! \brief Hash function mapping vector index to MPI process
+     *
+     * \param [in] idx          Vector index
+     * \return process index from hash value
+     */
+    int idx_to_proc(uint8_t *idx) {
+        unsigned int n_elec = (unsigned int)DistVec<el_type>::occ_orbs_.cols();
+        uint8_t orbs[n_elec];
+        gen_orb_list(idx, orbs);
+        uint8_t phonons[n_sites_];
+        decode_phonons(idx, phonons);
+        unsigned long long hash_val = hash_fxn(orbs, n_elec, phonons, n_sites_, DistVec<el_type>::proc_scrambler_);
+        int n_procs = 1;
+#ifdef USE_MPI
+        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+#endif
+        return hash_val % n_procs;
+    }
+
+    /*! \brief Hash function mapping vector index to local hash value
+     *
+     * The local hash value is used to find the index on a particular processor
+     *
+     * \param [in] idx          Vector index
+     * \return hash value
+     */
+    unsigned long long idx_to_hash(uint8_t *idx) {
+        unsigned int n_elec = (unsigned int)DistVec<el_type>::occ_orbs_.cols();
+        uint8_t orbs[n_elec];
+        gen_orb_list(idx, orbs);
+        uint8_t phonons[n_sites_];
+        decode_phonons(idx, phonons);
+        return hash_fxn(orbs, n_elec, phonons, n_sites_, DistVec<el_type>::vec_hash_->scrambler);
+    }
+    
     /*! \brief Double the maximum number of elements that can be stored */
     void expand() {
         DistVec<el_type>::expand();
@@ -78,8 +114,16 @@ public:
     Matrix<uint8_t> *phonon_nums() {
         return phonon_nums_;
     }
+
+    /*! \brief Get a pointer to the list of phonon numbers for a basis state in the vector
+     *
+     * \param [in] pos          The row index of the basis state in the \p indices_  matrix
+     */
+    uint8_t *phonons_at_pos(size_t pos) {
+        return phonon_nums_[pos];
+    }
     
-    /*! \brief Calculate the total number of phonons at all sizes for a basis element
+    /*! \brief Calculate the total number of phonons at all sites for a basis element
      * \param [in] idx       Index of the basis element in the DistVector object
      * \return Number of phonons
      */

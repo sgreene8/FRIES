@@ -150,7 +150,6 @@ private:
     std::vector<el_type> values_; ///< Array of values of vector elements
     double *matr_el_; ///< Array of pre-calculated diagonal matrix elements associated with each vector element
     size_t n_dense_; ///< The first \p n_dense elements in the DistVec object will always be stored, even if their corresponding values are 0
-    hash_table *vec_hash_; ///< Hash table for quickly finding indices in \p indices_
     stack_entry *vec_stack_; ///< Pointer to top of stack for managing available positions in the indices array
     int n_nonz_; ///< Current number of nonzero elements in vector, including all in the dense subspace
 protected:
@@ -160,6 +159,7 @@ protected:
     Matrix<uint8_t> occ_orbs_; ///< Matrix containing lists of occupied orbitals for each determniant index
     uint8_t n_bits_; ///< Number of bits used to encode each index of the vector
     byte_table *tabl_; ///< Pointer to struct used to decompose determinant indices into lists of occupied orbitals
+    hash_table *vec_hash_; ///< Hash table for quickly finding indices in \p indices_
 private:
     Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
 protected:
@@ -263,7 +263,7 @@ public:
      * \param [in] idx          Vector index
      * \return process index from hash value
      */
-    int idx_to_proc(uint8_t *idx) {
+    virtual int idx_to_proc(uint8_t *idx) {
         unsigned int n_elec = (unsigned int)occ_orbs_.cols();
         uint8_t orbs[n_elec];
         gen_orb_list(idx, orbs);
@@ -282,7 +282,7 @@ public:
      * \param [in] idx          Vector index
      * \return hash value
      */
-    unsigned long long idx_to_hash(uint8_t *idx) {
+    virtual unsigned long long idx_to_hash(uint8_t *idx) {
         unsigned int n_elec = (unsigned int)occ_orbs_.cols();
         uint8_t orbs[n_elec];
         gen_orb_list(idx, orbs);

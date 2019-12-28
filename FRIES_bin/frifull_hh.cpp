@@ -219,6 +219,17 @@ int main(int argc, const char * argv[]) {
                 set_bit(new_det, spawn_orbs[ex_idx][1]);
                 sol_vec.add(new_det, eps * hub_t * (*curr_el), ini_flag, 0);
             }
+            
+            uint8_t *curr_occ = sol_vec.orbs_at_pos(det_idx);
+            uint8_t *curr_phonons = sol_vec.phonons_at_pos(det_idx);
+            for (size_t elec_idx = 0; elec_idx < n_elec / 2; elec_idx++) {
+                size_t site = curr_occ[elec_idx];
+                memcpy(new_det, curr_det, det_size);
+                uint8_t phonon_num = curr_phonons[site];
+                if (read_bit(curr_det, site + hub_len)) {
+                    
+                }
+            }
 
             // Death/cloning step
             if (*curr_el != 0) {
