@@ -26,6 +26,7 @@ static const char *const usage[] = {
 
 int main(int argc, const char * argv[]) {
     const char *hf_path = NULL;
+    const char *dist_str = NULL;
     const char *result_dir = "./";
     const char *load_dir = NULL;
     const char *ini_path = NULL;
@@ -40,6 +41,7 @@ int main(int argc, const char * argv[]) {
         OPT_HELP(),
         OPT_STRING('d', "hf_path", &hf_path, "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt"),
         OPT_INTEGER('t', "target", &tmp_norm, "Target one-norm of solution vector"),
+        OPT_STRING('q', "distribution", &dist_str, "Hamiltonian factorization to use, either heat-bath Power-Pitzer (HB) or unnormalized heat-bath Power-Pitzer (HB_unnorm)"),
         OPT_INTEGER('m', "vec_nonz", &target_nonz, "Target number of nonzero vector elements to keep after each iteration"),
         OPT_INTEGER('M', "mat_nonz", &matr_samp, "Target number of nonzero matrix elements to keep after each iteration"),
         OPT_STRING('y', "result_dir", &result_dir, "Directory in which to save output files"),
@@ -71,6 +73,18 @@ int main(int argc, const char * argv[]) {
     }
     if (max_n_dets == 0) {
         fprintf(stderr, "Error: maximum number of determinants expected on each processor not specified.\n");
+        return 0;
+    }
+    
+    h_dist qmc_dist;
+    if (!dist_str || strcmp(dist_str, "HB") == 0) {
+        qmc_dist = heat_bath;
+    }
+    else if (strcmp(dist_str, "HB_unnorm") == 0) {
+        qmc_dist = unnorm_heat_bath;
+    }
+    else {
+        fprintf(stderr, "Error: specified distribution for compressing Hamiltonian (%s) is not supported.\n", dist_str);
         return 0;
     }
     
@@ -422,8 +436,10 @@ int main(int argc, const char * argv[]) {
             uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
             if (orb_indices1[samp_idx][0] == 0) { // double excitation
                 ndiv_vec[samp_idx] = 0;
-                comp_vec2[samp_idx] *= calc_o1_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs);
-//                calc_o1_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs);
+                double tot_weight = calc_o1_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs);
+                if (qmc_dist == unnorm_heat_bath) {
+                    comp_vec2[samp_idx] *= tot_weight;
+                }
             }
             else {
                 count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf, n_orb, n_irreps, symm_lookup, symm);
@@ -454,8 +470,10 @@ int main(int argc, const char * argv[]) {
             uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
             if (orb_indices2[samp_idx][0] == 0) { // double excitation
                 ndiv_vec[samp_idx] = 0;
-                comp_vec1[samp_idx] *= calc_o2_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs, &orb_indices2[samp_idx][1]);
-//                calc_o2_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs, &orb_indices2[samp_idx][1]);
+                double tot_weight = calc_o2_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs, &orb_indices2[samp_idx][1]);
+                if (qmc_dist == unnorm_heat_bath) {
+                    comp_vec1[samp_idx] *= tot_weight;
+                }
             }
             else { // single excitation
                 count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf, n_orb, n_irreps, symm_lookup, symm);
@@ -491,8 +509,10 @@ int main(int argc, const char * argv[]) {
                 ndiv_vec[samp_idx] = 0;
                 uint8_t *occ_tmp = sol_vec.orbs_at_pos(det_idx);
                 orb_indices1[samp_idx][2] = occ_tmp[orb_indices1[samp_idx][2]];
-                comp_vec2[samp_idx] *= calc_u1_probs(hb_probs, subwt_mem[samp_idx], o1_orb, sol_vec.indices()[det_idx]);
-//                calc_u1_probs(hb_probs, subwt_mem[samp_idx], o1_orb, sol_vec.indices()[det_idx]);
+                double tot_weight = calc_u1_probs(hb_probs, subwt_mem[samp_idx], o1_orb, sol_vec.indices()[det_idx]);
+                if (qmc_dist == unnorm_heat_bath) {
+                    comp_vec2[samp_idx] *= tot_weight;
+                }
             }
             else { // single excitation
                 orb_indices1[samp_idx][3] = orb_indices2[weight_idx][3];
@@ -525,11 +545,10 @@ int main(int argc, const char * argv[]) {
                 else {
                     ndiv_vec[samp_idx] = 0;
                     orb_indices2[samp_idx][3] = u1_orb;
-                comp_vec1[samp_idx] *= calc_u2_probs(hb_probs, subwt_mem[samp_idx], o1_orb, o2_orb, u1_orb, symm_lookup, symm, &max_n_symm); // not normalizing
-//                    double u2_norm = calc_u2_probs(hb_probs, subwt_mem[samp_idx], o1_orb, o2_orb, u1_orb, symm_lookup, symm, &max_n_symm);
-//                    if (u2_norm == 0) {
-//                        comp_vec1[samp_idx] = 0;
-//                    }
+                    double tot_weight = calc_u2_probs(hb_probs, subwt_mem[samp_idx], o1_orb, o2_orb, u1_orb, symm_lookup, symm, &max_n_symm);
+                    if (qmc_dist == unnorm_heat_bath || tot_weight == 0) {
+                        comp_vec1[samp_idx] *= tot_weight;
+                    }
                 }
             }
             else {
@@ -577,8 +596,14 @@ int main(int argc, const char * argv[]) {
                 if (fabs(matr_el) > 1e-9 && comp_vec2[samp_idx] > 1e-9) {
                     uint8_t *new_det = &spawn_dets[num_added * det_size];
                     memcpy(new_det, curr_det, det_size);
-                    matr_el *= -eps / p_doub / calc_unnorm_wt(hb_probs, doub_orbs) * el_sign * comp_vec2[samp_idx];
-//                    matr_el *= -eps / p_doub / calc_norm_wt(hb_probs, doub_orbs, occ_orbs, n_elec_unf, curr_det, symm_lookup, symm) * el_sign * comp_vec2[samp_idx];
+                    double tot_weight;
+                    if (qmc_dist == unnorm_heat_bath) {
+                        tot_weight = calc_unnorm_wt(hb_probs, doub_orbs);
+                    }
+                    else {
+                        tot_weight = calc_norm_wt(hb_probs, doub_orbs, occ_orbs, n_elec_unf, curr_det, symm_lookup, symm);
+                    }
+                    matr_el *= -eps / p_doub / tot_weight * el_sign * comp_vec2[samp_idx];
                     matr_el *= doub_det_parity(new_det, doub_orbs);
                     comp_vec1[num_added] = matr_el;
                     keep_idx(num_added, 0) = ini_flag;
