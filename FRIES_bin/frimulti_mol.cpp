@@ -24,11 +24,6 @@ static const char *const usage[] = {
     NULL,
 };
 
-typedef enum {
-    near_uni,
-    heat_bath
-} h_dist;
-
 
 int main(int argc, const char * argv[]) {
     const char *hf_path = NULL;
