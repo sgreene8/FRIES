@@ -222,7 +222,7 @@ public:
         if (change == -1 && ph_num == 0) {
             return 0;
         }
-        ph_num++;
+        ph_num += change;
         ph_num <<= (bit_idx % 8);
         det_segment &= ~mask;
         det_segment |= ph_num;

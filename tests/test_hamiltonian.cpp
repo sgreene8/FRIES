@@ -260,3 +260,41 @@ TEST_CASE("Test counting of singly/doubly occupied sites in a Hubbard-Holstein b
     REQUIRE(idx_of_sing(0, n_elec, occ, det, n_sites) == 2);
     REQUIRE(idx_of_sing(1, n_elec, occ, det, n_sites) == 9);
 }
+
+
+TEST_CASE("Test generation of phonon excitations/de-excitations in the Holstein model", "[hol_ex]") {
+    uint8_t n_sites = 3;
+    uint8_t n_elec = 4;
+    uint8_t ph_bits = 2;
+    size_t det_size = CEILING(2 * n_sites + ph_bits * n_sites, 8);
+    
+    mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, (unsigned int) time(NULL));
+    sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
+    HubHolVec<double> sol_vec(1, 0, rngen_ptr, n_sites, ph_bits, n_elec, 1);
+    
+    uint8_t orig_det[det_size];
+    orig_det[0] = 0b00101110;
+    orig_det[1] = 0;
+    
+    uint8_t new_det[det_size];
+    uint8_t correct_det[det_size];
+    
+    REQUIRE(sol_vec.det_from_ph(orig_det, new_det, 0, 1) == 1);
+    correct_det[0] = 0b01101110;
+    correct_det[1] = 0;
+    REQUIRE(bit_str_equ(new_det, correct_det, det_size));
+    
+    REQUIRE(sol_vec.det_from_ph(orig_det, new_det, 1, 1) == 1);
+    correct_det[0] = 0b00101110;
+    correct_det[1] = 1;
+    REQUIRE(bit_str_equ(new_det, correct_det, det_size));
+    
+    REQUIRE(sol_vec.det_from_ph(new_det, orig_det, 1, -1) == 1);
+    correct_det[1] = 0;
+    REQUIRE(bit_str_equ(orig_det, correct_det, det_size));
+    
+    REQUIRE(sol_vec.det_from_ph(orig_det, new_det, 1, -1) == 0);
+    
+    orig_det[1] = 3;
+    REQUIRE(sol_vec.det_from_ph(orig_det, new_det, 1, 1) == 0);
+}
