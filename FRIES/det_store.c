@@ -6,10 +6,14 @@
 
 #include "det_store.h"
 
-uintmax_t hash_fxn(uint8_t *occ_orbs, unsigned int n_elec, unsigned int *rand_nums) {
+uintmax_t hash_fxn(uint8_t *occ_orbs, unsigned int n_elec, uint8_t *phonon_nums, unsigned int n_phonon, unsigned int *rand_nums) {
     uintmax_t hash = 0;
-    for (unsigned int i = 0; i < n_elec; i++) {
+    unsigned int i;
+    for (i = 0; i < n_elec; i++) {
         hash = 1099511628211LL * hash + (i + 1) * rand_nums[occ_orbs[i]];
+    }
+    for (i = 0; i < n_phonon; i++) {
+        hash = 1099511628211LL * hash + (i + 1) * rand_nums[phonon_nums[i]];
     }
     return hash;
 }
@@ -105,7 +109,7 @@ int bit_str_equ(uint8_t *str1, uint8_t *str2, uint8_t n_bytes) {
 }
 
 
-int read_bit(uint8_t *bit_str, uint8_t bit_idx) {
+int read_bit(const uint8_t *bit_str, uint8_t bit_idx) {
     uint8_t byte_idx = bit_idx / 8;
     return !(!(bit_str[byte_idx] & (1 << (bit_idx % 8))));
 }

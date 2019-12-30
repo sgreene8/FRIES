@@ -134,7 +134,7 @@ double seed_sys(double *norms, double *rn, unsigned int n_samp) {
 }
 
 
-double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
+double find_keep_sub(double *values, unsigned int *n_div,
                      const Matrix<double> &sub_weights, Matrix<int> &keep_idx,
                      size_t count, unsigned int *n_samp, double *wt_remain) {
     double loc_one_norm = 0;
@@ -154,6 +154,7 @@ double find_keep_sub(double *values, unsigned int *n_div, size_t n_sub,
     int loc_sampled, glob_sampled = 1;
     double el_magn, sub_magn, keep_thresh, sub_remain;
     int last_pass = 0;
+    size_t n_sub = sub_weights.cols();
     while (glob_sampled > 0) {
         sum_mpi(loc_one_norm, &glob_one_norm, proc_rank, n_procs);
         if (glob_one_norm < 0) {
@@ -292,7 +293,7 @@ void adjust_shift(double *shift, double one_norm, double *last_norm,
     }
 }
 
-size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
+size_t sys_sub(double *values, unsigned int *n_div,
                const Matrix<double> &sub_weights, Matrix<int> &keep_idx,
                size_t count, unsigned int n_samp, double *wt_remain,
                double *loc_norms, double rand_num, double *new_vals,
@@ -324,6 +325,7 @@ size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
     double tmp_val;
     size_t num_new = 0;
     double sub_lbound;
+    size_t n_sub = keep_idx.cols();
     for (size_t wt_idx = 0; wt_idx < count; wt_idx++) {
         tmp_val = values[wt_idx];
         lbound += wt_remain[wt_idx];
@@ -379,7 +381,7 @@ size_t sys_sub(double *values, unsigned int *n_div, size_t n_sub,
 }
 
 
-size_t comp_sub(double *values, size_t count, unsigned int *n_div, size_t n_sub,
+size_t comp_sub(double *values, size_t count, unsigned int *n_div,
                 Matrix<double> &sub_weights, Matrix<int> &keep_idx,
                 unsigned int n_samp, double *wt_remain, double rand_num,
                 double *new_vals, size_t new_idx[][2]) {
@@ -392,12 +394,16 @@ size_t comp_sub(double *values, size_t count, unsigned int *n_div, size_t n_sub,
 #endif
     unsigned int tmp_nsamp = n_samp;
     double loc_norms[n_procs];
+    if (keep_idx.cols() != sub_weights.cols()) {
+        fprintf(stderr, "Error in comp_sub: column dimension of sub_weights does not equal column dimension of keep_idx.\n");
+        return 0;
+    }
     
-    loc_norms[proc_rank] = find_keep_sub(values, n_div, n_sub, sub_weights, keep_idx, count, &tmp_nsamp, wt_remain);
+    loc_norms[proc_rank] = find_keep_sub(values, n_div, sub_weights, keep_idx, count, &tmp_nsamp, wt_remain);
 #ifdef USE_MPI
     MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
 #endif
-    return sys_sub(values, n_div, n_sub, sub_weights, keep_idx, count, tmp_nsamp, wt_remain, loc_norms, rand_num, new_vals, new_idx);
+    return sys_sub(values, n_div, sub_weights, keep_idx, count, tmp_nsamp, wt_remain, loc_norms, rand_num, new_vals, new_idx);
 }
 
 

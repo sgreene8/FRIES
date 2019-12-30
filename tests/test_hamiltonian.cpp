@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <FRIES/Hamiltonians/molecule.hpp>
 #include <FRIES/Hamiltonians/hub_holstein.hpp>
-#include <FRIES/vec_utils.hpp>
+#include <FRIES/hh_vec.hpp>
 #include <FRIES/io_utils.hpp>
 
 TEST_CASE("Test diagonal matrix element evaluation", "[molec_diag]") {
@@ -29,7 +29,7 @@ TEST_CASE("Test diagonal matrix element evaluation", "[molec_diag]") {
     // Rn generator
     mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, (unsigned int) time(NULL));
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
-    DistVec<double> sol_vec(10, 0, rngen_ptr, 2 * n_orb, n_elec_unf, 0, 1);
+    DistVec<double> sol_vec(10, 0, rngen_ptr, 2 * n_orb, n_elec_unf, 1);
     
     uint8_t *hf_det = sol_vec.indices()[0];
     gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
@@ -85,6 +85,20 @@ TEST_CASE("Test evaluation of Hubbard matrix elements", "[hubbard]") {
     // 101 011
     det[0] = 0b11101011;
     REQUIRE(hub_diag(det, n_sites, tabl) == 1);
+    
+    n_sites = 4;
+    det[0] = 0b00100010;
+    REQUIRE(hub_diag(det, n_sites, tabl) == 1);
+    
+    n_sites = 5;
+    det[0] = 0b1000010;
+    det[1] = 0;
+    REQUIRE(hub_diag(det, n_sites, tabl) == 1);
+    
+    n_sites = 5;
+    det[0] = 255;
+    det[1] = 255;
+    REQUIRE(hub_diag(det, n_sites, tabl) == n_sites);
 }
 
 
@@ -123,9 +137,9 @@ TEST_CASE("Test calculation of overlap with neel state in Hubbard model", "[neel
     n_sites = 10;
     n_elec = 10;
     gen_neel_det_1D(n_sites, n_elec, bit_str1);
-    bit_str2[0] = 85;
-    bit_str2[1] = 169;
-    bit_str2[2] = 10;
+    bit_str2[0] = 0b01010101;
+    bit_str2[1] = 0b10101001;
+    bit_str2[2] = 0b1010;
     
     // Returning correct neel state
     REQUIRE(bit_str_equ(bit_str1, bit_str2, 3));
@@ -134,7 +148,7 @@ TEST_CASE("Test calculation of overlap with neel state in Hubbard model", "[neel
     REQUIRE(hub_diag(bit_str1, n_sites, tabl) == 0);
     
     // correctly ignore bits after 2 * n_sites
-    bit_str2[2] = 250;
+    bit_str2[2] = 0b11111010;
     REQUIRE(hub_diag(bit_str2, n_sites, tabl) == 0);
     
     zero_bit(bit_str2, 15);
@@ -181,9 +195,10 @@ TEST_CASE("Test generation of excitations in the Hubbard model", "[hub_excite]")
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
     
     // Solution vector
-    DistVec<int> sol_vec(1, 0, rngen_ptr, n_sites * 2, n_elec, n_sites, 1);
+    HubHolVec<int> sol_vec(1, 0, rngen_ptr, n_sites, 0, n_elec, 1);
+    
     Matrix<uint8_t> &neighb = sol_vec.neighb();
-    sol_vec.find_neighbors_1D(det, neighb[0], n_sites);
+    sol_vec.find_neighbors_1D(det, neighb[0]);
     
     REQUIRE(hub_all(n_elec, neighb[0], test_orbs) == 18);
     
@@ -205,9 +220,10 @@ TEST_CASE("Test identification of empty neighboring orbitals in a Hubbard determ
     // Solution vector
     mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, (unsigned int) time(NULL));
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
-    DistVec<int> sol_vec(1, 0, rngen_ptr, n_sites * 2, n_elec, n_sites, 1);
+    HubHolVec<int> sol_vec(1, 0, rngen_ptr, n_sites, 0, n_elec, 1);
+    
     uint8_t *neighb = sol_vec.neighb()[0];
-    sol_vec.find_neighbors_1D(det, neighb, n_sites);
+    sol_vec.find_neighbors_1D(det, neighb);
     
     uint8_t real_neigb[] = {5, 0, 2, 4, 7, 10, 0, 4, 2, 4, 7, 9, 0, 0};
     uint8_t neigb_idx;
@@ -220,4 +236,65 @@ TEST_CASE("Test identification of empty neighboring orbitals in a Hubbard determ
     for (neigb_idx = 0; neigb_idx < neighb[n_elec + 1]; neigb_idx++) {
         REQUIRE(real_neigb[n_elec + 1 + neigb_idx + 1] == neighb[n_elec + 1 + neigb_idx + 1]);
     }
+}
+
+
+TEST_CASE("Test counting of singly/doubly occupied sites in a Hubbard-Holstein basis state", "[hub_sites]") {
+    uint8_t det[2];
+    det[0] = 0b01010101;
+    det[1] = 0b110;
+    
+    int n_elec = 6;
+    int n_sites = 6;
+    
+    // Solution vector
+    mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, (unsigned int) time(NULL));
+    sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
+    HubHolVec<int> sol_vec(1, 0, rngen_ptr, n_sites, 0, n_elec, 1);
+    
+    uint8_t occ[n_elec];
+    sol_vec.gen_orb_list(det, occ);
+    
+    REQUIRE(idx_of_doub(0, n_elec, occ, det, n_sites) == 0);
+    REQUIRE(idx_of_doub(1, n_elec, occ, det, n_sites) == 4);
+    REQUIRE(idx_of_sing(0, n_elec, occ, det, n_sites) == 2);
+    REQUIRE(idx_of_sing(1, n_elec, occ, det, n_sites) == 9);
+}
+
+
+TEST_CASE("Test generation of phonon excitations/de-excitations in the Holstein model", "[hol_ex]") {
+    uint8_t n_sites = 3;
+    uint8_t n_elec = 4;
+    uint8_t ph_bits = 2;
+    size_t det_size = CEILING(2 * n_sites + ph_bits * n_sites, 8);
+    
+    mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, (unsigned int) time(NULL));
+    sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
+    HubHolVec<double> sol_vec(1, 0, rngen_ptr, n_sites, ph_bits, n_elec, 1);
+    
+    uint8_t orig_det[det_size];
+    orig_det[0] = 0b00101110;
+    orig_det[1] = 0;
+    
+    uint8_t new_det[det_size];
+    uint8_t correct_det[det_size];
+    
+    REQUIRE(sol_vec.det_from_ph(orig_det, new_det, 0, 1) == 1);
+    correct_det[0] = 0b01101110;
+    correct_det[1] = 0;
+    REQUIRE(bit_str_equ(new_det, correct_det, det_size));
+    
+    REQUIRE(sol_vec.det_from_ph(orig_det, new_det, 1, 1) == 1);
+    correct_det[0] = 0b00101110;
+    correct_det[1] = 1;
+    REQUIRE(bit_str_equ(new_det, correct_det, det_size));
+    
+    REQUIRE(sol_vec.det_from_ph(new_det, orig_det, 1, -1) == 1);
+    correct_det[1] = 0;
+    REQUIRE(bit_str_equ(orig_det, correct_det, det_size));
+    
+    REQUIRE(sol_vec.det_from_ph(orig_det, new_det, 1, -1) == 0);
+    
+    orig_det[1] = 3;
+    REQUIRE(sol_vec.det_from_ph(orig_det, new_det, 1, 1) == 0);
 }

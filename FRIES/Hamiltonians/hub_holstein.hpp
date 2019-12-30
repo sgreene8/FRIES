@@ -32,7 +32,7 @@ void hub_multin(unsigned int n_elec, const uint8_t *neighbors,
                 uint8_t chosen_orbs[][2]);
 
 
-/*! \brief Generate all nonzero elements in a column of the Hamiltonian
+/*! \brief Generate all nonzero off-diagonal Hubbard elements in a column of the Hamiltonian
  *  (corresponding to excitations from a particular determinant)
  *
  * \param [in] n_elec       number of electrons in the system
@@ -117,7 +117,7 @@ T calc_ref_ovlp(Matrix<uint8_t> &dets, T *vals, size_t n_dets, uint8_t *ref_det,
             }
             mask = not_occ & ((ref_left & not_occ_left) | (ref_right & not_occ_right));
             
-            if (byte_idx == (CEILING(2 * n_sites, 8) - 1)) {
+            if (byte_idx == (CEILING(2 * n_sites, 8) - 1) && (2 * n_sites % 8 != 0)) {
                 mask &= (1 << (2 * n_sites % 8)) - 1;
             }
             
@@ -145,5 +145,29 @@ T calc_ref_ovlp(Matrix<uint8_t> &dets, T *vals, size_t n_dets, uint8_t *ref_det,
  */
 void idx_to_orbs(unsigned int chosen_idx, unsigned int n_elec,
                  const uint8_t *neighbors, uint8_t *orbs);
+
+
+/*! \brief Find the ith doubly occupied site in a Hubbard determinant
+ * \param [in] chosen_idx       The index of the desired site
+ * \param [in] n_elec       Number of electrons defining the Hubbard determinant
+ * \param [in] occ      List of occupied sites in this determinant
+ * \param [in] det      Bit-string representation of determinant
+ * \param [in] n_sites      Number of sites in the Hubbard lattice
+ * \return The site index of the orbital, or 255 if not found
+ */
+uint8_t idx_of_doub(unsigned int chosen_idx, unsigned int n_elec,
+                    const uint8_t *occ, const uint8_t *det, unsigned int n_sites);
+
+
+/*! \brief Find the ith singly occupied site in a Hubbard determinant
+ * \param [in] chosen_idx       The index of the desired site
+ * \param [in] n_elec       Number of electrons defining the Hubbard determinant
+ * \param [in] occ      List of occupied sites in this determinant
+ * \param [in] det      Bit-string representation of determinant
+ * \param [in] n_sites      Number of sites in the Hubbard lattice
+ * \return The site index of the orbital, or 255 if not found
+ */
+uint8_t idx_of_sing(unsigned int chosen_idx, unsigned int n_elec,
+                    const uint8_t *occ, const uint8_t *det, unsigned int n_sites);
 
 #endif /* hub_holstein_h */

@@ -88,7 +88,7 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     }
     
     char *str_p = fgets(buffer, sizeof(buffer), file_p);
-    int success = strcmp(buffer, "n_elec");
+    int success = strncmp(buffer, "n_elec", 5) == 0;
     if (success) {
         str_p = fgets(buffer, sizeof(buffer), file_p);
         success = !(!str_p);
@@ -102,7 +102,7 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     }
     
     str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strcmp(buffer, "n_frozen");
+    success = strncmp(buffer, "n_frozen", 8) == 0;
     unsigned int n_frz;
     if (success) {
         str_p = fgets(buffer, sizeof(buffer), file_p);
@@ -118,7 +118,7 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     in_struct->n_frz = n_frz;
     
     str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strcmp(buffer, "n_orb");
+    success = strncmp(buffer, "n_orb", 5) == 0;
     if (success) {
         str_p = fgets(buffer, sizeof(buffer), file_p);
         success = !(!str_p);
@@ -132,7 +132,7 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     }
     
     str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strcmp(buffer, "eps");
+    success = strncmp(buffer, "eps", 3) == 0;
     if (success) {
         str_p = fgets(buffer, sizeof(buffer), file_p);
         success = !(!str_p);
@@ -146,7 +146,7 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     }
     
     str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strcmp(buffer, "hf_energy");
+    success = strncmp(buffer, "hf_energy", 9) == 0;
     if (success) {
         str_p = fgets(buffer, sizeof(buffer), file_p);
         success = !(!str_p);
@@ -198,7 +198,7 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct) {
     
     char buffer[100];
     char *str_p = fgets(buffer, sizeof(buffer), file_p);
-    int success = strcmp(buffer, "n_elec");
+    int success = strncmp(buffer, "n_elec", 6) == 0;
     if (success) {
         str_p = fgets(buffer, sizeof(buffer), file_p);
         success = !(!str_p);
@@ -212,7 +212,7 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct) {
     }
     
     str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strcmp(buffer, "lat_len");
+    success = strncmp(buffer, "lat_len", 7) == 0;
     if (success) {
         str_p = fgets(buffer, sizeof(buffer), file_p);
         success = !(!str_p);
@@ -226,7 +226,7 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct) {
     }
     
     str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strcmp(buffer, "n_dim");
+    success = strncmp(buffer, "n_dim", 5) == 0;
     if (success) {
         str_p = fgets(buffer, sizeof(buffer), file_p);
         success = !(!str_p);
@@ -240,7 +240,7 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct) {
     }
     
     str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strcmp(buffer, "eps");
+    success = strncmp(buffer, "eps", 3) == 0;
     if (success) {
         str_p = fgets(buffer, sizeof(buffer), file_p);
         success = !(!str_p);
@@ -254,7 +254,7 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct) {
     }
     
     str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strcmp(buffer, "U");
+    success = strncmp(buffer, "U", 1) == 0;
     if (success) {
         str_p = fgets(buffer, sizeof(buffer), file_p);
         success = !(!str_p);
@@ -268,7 +268,35 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct) {
     }
     
     str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strcmp(buffer, "hf_energy");
+    success = strncmp(buffer, "omega", 5) == 0;
+    if (success) {
+        str_p = fgets(buffer, sizeof(buffer), file_p);
+        success = !(!str_p);
+    }
+    if (success) {
+        sscanf(buffer, "%lf", &(in_struct->ph_freq));
+    }
+    else {
+        fprintf(stderr, "Error: could not find phonon frequency parameter (omega) in %s\n", hh_path);
+        return -1;
+    }
+    
+    str_p = fgets(buffer, sizeof(buffer), file_p);
+    success = strncmp(buffer, "g", 1) == 0;
+    if (success) {
+        str_p = fgets(buffer, sizeof(buffer), file_p);
+        success = !(!str_p);
+    }
+    if (success) {
+        sscanf(buffer, "%lf", &(in_struct->elec_ph));
+    }
+    else {
+        fprintf(stderr, "Error: could not find electron-phonon interaction parameter (g) in %s\n", hh_path);
+        return -1;
+    }
+    
+    str_p = fgets(buffer, sizeof(buffer), file_p);
+    success = strncmp(buffer, "hf_energy", 9) == 0;
     if (success) {
         str_p = fgets(buffer, sizeof(buffer), file_p);
         success = !(!str_p);

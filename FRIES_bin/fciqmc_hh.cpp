@@ -19,6 +19,7 @@
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/compress_utils.hpp>
 #include <FRIES/Ext_Libs/argparse.h>
+#include <FRIES/hh_vec.hpp>
 #define max_iter 1000000
 
 static const char *const usage[] = {
@@ -136,7 +137,7 @@ int main(int argc, const char * argv[]) {
     
     // Solution vector
     unsigned int spawn_length = target_walkers / n_procs / n_procs;
-    DistVec<int> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb * 2, n_elec, n_procs, hub_len);
+    HubHolVec<int> sol_vec(max_n_dets, spawn_length, rngen_ptr, hub_len, 3, n_elec, n_procs);
     sol_vec.proc_scrambler_ = proc_scrambler;
     
     uint8_t neel_det[det_size];

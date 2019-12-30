@@ -144,21 +144,35 @@ private:
  */
 template <class el_type>
 class DistVec {
-    Matrix<uint8_t> indices_; ///< Array of indices of vector elements
+private:
     std::vector<el_type> values_; ///< Array of values of vector elements
     double *matr_el_; ///< Array of pre-calculated diagonal matrix elements associated with each vector element
+    size_t n_dense_; ///< The first \p n_dense elements in the DistVec object will always be stored, even if their corresponding values are 0
+    stack_entry *vec_stack_; ///< Pointer to top of stack for managing available positions in the indices array
+    int n_nonz_; ///< Current number of nonzero elements in vector, including all in the dense subspace
+protected:
+    Matrix<uint8_t> indices_; ///< Array of indices of vector elements
     size_t max_size_; ///< Maximum number of vector elements that can be stored
     size_t curr_size_; ///< Current number of vector elements stored, including intermediate zeroes
-    size_t n_dense_; ///< The first \p n_dense elements in the DistVec object will always be stored, even if their corresponding values are 0
-    hash_table *vec_hash_; ///< Hash table for quickly finding indices in \p indices_
-    stack_entry *vec_stack_; ///< Pointer to top of stack for managing available positions in the indices array
-    byte_table *tabl_; ///< Pointer to struct used to decompose determinant indices into lists of occupied orbitals
     Matrix<uint8_t> occ_orbs_; ///< Matrix containing lists of occupied orbitals for each determniant index
-    Matrix<uint8_t> neighb_; ///< Pointer to array containing information about empty neighboring orbitals for Hubbard model
     uint8_t n_bits_; ///< Number of bits used to encode each index of the vector
+    byte_table *tabl_; ///< Pointer to struct used to decompose determinant indices into lists of occupied orbitals
+    hash_table *vec_hash_; ///< Hash table for quickly finding indices in \p indices_
+private:
     Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
-    int n_nonz_; ///< Current number of nonzero elements in vector, including all in the dense subspace
-    unsigned int hub_dim_; ///< If vector indices represent states in the Hilbert space of the Hubbard model, number of lattice dimensions; 0 otherwise
+protected:
+    
+    virtual void initialize_at_pos(size_t pos) {
+        values_[pos] = 0;
+        matr_el_[pos] = NAN;
+        uint8_t n_bytes = indices_.cols();
+        if (gen_orb_list(indices_[pos], occ_orbs_[pos]) != occ_orbs_.cols()) {
+            char det_txt[n_bytes * 2 + 1];
+            print_str(indices_[pos], n_bytes, det_txt);
+            fprintf(stderr, "Error: determinant %s created with an incorrect number of electrons.\n", det_txt);
+        }
+    }
+    
 public:
     unsigned int *proc_scrambler_; ///< Array of random numbers used in the hash function for assigning vector indices to MPI
     
@@ -169,10 +183,9 @@ public:
     * \param [in] n_bits        Number of bits used to encode each index of the vector
     * \param [in] n_elec       Number of electrons represented in each vector index
      * \param [in] n_procs Number of MPI processes over which to distribute vector elements
-     * \param [in] hub_dim  Number of Hubbard model dimensions, or 0 if the vector is not used for the Hubbard model
      */
     DistVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_bits,
-            unsigned int n_elec, int n_procs, unsigned int hub_dim) : values_(size), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, this), n_nonz_(0), neighb_(hub_dim ? size : 0, 2 * (n_elec + 1)), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), hub_dim_(hub_dim), n_dense_(0) {
+            unsigned int n_elec, int n_procs) : values_(size), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0) {
         matr_el_ = (double *)malloc(sizeof(double) * size);
         vec_hash_ = setup_ht(size, rn_ptr, n_bits);
         tabl_ = gen_byte_table();
@@ -202,21 +215,8 @@ public:
      * \param [out] occ_orbs    Occupied orbitals in the determinant
      * \return number of 1 bits in the bit string
      */
-    uint8_t gen_orb_list(uint8_t *det, uint8_t *occ_orbs) {
-        unsigned int elec_idx;
-        uint8_t n_elec, det_byte;
-        elec_idx = 0;
-        uint8_t tot_elec = 0;
-        for (unsigned int byte_idx = 0; byte_idx < indices_.cols(); byte_idx++) {
-            det_byte = det[byte_idx];
-            n_elec = tabl_->nums[det_byte];
-            for (uint8_t bit_idx = 0; bit_idx < n_elec; bit_idx++) {
-                occ_orbs[elec_idx + bit_idx] = (8 * byte_idx + tabl_->pos[det_byte][bit_idx]);
-            }
-            elec_idx = elec_idx + n_elec;
-            tot_elec += n_elec;
-        }
-        return tot_elec;
+    virtual uint8_t gen_orb_list(uint8_t *det, uint8_t *occ_orbs) {
+        return find_bits(det, occ_orbs, indices_.cols(), tabl_);
     }
 
     /*! \brief Calculate dot product
@@ -251,9 +251,6 @@ public:
         indices_.reshape(new_max, indices_.cols());
         matr_el_ = (double *)realloc(matr_el_, sizeof(double) * new_max);
         occ_orbs_.reshape(new_max, occ_orbs_.cols());
-        if (hub_dim_) {
-            neighb_.reshape(new_max, neighb_.cols());
-        }
         values_.resize(new_max);
         max_size_ = new_max;
     }
@@ -263,11 +260,11 @@ public:
      * \param [in] idx          Vector index
      * \return process index from hash value
      */
-    int idx_to_proc(uint8_t *idx) {
+    virtual int idx_to_proc(uint8_t *idx) {
         unsigned int n_elec = (unsigned int)occ_orbs_.cols();
         uint8_t orbs[n_elec];
         gen_orb_list(idx, orbs);
-        uintmax_t hash_val = hash_fxn(orbs, n_elec, proc_scrambler_);
+        uintmax_t hash_val = hash_fxn(orbs, n_elec, NULL, 0, proc_scrambler_);
         int n_procs = 1;
 #ifdef USE_MPI
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
@@ -282,11 +279,11 @@ public:
      * \param [in] idx          Vector index
      * \return hash value
      */
-    uintmax_t idx_to_hash(uint8_t *idx) {
+    virtual uintmax_t idx_to_hash(uint8_t *idx) {
         unsigned int n_elec = (unsigned int)occ_orbs_.cols();
         uint8_t orbs[n_elec];
         gen_orb_list(idx, orbs);
-        return hash_fxn(orbs, n_elec, vec_hash_->scrambler);
+        return hash_fxn(orbs, n_elec, NULL, 0, vec_hash_->scrambler);
     }
 
     /*! \brief Add an element to the DistVec object
@@ -379,62 +376,12 @@ public:
         return tabl_;
     }
     
-    /*! \returns A reference to the Matrix used to store information about empty neighboring orbitals of
-     *              seach determinant in the Hubbard model*/
-    Matrix<uint8_t> &neighb(){
-        return neighb_;
-    }
-
-
-    /*! \brief Generate lists of occupied orbitals in a determinant that are
-     *  adjacent to an empty orbital if the orbitals represent sites on a 1-D lattice
-     *
-     * \param [in] det          bit string representation of the determinant
-     * \param [out] neighbors   2-D array whose 0th row indicates orbitals with an
-     *                          empty adjacent orbital to the left, and 1st row is
-     *                          for empty orbitals to the right. Elements in the 0th
-     *                          column indicate number of elements in each row.
-     * \param [in] n_sites      number of sites in the lattice
-     */
-    void find_neighbors_1D(uint8_t *det, uint8_t *neighbors, unsigned int n_sites) {
-        size_t n_elec = occ_orbs_.cols();
-        size_t n_bytes = indices_.cols();
-        uint8_t neib_bits[n_bytes];
-        
-        uint8_t mask = det[0] >> 1;
-        for (size_t byte_idx = 1; byte_idx < n_bytes; byte_idx++) {
-            mask |= (det[byte_idx] & 1) << 7;
-            neib_bits[byte_idx - 1] = det[byte_idx - 1] & ~mask;
-            
-            mask = det[byte_idx] >> 1;
-        }
-        neib_bits[n_bytes - 1] = det[n_bytes - 1] & ~mask;
-        
-        zero_bit(neib_bits, n_sites - 1);
-        zero_bit(neib_bits, 2 * n_sites - 1); // open boundary conditions
-        
-        neighbors[0] = gen_orb_list(neib_bits, &neighbors[1]);
-        
-        mask = ~det[0] << 1;
-        neib_bits[0] = det[0] & mask;
-        for (size_t byte_idx = 1; byte_idx < n_bytes; byte_idx++) {
-            mask = ~det[byte_idx] << 1;
-            mask |= (~det[byte_idx - 1] >> 7) & 1;
-            neib_bits[byte_idx] = det[byte_idx] & mask;
-        }
-        zero_bit(neib_bits, n_sites); // open boundary conditions
-        
-        neighbors[n_elec + 1] = gen_orb_list(neib_bits, &neighbors[n_elec + 1 + 1]);
-    }
-    
-    
     /*! \brief Add elements destined for this process to the DistVec object
      * \param [in] indices Indices of the elements to be added
      * \param [in] vals     Values of the elements to be added
      * \param [in] count    Number of elements to be added
      */
     void add_elements(uint8_t *indices, el_type *vals, size_t count) {
-        unsigned int n_elec = (unsigned int)occ_orbs_.cols();
         uint8_t add_n_bytes = CEILING(n_bits_ + 3, 8);
         uint8_t vec_n_bytes = indices_.cols();
         for (size_t el_idx = 0; el_idx < count; el_idx++) {
@@ -455,18 +402,9 @@ public:
                     *idx_ptr = curr_size_;
                     curr_size_++;
                 }
-                values_[*idx_ptr] = 0;
-                if (gen_orb_list(new_idx, occ_orbs_[*idx_ptr]) != n_elec) {
-                    char det_txt[vec_n_bytes * 2 + 1];
-                    print_str(new_idx, vec_n_bytes, det_txt);
-                    fprintf(stderr, "Error: determinant %s created with an incorrect number of electrons.\n", det_txt);
-                }
                 memcpy(indices_[*idx_ptr], new_idx, vec_n_bytes);
-                matr_el_[*idx_ptr] = NAN;
+                initialize_at_pos(*idx_ptr);
                 n_nonz_++;
-                if (hub_dim_) {
-                    find_neighbors_1D(new_idx, neighb_[*idx_ptr], n_bits_ / 2);
-                }
             }
             // det_flag is 0, 1, or 2. If 0, no restrictions. If 1, will not be added if destined for the
             // dense subspace. If 2, will only be added if destined for the dense subspace.
@@ -603,22 +541,20 @@ public:
         n_nonz_ = 0;
         for (size_t det_idx = 0; det_idx < n_dets; det_idx++) {
             int is_nonz = 0;
+            double value = 0;
             if (fabs(values_[det_idx]) > 1e-9 || det_idx < n_dense_) {
                 is_nonz = 1;
-                values_[n_nonz_] = values_[det_idx];
+                value = values_[det_idx];
             }
             if (is_nonz) {
                 uint8_t *new_idx = indices_[det_idx];
                 uintmax_t hash_val = idx_to_hash(new_idx);
                 ssize_t *idx_ptr = read_ht(vec_hash_, new_idx, hash_val, 1);
                 *idx_ptr = n_nonz_;
-                gen_orb_list(new_idx, occ_orbs_[n_nonz_]);
                 memmove(indices_[n_nonz_], new_idx, n_bytes);
-                matr_el_[n_nonz_] = NAN;
+                initialize_at_pos(n_nonz_);
+                values_[n_nonz_] = value;
                 n_nonz_++;
-                if (hub_dim_) {
-                    find_neighbors_1D(new_idx, neighb_[det_idx], n_bits_ / 2);
-                }
             }
         }
         curr_size_ = n_nonz_;

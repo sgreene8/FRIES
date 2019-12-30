@@ -130,7 +130,7 @@ int main(int argc, const char * argv[]) {
     // Solution vector
     unsigned int spawn_length = matr_samp * 5 / n_procs;
     size_t adder_size = spawn_length > 1000000 ? 1000000 : spawn_length;
-    DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, 0);
+    DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
     size_t det_size = CEILING(2 * n_orb, 8);
     size_t det_idx;
     
@@ -182,8 +182,8 @@ int main(int argc, const char * argv[]) {
     else {
         n_trial = 1;
     }
-    DistVec<double> trial_vec(n_trial, n_trial, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, 0);
-    DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, 0);
+    DistVec<double> trial_vec(n_trial, n_trial, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
+    DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
     trial_vec.proc_scrambler_ = proc_scrambler;
     htrial_vec.proc_scrambler_ = proc_scrambler;
     if (trial_path) { // load trial vector from file
@@ -391,7 +391,6 @@ int main(int argc, const char * argv[]) {
         srt_arr[det_idx] = det_idx;
     }
     int *keep_exact = (int *)calloc(max_n_dets, sizeof(int));
-    size_t n_subwt;
     
 #pragma mark Pre-calculate deterministic subspace of Hamiltonian
     size_t determ_h_size = n_determ * n_elec_unf * n_elec_unf * (n_orb - n_elec_unf / 2) * (n_orb - n_elec_unf / 2);
@@ -457,7 +456,6 @@ int main(int argc, const char * argv[]) {
         }
         
 #pragma mark Singles vs doubles
-        n_subwt = 2;
         subwt_mem.reshape(spawn_length, 2);
         keep_idx.reshape(spawn_length, 2);
         for (det_idx = n_determ; det_idx < sol_vec.curr_size(); det_idx++) {
@@ -476,10 +474,9 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec1, sol_vec.curr_size() - n_determ, ndiv_vec, n_subwt, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
+        comp_len = comp_sub(comp_vec1, sol_vec.curr_size() - n_determ, ndiv_vec, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
         
 #pragma mark  First occupied orbital
-        n_subwt = n_elec_unf;
         subwt_mem.reshape(spawn_length, n_elec_unf);
         keep_idx.reshape(spawn_length, n_elec_unf);
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
@@ -510,10 +507,9 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, n_subwt, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec1, comp_idx);
+        comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec1, comp_idx);
         
 #pragma mark Unoccupied orbital (single); 2nd occupied (double)
-        n_subwt = n_elec_unf;
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
             weight_idx = comp_idx[samp_idx][0];
             det_idx = det_indices1[weight_idx];
@@ -544,10 +540,9 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, n_subwt, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
+        comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
         
 #pragma mark 1st unoccupied (double)
-        n_subwt = n_orb;
         subwt_mem.reshape(spawn_length, n_orb);
         keep_idx.reshape(spawn_length, n_orb);
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
@@ -575,10 +570,9 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, n_subwt, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec1, comp_idx);
+        comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec1, comp_idx);
         
 #pragma mark 2nd unoccupied (double)
-        n_subwt = max_n_symm;
         subwt_mem.reshape(spawn_length, max_n_symm);
         keep_idx.reshape(spawn_length, max_n_symm);
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
@@ -612,7 +606,7 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, n_subwt, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
+        comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
         
         size_t num_added = 0;
         keep_idx.reshape(spawn_length, 2);
