@@ -20,7 +20,7 @@ install(
         frimulti_mol
         frisys_mol
         fciqmc_hh
-        frisys_hh
+        frifull_hh
     RUNTIME
         DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}
         COMPONENT bin
