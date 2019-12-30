@@ -629,6 +629,10 @@ int main(int argc, const char * argv[]) {
                 if (read_bit(curr_det, doub_orbs[3])) { // chosen orbital is occupied; unsuccessful spawn
                     continue;
                 }
+                if (doub_orbs[2] == doub_orbs[3]) { // This shouldn't happen, but in case it does (e.g. by numerical error)
+                    fprintf(stderr, "Error: repeat virtual orbital chosen\n");
+                    continue;
+                }
                 if (doub_orbs[2] > doub_orbs[3]) {
                     uint8_t tmp = doub_orbs[3];
                     doub_orbs[3] = doub_orbs[2];
