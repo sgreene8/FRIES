@@ -258,7 +258,8 @@ int main(int argc, const char * argv[]) {
                 if (isnan(*diag_el)) {
                     *diag_el = hub_diag(curr_det, hub_len, sol_vec.tabl());
                 }
-                *curr_el *= 1 - eps * (*diag_el * hub_u - hf_en - en_shift);
+                double phonon_diag = sol_vec.total_ph(det_idx) * ph_freq;
+                *curr_el *= 1 - eps * (*diag_el * hub_u + phonon_diag - hf_en - en_shift);
             }
         }
         sol_vec.perform_add();
