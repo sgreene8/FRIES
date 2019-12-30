@@ -76,6 +76,19 @@ int sing_det_parity(uint8_t *det, uint8_t *orbs);
  */
 int excite_sign(uint8_t cre_op, uint8_t des_op, uint8_t *det);
 
+
+/*! \brief Find the orbital index of the nth virtual orbital with a given spin in a determinant
+ *
+ * \param [in] occ_orbs     List of the occupied orbitals in \p det
+ * \param [in] spin     Spin of the orbital in question (0 or 1)
+ * \param [in] n_elec       Number of electrons in the determinant
+ * \param [in] n_orb        Number of spatial orbitals the basis
+ * \param [in] n        The index of the virtual orbital in question
+ * \returns The orbital index of the virtual orbital in question
+ */
+uint8_t find_nth_virt(uint8_t *occ_orbs, int spin, uint8_t n_elec,
+                      uint8_t n_orb, uint8_t n);
+
     
 #ifdef __cplusplus
 }

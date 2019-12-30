@@ -62,6 +62,24 @@ TEST_CASE("Test enumeration of symmetry-allowed single excitations", "[single_sy
     }
 }
 
+TEST_CASE("Test counting of virtual orbitals in a determinant", "[virt_count]") {
+    uint8_t n_elec = 6;
+    uint8_t n_orb = 10;
+    size_t det_size = CEILING(2 * n_orb, 8);
+    uint8_t test_det[det_size];
+    
+    test_det[0] = 0b10010010;
+    test_det[1] = 0b10001000;
+    test_det[2] = 0b10;
+    
+    uint8_t occ_orbs[] = {1, 4, 7, 11, 15, 17};
+    
+    REQUIRE(find_nth_virt(occ_orbs, 0, n_elec, n_orb, 0) == 0);
+    REQUIRE(find_nth_virt(occ_orbs, 0, n_elec, n_orb, 5) == 8);
+    REQUIRE(find_nth_virt(occ_orbs, 1, n_elec, n_orb, 0) == 10);
+    REQUIRE(find_nth_virt(occ_orbs, 1, n_elec, n_orb, 2) == 13);
+}
+
 
 TEST_CASE("Test evaluation of Hubbard matrix elements", "[hubbard]") {
     unsigned int n_sites = 10;
