@@ -475,6 +475,9 @@ int main(int argc, const char * argv[]) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
         comp_len = comp_sub(comp_vec1, sol_vec.curr_size() - n_determ, ndiv_vec, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
+        if (comp_len > spawn_length) {
+            fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
+        }
         
 #pragma mark  First occupied orbital
         subwt_mem.reshape(spawn_length, n_elec_unf);
@@ -508,6 +511,9 @@ int main(int argc, const char * argv[]) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
         comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec1, comp_idx);
+        if (comp_len > spawn_length) {
+            fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
+        }
         
 #pragma mark Unoccupied orbital (single); 2nd occupied (double)
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
@@ -541,6 +547,9 @@ int main(int argc, const char * argv[]) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
         comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
+        if (comp_len > spawn_length) {
+            fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
+        }
         
 #pragma mark 1st unoccupied (double)
         subwt_mem.reshape(spawn_length, n_orb);
@@ -571,6 +580,9 @@ int main(int argc, const char * argv[]) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
         comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec1, comp_idx);
+        if (comp_len > spawn_length) {
+            fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
+        }
         
 #pragma mark 2nd unoccupied (double)
         subwt_mem.reshape(spawn_length, max_n_symm);
@@ -607,6 +619,9 @@ int main(int argc, const char * argv[]) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
         comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
+        if (comp_len > spawn_length) {
+            fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
+        }
         
         size_t num_added = 0;
         keep_idx.reshape(spawn_length, 2);
