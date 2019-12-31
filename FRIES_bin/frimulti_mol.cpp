@@ -4,11 +4,10 @@
  * system
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-#include <math.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <ctime>
 #include <FRIES/Hamiltonians/near_uniform.hpp>
 #include <FRIES/io_utils.hpp>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
@@ -410,7 +409,7 @@ int main(int argc, const char * argv[]) {
             
             // Death/cloning step
             double *diag_el = sol_vec.matr_el_at_pos(det_idx);
-            if (isnan(*diag_el)) {
+            if (std::isnan(*diag_el)) {
                 *diag_el = diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
             }
             *curr_el *= 1 - eps * (*diag_el - en_shift);

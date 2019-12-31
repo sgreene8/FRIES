@@ -9,7 +9,6 @@
 
 #include <cstdio>
 #include <cstdint>
-#include <cmath>
 #include <FRIES/Ext_Libs/heap.h>
 #include <FRIES/mpi_switch.h>
 #include <FRIES/det_store.h>

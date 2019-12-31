@@ -14,7 +14,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <math.h>
 #include <FRIES/Hamiltonians/near_uniform.hpp>
 #include <FRIES/io_utils.hpp>
 #include <FRIES/compress_utils.hpp>
@@ -28,6 +27,8 @@ static const char *const usage[] = {
     "fciqmc_mol [options]",
     NULL,
 };
+
+using namespace std;
 
 int main(int argc, const char * argv[]) {
     const char *hf_path = NULL;
@@ -450,7 +451,7 @@ int main(int argc, const char * argv[]) {
             
             // Death/cloning step
             double *diag_el = sol_vec.matr_el_at_pos(det_idx);
-            if (isnan(*diag_el)) {
+            if (std::isnan(*diag_el)) {
                 *diag_el = diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
             }
             matr_el = (1 - eps * (*diag_el - en_shift)) * walk_sign;

@@ -56,3 +56,15 @@ int excite_sign(uint8_t cre_op, uint8_t des_op, uint8_t *det) {
     else
         return -1;
 }
+
+uint8_t find_nth_virt(uint8_t *occ_orbs, int spin, uint8_t n_elec,
+                      uint8_t n_orb, uint8_t n) {
+    uint8_t virt_orb = n_orb * spin + n;
+    size_t orb_idx;
+    for (orb_idx = n_elec / 2 * spin; occ_orbs[orb_idx] <= virt_orb && orb_idx < n_elec; orb_idx++) {
+        if (occ_orbs[orb_idx] <= virt_orb) {
+            virt_orb++;
+        }
+    }
+    return virt_orb;
+}

@@ -12,9 +12,9 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include <cmath>
 #include <FRIES/compress_utils.hpp>
 #include <FRIES/ndarr.hpp>
+#include <FRIES/fci_utils.h>
 
 
 /*!
@@ -107,12 +107,12 @@ double calc_o2_probs(hb_info *tens, double *prob_arr, unsigned int n_elec,
  * \param [in] tens         hb_info struct containing the HB-PP parameters
  * \param [out] prob_arr    probability for each unoccupied orbital (length n_orb)
  * \param [in] o1_orb       first occupied orbital (selected previously)
- * \param [in] det          bit-string representation of determinant from which
- *                          excitations occur
+ * \param [in] occ_orbs          list of all occupied orbitals in the determinant
+ * \param [in] n_elec       Number of electrons in the determinant
  * \return sum of weights for all unoccupied orbitals before normalization
  */
 double calc_u1_probs(hb_info *tens, double *prob_arr, uint8_t o1_orb,
-                     uint8_t *det);
+                     uint8_t *occ_orbs, uint8_t n_elec);
 
 
 /*! \brief Calculate the normalized probabilities for choosing the second

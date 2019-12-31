@@ -11,7 +11,6 @@
 #ifndef near_uniform_h
 #define near_uniform_h
 
-#include <cstdio>
 #include <cmath>
 #include <cstdint>
 #include <FRIES/ndarr.hpp>
