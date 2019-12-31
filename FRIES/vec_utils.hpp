@@ -11,7 +11,6 @@
 
 #include <cstdio>
 #include <cstring>
-#include <cmath>
 #include <FRIES/det_store.h>
 #include <FRIES/Hamiltonians/hub_holstein.hpp>
 #include <FRIES/Ext_Libs/dcmt/dc.h>

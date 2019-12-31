@@ -700,7 +700,7 @@ int main(int argc, const char * argv[]) {
                 n_ini += ini_flag;
                 double *diag_el = sol_vec.matr_el_at_pos(det_idx);
                 uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
-                if (isnan(*diag_el)) {
+                if (std::isnan(*diag_el)) {
                     *diag_el = diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
                 }
                 *curr_el *= 1 - eps * (*diag_el - en_shift);

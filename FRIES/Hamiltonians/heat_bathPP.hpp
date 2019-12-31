@@ -12,7 +12,6 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include <cmath>
 #include <FRIES/compress_utils.hpp>
 #include <FRIES/ndarr.hpp>
 #include <FRIES/fci_utils.h>
