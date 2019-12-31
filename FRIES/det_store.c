@@ -27,10 +27,11 @@ hash_table *setup_ht(size_t table_size, mt_struct *rn_gen, unsigned int rn_len) 
     table->recycle_list = NULL;
     table->idx_size = CEILING(rn_len, 8);
     
-    for (size_t j = 0; j < table_size; j++) {
+    size_t j;
+    for (j = 0; j < table_size; j++) {
         table->buckets[j] = NULL;
     }
-    for (size_t j = 0; j < rn_len; j++) {
+    for (j = 0; j < rn_len; j++) {
         table->scrambler[j] = genrand_mt(rn_gen);
     }
     return table;
@@ -100,7 +101,8 @@ void del_ht(hash_table *table, uint8_t *det, uintmax_t hash_val) {
 
 
 int bit_str_equ(uint8_t *str1, uint8_t *str2, uint8_t n_bytes) {
-    for (int byte_idx = 0; byte_idx < n_bytes; byte_idx++) {
+    int byte_idx;
+    for (byte_idx = 0; byte_idx < n_bytes; byte_idx++) {
         if (str1[byte_idx] != str2[byte_idx]) {
             return 0;
         }
@@ -128,7 +130,8 @@ void set_bit(uint8_t *bit_str, uint8_t bit_idx) {
 }
 
 void print_str(uint8_t *bit_str, uint8_t n_bytes, char *out_str) {
-    for (uint8_t byte_idx = n_bytes; byte_idx > 0; byte_idx--) {
+    uint8_t byte_idx;
+    for (byte_idx = n_bytes; byte_idx > 0; byte_idx--) {
         sprintf(&out_str[(n_bytes - byte_idx) * 2], "%02x", bit_str[byte_idx - 1]);
     }
     out_str[n_bytes * 2] = '\0';
