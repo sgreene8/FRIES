@@ -128,7 +128,7 @@ int main(int argc, const char * argv[]) {
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
     
     // Solution vector
-    unsigned int spawn_length = matr_samp * 5 / n_procs;
+    unsigned int spawn_length = matr_samp * 2 / n_procs;
     size_t adder_size = spawn_length > 1000000 ? 1000000 : spawn_length;
     DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
     size_t det_size = CEILING(2 * n_orb, 8);
@@ -358,7 +358,8 @@ int main(int argc, const char * argv[]) {
         fclose(param_f);
     }
     
-    Matrix<double> subwt_mem(spawn_length, n_orb);
+    size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2) ? n_elec_unf : n_orb - n_elec_unf / 2;
+    Matrix<double> subwt_mem(spawn_length, n_states);
     uint8_t *spawn_dets = (uint8_t *)subwt_mem.data();
     unsigned int *ndiv_vec = (unsigned int *)malloc(sizeof(unsigned int) * spawn_length);
     double *comp_vec1 = (double *)malloc(sizeof(double) * spawn_length);
@@ -369,7 +370,7 @@ int main(int argc, const char * argv[]) {
     size_t *det_indices2 = &det_indices1[spawn_length];
     uint8_t (*orb_indices2)[4] = (uint8_t (*)[4])malloc(sizeof(uint8_t) * 4 * spawn_length);
     unsigned int unocc_symm_cts[n_irreps][2];
-    Matrix<int> keep_idx(spawn_length, n_orb);
+    Matrix<int> keep_idx(spawn_length, n_states);
     double *wt_remain = (double *)calloc(spawn_length, sizeof(double));
     size_t samp_idx, weight_idx;
     
@@ -543,8 +544,8 @@ int main(int argc, const char * argv[]) {
         comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
         
 #pragma mark 1st unoccupied (double)
-        subwt_mem.reshape(spawn_length, n_orb);
-        keep_idx.reshape(spawn_length, n_orb);
+        subwt_mem.reshape(spawn_length, n_orb - n_elec_unf / 2);
+        keep_idx.reshape(spawn_length, n_orb - n_elec_unf / 2);
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
             weight_idx = comp_idx[samp_idx][0];
             det_idx = det_indices2[weight_idx];
@@ -557,7 +558,7 @@ int main(int argc, const char * argv[]) {
                 ndiv_vec[samp_idx] = 0;
                 uint8_t *occ_tmp = sol_vec.orbs_at_pos(det_idx);
                 orb_indices1[samp_idx][2] = occ_tmp[orb_indices1[samp_idx][2]];
-                double tot_weight = calc_u1_probs(hb_probs, subwt_mem[samp_idx], o1_orb, sol_vec.indices()[det_idx]);
+                double tot_weight = calc_u1_probs(hb_probs, subwt_mem[samp_idx], o1_orb, occ_tmp, n_elec_unf);
                 if (qmc_dist == unnorm_heat_bath) {
                     comp_vec2[samp_idx] *= tot_weight;
                 }
@@ -585,8 +586,9 @@ int main(int argc, const char * argv[]) {
             uint8_t o2_orb = orb_indices1[weight_idx][2];
             orb_indices2[samp_idx][2] = o2_orb; // 2nd occupied orbital (doubles); unoccupied orbital index (singles)
             if (orb_indices2[samp_idx][0] == 0) { // double excitation
-                uint8_t u1_orb = comp_idx[samp_idx][1] + n_orb * (o1_orb / n_orb);
-                if (read_bit(sol_vec.indices()[det_idx], u1_orb)) {
+                uint8_t u1_orb = find_nth_virt(sol_vec.orbs_at_pos(det_idx), o1_orb / n_orb, n_elec_unf, n_orb, comp_idx[samp_idx][1]);
+                if (read_bit(sol_vec.indices()[det_idx], u1_orb)) { // now this really should never happen
+                    fprintf(stderr, "Error: occupied orbital chosen as 1st virtual\n");
                     comp_vec1[samp_idx] = 0;
                 }
                 else {
