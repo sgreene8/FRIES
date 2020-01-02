@@ -360,6 +360,7 @@ int main(int argc, const char * argv[]) {
     
     size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2) ? n_elec_unf : n_orb - n_elec_unf / 2;
     Matrix<double> subwt_mem(spawn_length, n_states);
+    uint16_t *sub_sizes = (uint16_t *)malloc(sizeof(uint16_t) * spawn_length);
     uint8_t *spawn_dets = (uint8_t *)subwt_mem.data();
     unsigned int *ndiv_vec = (unsigned int *)malloc(sizeof(unsigned int) * spawn_length);
     double *comp_vec1 = (double *)malloc(sizeof(double) * spawn_length);
@@ -476,7 +477,7 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec1, sol_vec.curr_size() - n_determ, ndiv_vec, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
+        comp_len = comp_sub(comp_vec1, sol_vec.curr_size() - n_determ, ndiv_vec, subwt_mem, keep_idx, NULL, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
         if (comp_len > spawn_length) {
             fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
         }
@@ -512,7 +513,7 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec1, comp_idx);
+        comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, subwt_mem, keep_idx, NULL, matr_samp, wt_remain, rn_sys, comp_vec1, comp_idx);
         if (comp_len > spawn_length) {
             fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
         }
@@ -548,7 +549,7 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
+        comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, subwt_mem, keep_idx, NULL, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
         if (comp_len > spawn_length) {
             fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
         }
@@ -581,7 +582,7 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec1, comp_idx);
+        comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, subwt_mem, keep_idx, NULL, matr_samp, wt_remain, rn_sys, comp_vec1, comp_idx);
         if (comp_len > spawn_length) {
             fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
         }
@@ -600,14 +601,21 @@ int main(int argc, const char * argv[]) {
             orb_indices2[samp_idx][2] = o2_orb; // 2nd occupied orbital (doubles); unoccupied orbital index (singles)
             if (orb_indices2[samp_idx][0] == 0) { // double excitation
                 uint8_t u1_orb = find_nth_virt(sol_vec.orbs_at_pos(det_idx), o1_orb / n_orb, n_elec_unf, n_orb, comp_idx[samp_idx][1]);
-                if (read_bit(sol_vec.indices()[det_idx], u1_orb)) { // now this really should never happen
+                uint8_t *curr_det = sol_vec.indices()[det_idx];
+                if (read_bit(curr_det, u1_orb)) { // now this really should never happen
                     fprintf(stderr, "Error: occupied orbital chosen as 1st virtual\n");
                     comp_vec1[samp_idx] = 0;
                 }
                 else {
                     ndiv_vec[samp_idx] = 0;
                     orb_indices2[samp_idx][3] = u1_orb;
-                    double tot_weight = calc_u2_probs(hb_probs, subwt_mem[samp_idx], o1_orb, o2_orb, u1_orb, symm_lookup, symm, &max_n_symm);
+                    double tot_weight;// = calc_u2_probs(hb_probs, subwt_mem[samp_idx], o1_orb, o2_orb, u1_orb, symm_lookup, symm, &sub_sizes[samp_idx]);
+                    if (qmc_dist == heat_bath) {
+                        tot_weight = calc_u2_probs(hb_probs, subwt_mem[samp_idx], o1_orb, o2_orb, u1_orb, symm_lookup, symm, &sub_sizes[samp_idx]);
+                    }
+                    else {
+                        tot_weight = calc_u2_probs_no_occ(hb_probs, subwt_mem[samp_idx], o1_orb, o2_orb, u1_orb, curr_det, symm_lookup, symm, &sub_sizes[samp_idx]);
+                    }
                     if (qmc_dist == unnorm_heat_bath || tot_weight == 0) {
                         comp_vec1[samp_idx] *= tot_weight;
                     }
@@ -621,7 +629,7 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, subwt_mem, keep_idx, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
+        comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, subwt_mem, keep_idx, sub_sizes, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
         if (comp_len > spawn_length) {
             fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
         }
@@ -645,6 +653,9 @@ int main(int argc, const char * argv[]) {
                 uint8_t u2_symm = symm[doub_orbs[0] % n_orb] ^ symm[doub_orbs[1] % n_orb] ^ symm[doub_orbs[2] % n_orb];
                 doub_orbs[3] = symm_lookup[u2_symm][comp_idx[samp_idx][1] + 1] + n_orb * (doub_orbs[1] / n_orb);
                 if (read_bit(curr_det, doub_orbs[3])) { // chosen orbital is occupied; unsuccessful spawn
+                    if (qmc_dist == unnorm_heat_bath) {
+                        fprintf(stderr, "Error: occupied orbital chosen as second virtual in unnormalized heat-bath\n");
+                    }
                     continue;
                 }
                 if (doub_orbs[2] == doub_orbs[3]) { // This shouldn't happen, but in case it does (e.g. by numerical error)

@@ -140,6 +140,40 @@ double find_keep_sub(double *values, unsigned int *n_div,
                      size_t count, unsigned int *n_samp, double *wt_remain);
 
 
+/*! \brief Identify elements to preserve exactly according to the FRI rule when
+ * vector elements are subdivided into sub-weights.
+ *
+ * \param [in] values   Magnitudes of elements of vector to be compressed
+ *                      (length \p count)
+ * \param [in] n_div    Number of uniform intervals into which each element is
+ *                      divided. If =0, this element is divided nonuniformly
+ *                      according to sub_wts at this position (length \p count)
+ * \param [in] sub_weights  2-d array of sub-weights for vector elements divided
+ *                      nonuniformly; each nonzero row must sum to 1. Elements
+ *                      in rows corresponding to nonzero elements of n_div are
+ *                      undefined. (dimensions \p count x \p n_sub)
+ * \param [out] keep_idx 2-d array that contains 1's at all positions to be
+ *                      preserved exactly. Elements must be zeroed before
+ *                      calling. If vector is divided uniformly, only the
+ *                      element in the 0th column is set to 1
+ *                      (dimensions \p count * \p n_sub)
+ * \param [in] sub_sizes    If non-null, sub_weights is treated as a jagged 2-D array, with \p sub_sizes
+ *                        denoting the number of elements in each row
+ * \param [in] count    Length of vector to compress
+ * \param [in, out] n_samp Pointer to desired number of nonzero elements after
+ *                      compression; upon return, points to remaining number
+ *                      available for systematic resampling
+ * \param [out] wt_remain Sum of magnitudes of sub-elements not preserved
+ *                      exactly at each position (length \p count)
+ * \return sum of magnitudes of elements on this local MPI process that are not
+ * preserved exactly
+ */
+double find_keep_sub(double *values, unsigned int *n_div,
+                     const Matrix<double> &sub_weights, Matrix<uint8_t> &keep_idx,
+                     uint16_t *sub_sizes,
+                     size_t count, unsigned int *n_samp, double *wt_remain);
+
+
 /*! \brief Perform systematic resampling on a vector with subdivided elements
  *
  * \param [in] values   Magnitudes of elements of original vector to be
@@ -154,6 +188,8 @@ double find_keep_sub(double *values, unsigned int *n_div,
  *                      undefined. (dimensions \p count * \p n_sub)
  * \param [in] keep_idx 2-d array that contains 1's at all positions to be
  *                      preserved exactly. (dimensions \p count * \p n_sub)
+ * \param [in] sub_sizes    If non-null, sub_weights is treated as a jagged 2-D array, with \p sub_sizes
+ *                        denoting the number of elements in each row
  * \param [in] count    Length of vector to compress
  * \param [in] n_samp   Number of elements to select in systematic resampling
  * \param [in] wt_remain Sum of magnitudes of sub-elements not preserved
@@ -172,6 +208,7 @@ double find_keep_sub(double *values, unsigned int *n_div,
  */
 size_t sys_sub(double *values, unsigned int *n_div,
                const Matrix<double> &sub_weights, Matrix<uint8_t> &keep_idx,
+               uint16_t *sub_sizes,
                size_t count, unsigned int n_samp, double *wt_remain,
                double *loc_norms, double rand_num, double *new_vals,
                size_t new_idx[][2]);
@@ -193,6 +230,8 @@ size_t sys_sub(double *values, unsigned int *n_div,
  * \param [in] keep_idx Scratch array used to identify elements to preserve
  *                      exactly. Must be 0 upon input
  *                      (dimensions \p count * \p n_sub)
+ * \param [in] sub_sizes    If non-null, sub_weights is treated as a jagged 2-D array, with \p sub_sizes
+ *                        denoting the number of elements in each row
  * \param [in] n_samp   Desired number of nonzero elements in compressed vector
  * \param [in] wt_remain Scratch array used for compression (length \p count)
  * \param [in] rand_num A random number chosen uniformly on [0, 1). Only the
@@ -207,6 +246,7 @@ size_t sys_sub(double *values, unsigned int *n_div,
  */
 size_t comp_sub(double *values, size_t count, unsigned int *n_div,
                 Matrix<double> &sub_weights, Matrix<uint8_t> &keep_idx,
+                uint16_t *sub_sizes,
                 unsigned int n_samp, double *wt_remain, double rand_num,
                 double *new_vals, size_t new_idx[][2]);
 

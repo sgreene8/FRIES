@@ -91,6 +91,20 @@ TEST_CASE("Test counting of virtual orbitals in a determinant", "[virt_count]") 
     occ_orbs[7] = 25;
     
     REQUIRE(find_nth_virt(occ_orbs, 1, n_elec, n_orb, 0) == 26);
+    
+    n_elec = 6;
+    n_orb = 10;
+    uint8_t symm[] = {0,1,2,0,1,2,0,1,2,0};
+    Matrix<uint8_t> symm_lookup(n_irreps, n_orb + 1);
+    gen_symm_lookup(symm, symm_lookup);
+    
+    uint8_t det[3];
+    det[0] = 0b100100;
+    det[1] = 0b111010;
+    det[2] = 0;
+    REQUIRE(find_nth_virt_symm(det, 0, 2, 0, symm_lookup) == 8);
+    REQUIRE(find_nth_virt_symm(det, n_orb, 2, 1, symm_lookup) == 8 + n_orb);
+    REQUIRE(find_nth_virt_symm(det, n_orb, 2, 2, symm_lookup) == 255);
 }
 
 

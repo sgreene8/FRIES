@@ -10,34 +10,6 @@
 
 #include "near_uniform.hpp"
 
-void gen_symm_lookup(uint8_t *orb_symm,
-                     Matrix<uint8_t> &lookup_tabl) {
-    uint8_t symm;
-    size_t n_symm = lookup_tabl.rows();
-    size_t n_orb = lookup_tabl.cols() - 1;
-    for (unsigned int idx = 0; idx < n_symm; idx++) {
-        lookup_tabl(idx, 0) = 0;
-    }
-    for (unsigned int idx = 0; idx < n_orb; idx++) {
-        symm = orb_symm[idx];
-        unsigned int count = lookup_tabl(symm, 0);
-        lookup_tabl(symm, 1 + count) = idx;
-        count++;
-        lookup_tabl(symm, 0) = count;
-    }
-}
-
-void print_symm_lookup(Matrix<uint8_t> &lookup_tabl) {
-    size_t n_symm = lookup_tabl.rows();
-    for (unsigned int idx = 0; idx < n_symm; idx++) {
-        printf("%u: ", idx);
-        for (unsigned int orb_idx = 0; orb_idx < lookup_tabl(idx, 0); orb_idx++) {
-            printf("%u, ", lookup_tabl(idx, 1 + orb_idx));
-        }
-        printf("\n");
-    }
-}
-
 void count_symm_virt(unsigned int counts[][2], uint8_t *occ_orbs,
                      unsigned int n_elec, unsigned int n_orb, unsigned int n_symm,
                      const Matrix<uint8_t> &symm_table,

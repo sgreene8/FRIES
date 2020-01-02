@@ -294,3 +294,50 @@ double diag_matrel(const uint8_t *occ_orbs, unsigned int n_orbs,
     }
     return matr_sum;
 }
+
+
+uint8_t find_nth_virt_symm(uint8_t *det, uint8_t spin_orbs, uint8_t irrep, uint8_t n,
+                           const Matrix<uint8_t> &lookup_tabl) {
+    unsigned int num_u2 = lookup_tabl(irrep, 0);
+    uint8_t u2_orb;
+    uint8_t virt_idx = 0;
+    for (unsigned int orb_idx = 0; orb_idx < num_u2; orb_idx++) {
+        u2_orb = lookup_tabl(irrep, orb_idx + 1) + spin_orbs;
+        if (read_bit(det, u2_orb) == 0) {
+            if (virt_idx == n) {
+                return u2_orb;
+            }
+            virt_idx++;
+        }
+    }
+    return 255;
+}
+
+
+void gen_symm_lookup(uint8_t *orb_symm,
+                     Matrix<uint8_t> &lookup_tabl) {
+    uint8_t symm;
+    size_t n_symm = lookup_tabl.rows();
+    size_t n_orb = lookup_tabl.cols() - 1;
+    for (unsigned int idx = 0; idx < n_symm; idx++) {
+        lookup_tabl(idx, 0) = 0;
+    }
+    for (unsigned int idx = 0; idx < n_orb; idx++) {
+        symm = orb_symm[idx];
+        unsigned int count = lookup_tabl(symm, 0);
+        lookup_tabl(symm, 1 + count) = idx;
+        count++;
+        lookup_tabl(symm, 0) = count;
+    }
+}
+
+void print_symm_lookup(Matrix<uint8_t> &lookup_tabl) {
+    size_t n_symm = lookup_tabl.rows();
+    for (unsigned int idx = 0; idx < n_symm; idx++) {
+        printf("%u: ", idx);
+        for (unsigned int orb_idx = 0; orb_idx < lookup_tabl(idx, 0); orb_idx++) {
+            printf("%u, ", lookup_tabl(idx, 1 + orb_idx));
+        }
+        printf("\n");
+    }
+}
