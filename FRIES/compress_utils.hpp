@@ -136,7 +136,7 @@ double seed_sys(double *norms, double *rn, unsigned int n_samp);
  * preserved exactly
  */
 double find_keep_sub(double *values, unsigned int *n_div,
-                     const Matrix<double> &sub_weights, Matrix<int> &keep_idx,
+                     const Matrix<double> &sub_weights, Matrix<uint8_t> &keep_idx,
                      size_t count, unsigned int *n_samp, double *wt_remain);
 
 
@@ -171,7 +171,7 @@ double find_keep_sub(double *values, unsigned int *n_div,
  * \return Number of elements in compressed vector on this processor
  */
 size_t sys_sub(double *values, unsigned int *n_div,
-               const Matrix<double> &sub_weights, Matrix<int> &keep_idx,
+               const Matrix<double> &sub_weights, Matrix<uint8_t> &keep_idx,
                size_t count, unsigned int n_samp, double *wt_remain,
                double *loc_norms, double rand_num, double *new_vals,
                size_t new_idx[][2]);
@@ -206,7 +206,7 @@ size_t sys_sub(double *values, unsigned int *n_div,
  * \return number of elements in the compressed array (at most n_samp)
  */
 size_t comp_sub(double *values, size_t count, unsigned int *n_div,
-                Matrix<double> &sub_weights, Matrix<int> &keep_idx,
+                Matrix<double> &sub_weights, Matrix<uint8_t> &keep_idx,
                 unsigned int n_samp, double *wt_remain, double rand_num,
                 double *new_vals, size_t new_idx[][2]);
 

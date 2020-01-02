@@ -135,7 +135,7 @@ double seed_sys(double *norms, double *rn, unsigned int n_samp) {
 
 
 double find_keep_sub(double *values, unsigned int *n_div,
-                     const Matrix<double> &sub_weights, Matrix<int> &keep_idx,
+                     const Matrix<double> &sub_weights, Matrix<uint8_t> &keep_idx,
                      size_t count, unsigned int *n_samp, double *wt_remain) {
     double loc_one_norm = 0;
     double glob_one_norm = 0;
@@ -162,7 +162,7 @@ double find_keep_sub(double *values, unsigned int *n_div,
         }
         loc_sampled = 0;
         for (size_t det_idx = 0; det_idx < count; det_idx++) {
-            int *keep_row = keep_idx[det_idx];
+            uint8_t *keep_row = keep_idx[det_idx];
             el_magn = values[det_idx];
             keep_thresh = glob_one_norm / (*n_samp - loc_sampled);
             if (el_magn >= keep_thresh) {
@@ -294,7 +294,7 @@ void adjust_shift(double *shift, double one_norm, double *last_norm,
 }
 
 size_t sys_sub(double *values, unsigned int *n_div,
-               const Matrix<double> &sub_weights, Matrix<int> &keep_idx,
+               const Matrix<double> &sub_weights, Matrix<uint8_t> &keep_idx,
                size_t count, unsigned int n_samp, double *wt_remain,
                double *loc_norms, double rand_num, double *new_vals,
                size_t new_idx[][2]) {
@@ -382,7 +382,7 @@ size_t sys_sub(double *values, unsigned int *n_div,
 
 
 size_t comp_sub(double *values, size_t count, unsigned int *n_div,
-                Matrix<double> &sub_weights, Matrix<int> &keep_idx,
+                Matrix<double> &sub_weights, Matrix<uint8_t> &keep_idx,
                 unsigned int n_samp, double *wt_remain, double rand_num,
                 double *new_vals, size_t new_idx[][2]) {
     int proc_rank = 0;
