@@ -624,7 +624,7 @@ public:
         MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 #endif
         el_type glob_norm;
-        sum_mpi(result, &glob_norm, my_rank, n_procs);
+        glob_norm = sum_mpi(result, my_rank, n_procs);
         return glob_norm;
     }
     
@@ -644,7 +644,6 @@ public:
 #ifdef USE_MPI
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, vec_sizes, 1, MPI_INT, MPI_COMM_WORLD);
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, idx_sizes, 1, MPI_INT, MPI_COMM_WORLD);
-        MPI_Datatype mpi_type;
 #endif
         int tot_size = 0;
         int disps[n_procs];

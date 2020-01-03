@@ -329,7 +329,7 @@ int main(int argc, const char * argv[]) {
     size_t n_ini;
     for (iterat = 0; iterat < max_iter; iterat++) {
         n_ini = 0;
-        sum_mpi(sol_vec.n_nonz(), &glob_n_nonz, proc_rank, n_procs);
+        glob_n_nonz = sum_mpi(sol_vec.n_nonz(), proc_rank, n_procs);
         
         // Systematic sampling to determine number of samples for each column
         if (proc_rank == 0) {

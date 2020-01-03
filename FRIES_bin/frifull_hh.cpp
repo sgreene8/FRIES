@@ -146,7 +146,7 @@ int main(int argc, const char * argv[]) {
     }
     sol_vec.perform_add();
     loc_norm = sol_vec.local_norm();
-    sum_mpi(loc_norm, &glob_norm, proc_rank, n_procs);
+    glob_norm = sum_mpi(loc_norm, proc_rank, n_procs);
     if (load_dir) {
         last_one_norm = glob_norm;
     }

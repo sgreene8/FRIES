@@ -38,9 +38,9 @@ double find_preserve(double *values, size_t *srt_idx, int *keep_idx,
     
     double el_magn = 0;
     size_t max_idx;
-    sum_mpi(loc_one_norm, global_norm, proc_rank, n_procs);
+    *global_norm = sum_mpi(loc_one_norm, proc_rank, n_procs);
     while (glob_sampled > 0) {
-        sum_mpi(loc_one_norm, &glob_one_norm, proc_rank, n_procs);
+        glob_one_norm = sum_mpi(loc_one_norm, proc_rank, n_procs);
         loc_sampled = 0;
         while (keep_going && heap_count > 0) {
             max_idx = srt_idx[0];
@@ -65,7 +65,7 @@ double find_preserve(double *values, size_t *srt_idx, int *keep_idx,
                 keep_going = 0;
             }
         }
-        sum_mpi(loc_sampled, &glob_sampled, proc_rank, n_procs);
+        glob_sampled = sum_mpi(loc_sampled, proc_rank, n_procs);
         (*n_samp) -= glob_sampled;
         keep_going = 1;
     }
@@ -84,29 +84,31 @@ double find_preserve(double *values, size_t *srt_idx, int *keep_idx,
 }
 
 
-void sum_mpi(double local, double *global, int my_rank, int n_procs) {
+double sum_mpi(double local, int my_rank, int n_procs) {
     double rec_vals[n_procs];
     rec_vals[my_rank] = local;
 #ifdef USE_MPI
     MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, rec_vals, 1, MPI_DOUBLE, MPI_COMM_WORLD);
 #endif
-    *global = 0;
+    double global = 0;
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-        (*global) += rec_vals[proc_idx];
+        global += rec_vals[proc_idx];
     }
+    return global;
 }
 
 
-void sum_mpi(int local, int *global, int my_rank, int n_procs) {
+int sum_mpi(int local, int my_rank, int n_procs) {
     int rec_vals[n_procs];
     rec_vals[my_rank] = local;
 #ifdef USE_MPI
     MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, rec_vals, 1, MPI_INT, MPI_COMM_WORLD);
 #endif
-    *global = 0;
+    int global = 0;
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-        (*global) += rec_vals[proc_idx];
+        global += rec_vals[proc_idx];
     }
+    return global;
 }
 
 double seed_sys(double *norms, double *rn, unsigned int n_samp) {
@@ -157,7 +159,7 @@ double find_keep_sub(double *values, unsigned int *n_div,
     int last_pass = 0;
     size_t n_sub = sub_weights.cols();
     while (glob_sampled > 0) {
-        sum_mpi(loc_one_norm, &glob_one_norm, proc_rank, n_procs);
+        glob_one_norm = sum_mpi(loc_one_norm, proc_rank, n_procs);
         if (glob_one_norm < 0) {
             break;
         }
@@ -208,7 +210,7 @@ double find_keep_sub(double *values, unsigned int *n_div,
                 }
             }
         }
-        sum_mpi(loc_sampled, &glob_sampled, proc_rank, n_procs);
+        glob_sampled = sum_mpi(loc_sampled, proc_rank, n_procs);
         (*n_samp) -= glob_sampled;
         
         if (last_pass && glob_sampled) {
