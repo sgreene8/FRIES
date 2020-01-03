@@ -161,6 +161,7 @@ public:
         
         zero_bit(neib_bits, n_sites_ - 1);
         zero_bit(neib_bits, 2 * n_sites_ - 1); // open boundary conditions
+        neib_bits[n_bytes - 1] &= (1 << ((2 * n_sites_ - 1) % 8)) - 1;
         
         neighbors[0] = find_bits(neib_bits, &neighbors[1], n_bytes, DistVec<el_type>::tabl_);
         
@@ -172,6 +173,7 @@ public:
             neib_bits[byte_idx] = det[byte_idx] & mask;
         }
         zero_bit(neib_bits, n_sites_); // open boundary conditions
+        neib_bits[n_bytes - 1] &= (1 << ((2 * n_sites_) % 8)) - 1;
         
         neighbors[n_elec + 1] = find_bits(neib_bits, &neighbors[n_elec + 1 + 1], n_bytes, DistVec<el_type>::tabl_);
     }

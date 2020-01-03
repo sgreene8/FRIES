@@ -252,6 +252,28 @@ TEST_CASE("Test generation of excitations in the Hubbard model", "[hub_excite]")
         REQUIRE(correct_orbs[ex_idx][0] == test_orbs[ex_idx][0]);
         REQUIRE(correct_orbs[ex_idx][1] == test_orbs[ex_idx][1]);
     }
+    
+    n_sites = 2;
+    n_elec = 2;
+    gen_neel_det_1D(n_sites, n_elec, det);
+    
+    REQUIRE(det[0] == 0b1001);
+    
+    HubHolVec<int>sol_vec2(1, 0, rngen_ptr, n_sites, 1, n_elec, 1);
+    sol_vec2.find_neighbors_1D(det, neighb[0]);
+    
+    REQUIRE(neighb[0][0] == 1);
+    REQUIRE(neighb[0][1] == 0);
+    REQUIRE(neighb[0][n_elec + 1] == 1);
+    REQUIRE(neighb[0][n_elec + 2] == 3);
+    
+    det[0] = 0b11001;
+    sol_vec2.find_neighbors_1D(det, neighb[0]);
+    REQUIRE(neighb[0][0] == 1);
+    REQUIRE(neighb[0][1] == 0);
+    REQUIRE(neighb[0][n_elec + 1] == 1);
+    REQUIRE(neighb[0][n_elec + 2] == 3);
+    
 }
 
 TEST_CASE("Test identification of empty neighboring orbitals in a Hubbard determinant", "[hub_neigh]") {
