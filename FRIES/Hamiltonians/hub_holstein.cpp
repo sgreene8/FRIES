@@ -131,18 +131,19 @@ unsigned int hub_diag(uint8_t *det, unsigned int n_sites, byte_table *table) {
 }
 
 
-void gen_neel_det_1D(unsigned int n_sites, unsigned int n_elec, uint8_t *det) {
+void gen_neel_det_1D(unsigned int n_sites, unsigned int n_elec, uint8_t ph_bits,
+                     uint8_t *det) {
     size_t byte_idx;
     for (byte_idx = 0; byte_idx < n_elec / 8; byte_idx++) {
         det[byte_idx] = 255 / 3;
     }
     det[byte_idx] = ((1 << (n_elec % 8)) - 1) / 3;
     
-    for (byte_idx++; byte_idx <= n_sites / 10; byte_idx++) {
+    for (byte_idx++; byte_idx < CEILING(n_sites, 8); byte_idx++) {
         det[byte_idx] = 0;
     }
     
-    byte_idx = n_sites / 10;
+    byte_idx = n_sites / 8;
     det[byte_idx] |= (255 / 3) << ((n_sites + 1) % 8);
     
     for (byte_idx++; byte_idx < (n_sites + n_elec) / 8; byte_idx++) {
@@ -153,10 +154,10 @@ void gen_neel_det_1D(unsigned int n_sites, unsigned int n_elec, uint8_t *det) {
         det[byte_idx] &= (1 << (n_sites % 8)) - 1;
         det[byte_idx] |= ((1 << (n_elec % 8)) / 3) << (1 + n_sites % 8);
     }
-    else {
+    else if ((n_sites + n_elec) % 8 != 0){
         det[byte_idx] = ((1 << ((n_sites + n_elec) % 8)) / 3) << 1;
     }
-    for (byte_idx++; byte_idx <= (2 * n_sites) / 8; byte_idx++) {
+    for (byte_idx++; byte_idx < CEILING((2 + ph_bits) * n_sites, 8); byte_idx++) {
         det[byte_idx] = 0;
     }
 }

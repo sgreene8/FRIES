@@ -93,7 +93,7 @@ TEST_CASE("Test generation of Neel bit strings", "[neel_bits]") {
     uint8_t str1[10];
     uint8_t str2[10];
     
-    gen_neel_det_1D(n_sites, n_elec, str1);
+    gen_neel_det_1D(n_sites, n_elec, 0, str1);
     str2[0] = 0b10010101;
     str2[1] = 0b1010;
     
@@ -101,10 +101,39 @@ TEST_CASE("Test generation of Neel bit strings", "[neel_bits]") {
     
     n_elec = 2;
     n_sites = 2;
-    gen_neel_det_1D(n_sites, n_elec, str1);
+    gen_neel_det_1D(n_sites, n_elec, 0, str1);
     str2[0] = 0b1001;
     
     REQUIRE(bit_str_equ(str1, str2, 1));
+    
+    n_elec = 8;
+    n_sites = 8;
+    str1[2] = 25;
+    gen_neel_det_1D(n_sites, n_elec, 0, str1);
+    REQUIRE(str1[0] == 0b01010101);
+    REQUIRE(str1[1] == 0b10101010);
+    REQUIRE(str1[2] == 25);
+    
+    n_elec = 4;
+    n_sites = 4;
+    str1[1] = 25;
+    gen_neel_det_1D(n_sites, n_elec, 0, str1);
+    REQUIRE(str1[1] == 25);
+    
+    str2[0] = 0b10100101;
+    REQUIRE(bit_str_equ(str1, str2, 1));
+    
+    n_sites = 10;
+    n_elec = 10;
+    uint8_t ph_bits = 3;
+    gen_neel_det_1D(n_sites, n_elec, ph_bits, str1);
+    REQUIRE(str1[0] == 0b01010101);
+    REQUIRE(str1[1] == 0b10101001);
+    REQUIRE(str1[2] == 0b1010);
+    REQUIRE(str1[3] == 0);
+    REQUIRE(str1[4] == 0);
+    REQUIRE(str1[5] == 0);
+    REQUIRE(str1[6] == 0);
 }
 
 

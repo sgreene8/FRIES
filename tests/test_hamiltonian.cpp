@@ -147,19 +147,21 @@ TEST_CASE("Test evaluation of Hubbard matrix elements", "[hubbard]") {
 }
 
 
-TEST_CASE("Test calculation of overlap with neel state in Hubbard model", "[neel_ovlp]") {
-    uint8_t bit_str1[5];
-    uint8_t bit_str2[5];
+TEST_CASE("Test calculation of overlap with neel state in Hubbard-Holstein", "[neel_ovlp]") {
+    uint8_t bit_str1[10];
+    uint8_t bit_str2[10];
     
     unsigned int n_sites = 4;
     unsigned int n_elec = 4;
+    uint8_t ph_bits = 2;
+    uint8_t det_size = CEILING((2 + ph_bits) * n_sites, 8);
     
-    gen_neel_det_1D(n_sites, n_elec, bit_str1);
+    gen_neel_det_1D(n_sites, n_elec, ph_bits, bit_str1);
     bit_str2[0] = 165;
     bit_str2[1] = 0;
     
     // Returning correct neel state
-    REQUIRE(bit_str_equ(bit_str1, bit_str2, 2));
+    REQUIRE(bit_str_equ(bit_str1, bit_str2, det_size));
     
     byte_table *tabl = gen_byte_table();
     // Diagonal element for neel state should be zero
@@ -167,27 +169,33 @@ TEST_CASE("Test calculation of overlap with neel state in Hubbard model", "[neel
     
     n_sites = 20;
     n_elec = 8;
-    gen_neel_det_1D(n_sites, n_elec, bit_str1);
+    det_size = CEILING((2 + ph_bits) * n_sites, 8);
+    
+    gen_neel_det_1D(n_sites, n_elec, ph_bits, bit_str1);
     bit_str2[0] = 85;
     bit_str2[1] = 0;
     bit_str2[2] = 160;
     bit_str2[3] = 10;
     bit_str2[4] = 0;
     // Returning correct neel state
-    REQUIRE(bit_str_equ(bit_str1, bit_str2, 5));
+    REQUIRE(bit_str_equ(bit_str1, bit_str2, det_size));
     
     // Diagonal element for neel state should be zero
     REQUIRE(hub_diag(bit_str1, n_sites, tabl) == 0);
     
     n_sites = 10;
     n_elec = 10;
-    gen_neel_det_1D(n_sites, n_elec, bit_str1);
+    det_size = CEILING((2 + ph_bits) * n_sites, 8);
+    
+    gen_neel_det_1D(n_sites, n_elec, ph_bits, bit_str1);
     bit_str2[0] = 0b01010101;
     bit_str2[1] = 0b10101001;
     bit_str2[2] = 0b1010;
+    bit_str2[3] = 0;
+    bit_str2[4] = 0;
     
     // Returning correct neel state
-    REQUIRE(bit_str_equ(bit_str1, bit_str2, 3));
+    REQUIRE(bit_str_equ(bit_str1, bit_str2, det_size));
     
     // Diagonal element for neel state should be zero
     REQUIRE(hub_diag(bit_str1, n_sites, tabl) == 0);
@@ -195,19 +203,24 @@ TEST_CASE("Test calculation of overlap with neel state in Hubbard model", "[neel
     // correctly ignore bits after 2 * n_sites
     bit_str2[2] = 0b11111010;
     REQUIRE(hub_diag(bit_str2, n_sites, tabl) == 0);
+    bit_str2[2] = 0b1010;
     
     zero_bit(bit_str2, 15);
     set_bit(bit_str2, 16);
     
-    Matrix<uint8_t> dets(2, 4);
-    memcpy(dets[0], bit_str2, 4);
-    memcpy(dets[1], bit_str2, 4);
+    Matrix<uint8_t> dets(2, det_size);
+    memcpy(dets[0], bit_str2, det_size);
+    memcpy(dets[1], bit_str2, det_size);
     zero_bit(dets[1], 8);
     set_bit(dets[1], 9);
     
+    Matrix<uint8_t> phonons(2, n_sites);
+    bzero(phonons[0], 2 * n_sites * sizeof(uint8_t));
+    uint8_t occ1[] = {0, 2, 4, 6, 8, 11, 13, 15, 17, 19};
+    
     int vals[] = {2, 3};
     // Correctly identify excitation across left byte boundary
-    REQUIRE(calc_ref_ovlp(dets, vals, 2, bit_str1, tabl, n_elec, n_sites) == 2);
+    REQUIRE(calc_ref_ovlp(dets, vals, phonons, 2, bit_str1, occ1, tabl, n_elec, n_sites, 0) == 2);
     
     zero_bit(dets[0], 16);
     set_bit(dets[0], 15);
@@ -215,13 +228,21 @@ TEST_CASE("Test calculation of overlap with neel state in Hubbard model", "[neel
     zero_bit(dets[0], 8);
     
     // Correctly identify excitation across right byte boundary
-    REQUIRE(calc_ref_ovlp(dets, vals, 2, bit_str1, tabl, n_elec, n_sites) == 2);
+    REQUIRE(calc_ref_ovlp(dets, vals, phonons, 2, bit_str1, occ1, tabl, n_elec, n_sites, 0) == 2);
     
-    // correctly ignore bits after 2 * n_sites
+    // Correctly identify a phonon excitation
     set_bit(dets[0], 8);
     zero_bit(dets[0], 7);
-    dets[0][2] = 250;
-    REQUIRE(calc_ref_ovlp(dets, vals, 2, bit_str1, tabl, n_elec, n_sites) == 0);
+    REQUIRE(bit_str_equ(bit_str1, dets[0], det_size));
+    set_bit(dets[0], 2 * n_sites);
+    phonons(0, 0) = 1;
+    REQUIRE(calc_ref_ovlp(dets, vals, phonons, 2, bit_str1, occ1, tabl, n_elec, n_sites, 10) == 20);
+    
+    // Correctly ignore wrong phonon excitations
+    phonons(0, 0) = 2;
+    zero_bit(dets[0], 2 * n_sites);
+    set_bit(dets[0], 2 * n_sites + 1);
+    REQUIRE(calc_ref_ovlp(dets, vals, phonons, 2, bit_str1, occ1, tabl, n_elec, n_sites, 10) == 0);
 }
 
 
@@ -230,7 +251,7 @@ TEST_CASE("Test generation of excitations in the Hubbard model", "[hub_excite]")
     uint8_t n_sites = 10;
     uint8_t n_elec = 10;
     
-    gen_neel_det_1D(n_sites, n_elec, det);
+    gen_neel_det_1D(n_sites, n_elec, 0, det);
     
     uint8_t correct_orbs[][2] = {{0, 1}, {2, 3}, {4, 5}, {6, 7}, {8, 9}, {11, 12}, {13, 14}, {15, 16}, {17, 18}, {2, 1}, {4, 3}, {6, 5}, {8, 7}, {11, 10}, {13, 12}, {15, 14}, {17, 16}, {19, 18}};
     
@@ -255,7 +276,7 @@ TEST_CASE("Test generation of excitations in the Hubbard model", "[hub_excite]")
     
     n_sites = 2;
     n_elec = 2;
-    gen_neel_det_1D(n_sites, n_elec, det);
+    gen_neel_det_1D(n_sites, n_elec, 0, det);
     
     REQUIRE(det[0] == 0b1001);
     

@@ -111,7 +111,7 @@ public:
     
     /*! \return A reference to the Matrix used to store the quantum numbers of each phonon for each state index in the vector
      */
-    Matrix<uint8_t> *phonon_nums() {
+    Matrix<uint8_t> &phonon_nums() {
         return phonon_nums_;
     }
 
