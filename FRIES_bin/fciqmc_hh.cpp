@@ -141,8 +141,10 @@ int main(int argc, const char * argv[]) {
     sol_vec.proc_scrambler_ = proc_scrambler;
     
     uint8_t neel_det[det_size];
-    gen_neel_det_1D(n_orb, n_elec, neel_det);
+    gen_neel_det_1D(n_orb, n_elec, 0, neel_det);
     ref_proc = sol_vec.idx_to_proc(neel_det);
+    uint8_t neel_occ[n_elec];
+    sol_vec.gen_orb_list(neel_det, neel_occ);
     size_t walker_idx;
     
     // Initialize solution vector
@@ -293,7 +295,7 @@ int main(int argc, const char * argv[]) {
         }
         
         // Calculate energy estimate
-        matr_el = calc_ref_ovlp(sol_vec.indices(), sol_vec.values(), sol_vec.curr_size(), neel_det, sol_vec.tabl(), n_elec, hub_len);
+        matr_el = calc_ref_ovlp(sol_vec.indices(), sol_vec.values(), sol_vec.phonon_nums(), sol_vec.curr_size(), neel_det, neel_occ, sol_vec.tabl(), n_elec, hub_len, 0);
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, ref_proc, MPI_COMM_WORLD);
 #else
