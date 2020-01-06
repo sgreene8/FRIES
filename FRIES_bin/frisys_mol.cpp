@@ -89,6 +89,7 @@ int main(int argc, const char * argv[]) {
         fprintf(stderr, "Error: specified distribution for compressing Hamiltonian (%s) is not supported.\n", dist_str);
         return 0;
     }
+    int new_hb = qmc_dist == unnorm_heat_bath;
     
     double target_norm = tmp_norm;
     
@@ -358,7 +359,7 @@ int main(int argc, const char * argv[]) {
         fclose(param_f);
     }
     
-    size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2) ? n_elec_unf : n_orb - n_elec_unf / 2;
+    size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2 - new_hb) ? n_elec_unf : n_orb - n_elec_unf / 2 - new_hb;
     Matrix<double> subwt_mem(spawn_length, n_states);
     uint16_t *sub_sizes = (uint16_t *)malloc(sizeof(uint16_t) * spawn_length);
     uint8_t *spawn_dets = (uint8_t *)subwt_mem.data();
@@ -483,8 +484,8 @@ int main(int argc, const char * argv[]) {
         }
         
 #pragma mark  First occupied orbital
-        subwt_mem.reshape(spawn_length, n_elec_unf);
-        keep_idx.reshape(spawn_length, n_elec_unf);
+        subwt_mem.reshape(spawn_length, n_elec_unf - new_hb);
+        keep_idx.reshape(spawn_length, n_elec_unf - new_hb);
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
             det_idx = comp_idx[samp_idx][0] + n_determ;
             det_indices1[samp_idx] = det_idx;
@@ -492,7 +493,7 @@ int main(int argc, const char * argv[]) {
             uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
             if (orb_indices1[samp_idx][0] == 0) { // double excitation
                 ndiv_vec[samp_idx] = 0;
-                double tot_weight = calc_o1_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs);
+                double tot_weight = calc_o1_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs, new_hb);
                 if (qmc_dist == unnorm_heat_bath) {
                     comp_vec2[samp_idx] *= tot_weight;
                 }
@@ -524,13 +525,16 @@ int main(int argc, const char * argv[]) {
             det_idx = det_indices1[weight_idx];
             det_indices2[samp_idx] = det_idx;
             orb_indices2[samp_idx][0] = orb_indices1[weight_idx][0]; // single or double
-            orb_indices2[samp_idx][1] = comp_idx[samp_idx][1]; // first occupied orbital index (converted to orbital below)
+            orb_indices2[samp_idx][1] = comp_idx[samp_idx][1] + new_hb; // first occupied orbital index (converted to orbital below)
             uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
             if (orb_indices2[samp_idx][0] == 0) { // double excitation
                 ndiv_vec[samp_idx] = 0;
-                double tot_weight = calc_o2_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs, &orb_indices2[samp_idx][1]);
-                if (qmc_dist == unnorm_heat_bath) {
-                    comp_vec1[samp_idx] *= tot_weight;
+                if (qmc_dist == heat_bath) {
+                    calc_o2_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs, &orb_indices2[samp_idx][1]);
+                }
+                else {
+                    sub_sizes[samp_idx] = orb_indices2[samp_idx][1];
+                    comp_vec1[samp_idx] *= calc_o2_probs_half(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs, &orb_indices2[samp_idx][1]);
                 }
             }
             else { // single excitation
@@ -549,14 +553,14 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, subwt_mem, keep_idx, NULL, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
+        comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, subwt_mem, keep_idx, new_hb ? sub_sizes : NULL, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
         if (comp_len > spawn_length) {
             fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
         }
         
 #pragma mark 1st unoccupied (double)
-        subwt_mem.reshape(spawn_length, n_orb - n_elec_unf / 2);
-        keep_idx.reshape(spawn_length, n_orb - n_elec_unf / 2);
+        subwt_mem.reshape(spawn_length, n_orb - n_elec_unf / 2 - new_hb);
+        keep_idx.reshape(spawn_length, n_orb - n_elec_unf / 2 - new_hb);
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
             weight_idx = comp_idx[samp_idx][0];
             det_idx = det_indices2[weight_idx];
@@ -569,7 +573,7 @@ int main(int argc, const char * argv[]) {
                 ndiv_vec[samp_idx] = 0;
                 uint8_t *occ_tmp = sol_vec.orbs_at_pos(det_idx);
                 orb_indices1[samp_idx][2] = occ_tmp[orb_indices1[samp_idx][2]];
-                double tot_weight = calc_u1_probs(hb_probs, subwt_mem[samp_idx], o1_orb, occ_tmp, n_elec_unf);
+                double tot_weight = calc_u1_probs(hb_probs, subwt_mem[samp_idx], o1_orb, occ_tmp, n_elec_unf, new_hb);
                 if (qmc_dist == unnorm_heat_bath) {
                     comp_vec2[samp_idx] *= tot_weight;
                 }
@@ -600,7 +604,7 @@ int main(int argc, const char * argv[]) {
             uint8_t o2_orb = orb_indices1[weight_idx][2];
             orb_indices2[samp_idx][2] = o2_orb; // 2nd occupied orbital (doubles); unoccupied orbital index (singles)
             if (orb_indices2[samp_idx][0] == 0) { // double excitation
-                uint8_t u1_orb = find_nth_virt(sol_vec.orbs_at_pos(det_idx), o1_orb / n_orb, n_elec_unf, n_orb, comp_idx[samp_idx][1]);
+                uint8_t u1_orb = find_nth_virt(sol_vec.orbs_at_pos(det_idx), o1_orb / n_orb, n_elec_unf, n_orb, comp_idx[samp_idx][1] + new_hb);
                 uint8_t *curr_det = sol_vec.indices()[det_idx];
                 if (read_bit(curr_det, u1_orb)) { // now this really should never happen
                     fprintf(stderr, "Error: occupied orbital chosen as 1st virtual\n");
@@ -609,12 +613,12 @@ int main(int argc, const char * argv[]) {
                 else {
                     ndiv_vec[samp_idx] = 0;
                     orb_indices2[samp_idx][3] = u1_orb;
-                    double tot_weight;// = calc_u2_probs(hb_probs, subwt_mem[samp_idx], o1_orb, o2_orb, u1_orb, symm_lookup, symm, &sub_sizes[samp_idx]);
+                    double tot_weight;
                     if (qmc_dist == heat_bath) {
                         tot_weight = calc_u2_probs(hb_probs, subwt_mem[samp_idx], o1_orb, o2_orb, u1_orb, symm_lookup, symm, &sub_sizes[samp_idx]);
                     }
                     else {
-                        tot_weight = calc_u2_probs_no_occ(hb_probs, subwt_mem[samp_idx], o1_orb, o2_orb, u1_orb, curr_det, symm_lookup, symm, &sub_sizes[samp_idx]);
+                        tot_weight = calc_u2_probs_half(hb_probs, subwt_mem[samp_idx], o1_orb, o2_orb, u1_orb, curr_det, symm_lookup, symm, &sub_sizes[samp_idx]);
                     }
                     if (qmc_dist == unnorm_heat_bath || tot_weight == 0) {
                         comp_vec1[samp_idx] *= tot_weight;

@@ -66,10 +66,11 @@ hb_info *set_up(unsigned int tot_orb, unsigned int n_orb,
  * \param [in] n_elec       Number of electrons in the determinant
  * \param [in] occ_orbs     array containing the indices of occupied orbitals in
  *                          the determinant (length \p n_elec)
+ * \param [in] exclude_first    If 1, the first occupied orbital in the determinant is excluded
  * \return sum of all single-electron weights before normalization
  */
 double calc_o1_probs(hb_info *tens, double *prob_arr, unsigned int n_elec,
-                     uint8_t *occ_orbs);
+                     uint8_t *occ_orbs, int exclude_first);
 
 
 /*! \brief Calculate the normalized probabilities for choosing the second
@@ -95,6 +96,23 @@ double calc_o2_probs(hb_info *tens, double *prob_arr, unsigned int n_elec,
                      uint8_t *occ_orbs, uint8_t *o1);
 
 
+/*! \brief Calculate the normalized probabilities for choosing the second occupied orbital in a double
+ * excitation, with the constraint that the orbital is less than the first occupied orbital
+ *
+ * \param [in] tens         hb_info struct containing the HB-PP parameters
+ * \param [out] prob_arr    probability for each occupied orbital
+ *                          (length \p n_elec)
+ * \param [in] n_elec       Number of electrons in the determinant
+ * \param [in] occ_orbs     array containing the indices of occupied orbitals in
+ *                          the determinant (length \p n_elec)
+ * \param [in,out] o1       Ponter to the index of the first occupied orbital.
+ *                          Upon return, pointer to the orbital itself
+ * \return sum of all single-electron weights before normalization
+ */
+ double calc_o2_probs_half(hb_info *tens, double *prob_arr, unsigned int n_elec,
+                           uint8_t *occ_orbs, uint8_t *o1);
+
+
 /*! \brief Calculate the normalized probabilities for choosing the first
  * unoccupied orbital in a double excitation from a particular determinant
  *
@@ -109,10 +127,11 @@ double calc_o2_probs(hb_info *tens, double *prob_arr, unsigned int n_elec,
  * \param [in] o1_orb       first occupied orbital (selected previously)
  * \param [in] occ_orbs          list of all occupied orbitals in the determinant
  * \param [in] n_elec       Number of electrons in the determinant
+ * \param [in] exclude_first    If 1, the first occupied orbital in the determinant is excluded
  * \return sum of weights for all unoccupied orbitals before normalization
  */
 double calc_u1_probs(hb_info *tens, double *prob_arr, uint8_t o1_orb,
-                     uint8_t *occ_orbs, uint8_t n_elec);
+                     uint8_t *occ_orbs, uint8_t n_elec, int exclude_first);
 
 
 /*! \brief Calculate the normalized probabilities for choosing the second
@@ -144,7 +163,8 @@ double calc_u2_probs(hb_info *tens, double *prob_arr, uint8_t o1_orb,
                      uint16_t *prob_len);
 
 
-/*! \brief Same as calc_u2_probs, except occupied orbitals are excluded
+/*! \brief Calculate normalized weights for the second unoccupied orbital, excluding occupied orbitals
+ *  and requiring that the second unoccupied orbital index be less than that of the first
  *
  * \param [in] tens         hb_info struct containing the HB-PP parameters
  * \param [out] prob_arr    probability for each unoccupied orbital
@@ -163,10 +183,10 @@ double calc_u2_probs(hb_info *tens, double *prob_arr, uint8_t o1_orb,
  *                          irreps are zeroed.
  * \return sum of weights for all unoccupied orbitals before normalization
  */
-double calc_u2_probs_no_occ(hb_info *tens, double *prob_arr, uint8_t o1_orb,
-                            uint8_t o2_orb, uint8_t u1_orb, uint8_t *det,
-                            const Matrix<uint8_t> &lookup_tabl, uint8_t *symm,
-                            uint16_t *prob_len);
+double calc_u2_probs_half(hb_info *tens, double *prob_arr, uint8_t o1_orb,
+                          uint8_t o2_orb, uint8_t u1_orb, uint8_t *det,
+                          const Matrix<uint8_t> &lookup_tabl, uint8_t *symm,
+                          uint16_t *prob_len);
 
 
 /*! \brief Calculate the unnormalized weight for a double excitation from a

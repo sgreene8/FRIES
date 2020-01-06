@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <FRIES/Hamiltonians/molecule.hpp>
 #include <FRIES/Hamiltonians/hub_holstein.hpp>
+#include <FRIES/Hamiltonians/heat_bathPP.hpp>
 #include <FRIES/hh_vec.hpp>
 #include <FRIES/io_utils.hpp>
 
@@ -385,4 +386,77 @@ TEST_CASE("Test generation of phonon excitations/de-excitations in the Holstein 
     
     orig_det[1] = 3;
     REQUIRE(sol_vec.det_from_ph(orig_det, new_det, 1, 1) == 0);
+}
+
+
+TEST_CASE("Test evaluation of sampling weights for the new heat-bath distribution", "[new_hb]") {
+    mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, (unsigned int) time(NULL));
+    sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
+    unsigned int n_orb = 5;
+    unsigned int n_elec = 4;
+    size_t i, j, a, b;
+    
+    FourDArr eris(n_orb, n_orb, n_orb, n_orb);
+    
+    for (i = 0; i < n_orb; i++) {
+        for (j = 0; j < n_orb; j++) {
+            for (a = 0; a < n_orb; a++) {
+                for (b = 0; b < n_orb; b++) {
+                    eris(i, j, a, b) = genrand_mt(rngen_ptr) / (1. + UINT32_MAX) - 0.5;
+                }
+            }
+        }
+    }
+    
+    hb_info *hbtens = set_up(n_orb, n_orb, eris);
+    
+    uint8_t occ[] = {0, 2, 7, 8};
+    double probs[n_orb * 2];
+    bzero(probs, sizeof(double) * 2 * n_orb);
+    
+    double o1_norm = calc_o1_probs(hbtens, probs, n_elec, occ, 1);
+    double norm_chk = 0;
+    for (i = 1; i < n_elec; i++) {
+        REQUIRE(probs[i - 1] * o1_norm == Approx(hbtens->s_tens[occ[i] % n_orb] / hbtens->s_norm).margin(1e-7));
+        norm_chk += hbtens->s_tens[occ[i] % n_orb];
+    }
+    norm_chk /= hbtens->s_norm;
+    REQUIRE(norm_chk == Approx(o1_norm).margin(1e-7));
+    
+    uint8_t o1 = 3;
+    double o2_norm = calc_o2_probs_half(hbtens, probs, n_elec, occ, &o1);
+    REQUIRE(o1 == occ[3]);
+    norm_chk = 0;
+    for (j = 0; j < n_elec / 2; j++) {
+        REQUIRE(probs[j] * o2_norm == Approx(hbtens->d_diff[(occ[3] - n_orb) * n_orb + occ[j]] / hbtens->s_tens[occ[3] % n_orb]).margin(1e-7));
+        norm_chk += hbtens->d_diff[(occ[3] - n_orb) * n_orb + occ[j]];
+    }
+    
+#define TRI_N(n)((n) * (n + 1) / 2)
+#define I_J_TO_TRI(i, j)(TRI_N(j - 1) + i)
+    REQUIRE(probs[2] * o2_norm == Approx(hbtens->d_same[I_J_TO_TRI(occ[2] - n_orb, occ[3] - n_orb)] / hbtens->s_tens[occ[3] % n_orb]).margin(1e-7));
+    
+    norm_chk += hbtens->d_same[I_J_TO_TRI(occ[2] - n_orb, occ[3] - n_orb)];
+    norm_chk /= hbtens->s_tens[occ[3] % n_orb];
+    REQUIRE(norm_chk == Approx(o2_norm).margin(1e-7));
+    
+    uint8_t o2 = occ[2];
+    uint8_t u1 = 6;
+    uint8_t u2 = 5;
+    uint8_t orbs[] = {o2, o1, u2, u1};
+    o1 %= n_orb;
+    o2 %= n_orb;
+    u1 %= n_orb;
+    u2 %= n_orb;
+    uint8_t min_o1_u1 = o1 < u1 ? o1 : u1;
+    uint8_t max_o1_u1 = o1 > u1 ? o1 : u1;
+    uint8_t min_o2_u2 = o2 < u2 ? o2 : u2;
+    uint8_t max_o2_u2 = o2 > u2 ? o2 : u2;
+    uint8_t min_o1_u2 = o1 < u2 ? o1 : u2;
+    uint8_t max_o1_u2 = o1 > u2 ? o1 : u2;
+    uint8_t min_o2_u1 = o2 < u1 ? o2 : u1;
+    uint8_t max_o2_u1 = o2 > u1 ? o2 : u1;
+    
+    double weight = calc_unnorm_wt(hbtens, orbs);
+    REQUIRE(weight == Approx(hbtens->d_same[I_J_TO_TRI(o2, o1)] / hbtens->s_norm * (hbtens->exch_sqrt[I_J_TO_TRI(min_o1_u1, max_o1_u1)] * hbtens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)] + hbtens->exch_sqrt[I_J_TO_TRI(min_o1_u2, max_o1_u2)] * hbtens->exch_sqrt[I_J_TO_TRI(min_o2_u1, max_o2_u1)]) / hbtens->exch_norms[o1] / hbtens->exch_norms[o2]).margin(1e-7));
 }
