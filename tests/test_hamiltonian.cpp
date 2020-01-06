@@ -452,11 +452,7 @@ TEST_CASE("Test evaluation of sampling weights for the new heat-bath distributio
     uint8_t max_o1_u1 = o1 > u1 ? o1 : u1;
     uint8_t min_o2_u2 = o2 < u2 ? o2 : u2;
     uint8_t max_o2_u2 = o2 > u2 ? o2 : u2;
-    uint8_t min_o1_u2 = o1 < u2 ? o1 : u2;
-    uint8_t max_o1_u2 = o1 > u2 ? o1 : u2;
-    uint8_t min_o2_u1 = o2 < u1 ? o2 : u1;
-    uint8_t max_o2_u1 = o2 > u1 ? o2 : u1;
     
     double weight = calc_unnorm_wt(hbtens, orbs);
-    REQUIRE(weight == Approx(hbtens->d_same[I_J_TO_TRI(o2, o1)] / hbtens->s_norm * (hbtens->exch_sqrt[I_J_TO_TRI(min_o1_u1, max_o1_u1)] * hbtens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)] + hbtens->exch_sqrt[I_J_TO_TRI(min_o1_u2, max_o1_u2)] * hbtens->exch_sqrt[I_J_TO_TRI(min_o2_u1, max_o2_u1)]) / hbtens->exch_norms[o1] / hbtens->exch_norms[o2]).margin(1e-7));
+    REQUIRE(weight == Approx(hbtens->d_same[I_J_TO_TRI(o2, o1)] / hbtens->s_norm * (hbtens->exch_sqrt[I_J_TO_TRI(min_o1_u1, max_o1_u1)] * hbtens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)]) / hbtens->exch_norms[o1] / hbtens->exch_norms[o2]).margin(1e-7));
 }
