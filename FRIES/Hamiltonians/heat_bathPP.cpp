@@ -199,19 +199,15 @@ double calc_u1_probs(hb_info *tens, double *prob_arr, uint8_t o1_orb,
     size_t prob_idx = 0;
     uint8_t occ_idx = n_elec / 2 * o1_spin;
     uint8_t curr_occ = occ_orbs[occ_idx];
-    int found_virt = !exclude_first;
     for (unsigned int orb_idx = 0; orb_idx < o1_spinless; orb_idx++) {
         if (orb_idx + offset == curr_occ) {
             occ_idx++;
             curr_occ = occ_orbs[occ_idx];
         }
         else {
-            if (found_virt) {
-                prob_arr[prob_idx] = tens->exch_sqrt[I_J_TO_TRI(orb_idx, o1_spinless)];
-                norm += prob_arr[prob_idx];
-                prob_idx++;
-            }
-            found_virt = 1;
+            prob_arr[prob_idx] = tens->exch_sqrt[I_J_TO_TRI(orb_idx, o1_spinless)];
+            norm += prob_arr[prob_idx];
+            prob_idx++;
         }
     }
     occ_idx++;
@@ -224,13 +220,14 @@ double calc_u1_probs(hb_info *tens, double *prob_arr, uint8_t o1_orb,
             }
         }
         else {
-            if (found_virt) {
-                prob_arr[prob_idx] = tens->exch_sqrt[I_J_TO_TRI(o1_spinless, orb_idx)];
-                norm += prob_arr[prob_idx];
-                prob_idx++;
-            }
-            found_virt = 1;
+            prob_arr[prob_idx] = tens->exch_sqrt[I_J_TO_TRI(o1_spinless, orb_idx)];
+            norm += prob_arr[prob_idx];
+            prob_idx++;
         }
+    }
+    if (exclude_first) {
+        norm -= prob_arr[0];
+        prob_arr[0] = 0;
     }
     double inv_norm = 1. / norm;
     for (unsigned int orb_idx = 0; orb_idx < prob_idx; orb_idx++) {

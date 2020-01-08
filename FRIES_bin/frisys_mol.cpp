@@ -359,7 +359,7 @@ int main(int argc, const char * argv[]) {
         fclose(param_f);
     }
     
-    size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2 - new_hb) ? n_elec_unf : n_orb - n_elec_unf / 2 - new_hb;
+    size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2) ? n_elec_unf : n_orb - n_elec_unf / 2;
     Matrix<double> subwt_mem(spawn_length, n_states);
     uint16_t *sub_sizes = (uint16_t *)malloc(sizeof(uint16_t) * spawn_length);
     uint8_t *spawn_dets = (uint8_t *)subwt_mem.data();
@@ -559,8 +559,8 @@ int main(int argc, const char * argv[]) {
         }
         
 #pragma mark 1st unoccupied (double)
-        subwt_mem.reshape(spawn_length, n_orb - n_elec_unf / 2 - new_hb);
-        keep_idx.reshape(spawn_length, n_orb - n_elec_unf / 2 - new_hb);
+        subwt_mem.reshape(spawn_length, n_orb - n_elec_unf / 2);
+        keep_idx.reshape(spawn_length, n_orb - n_elec_unf / 2);
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
             weight_idx = comp_idx[samp_idx][0];
             det_idx = det_indices2[weight_idx];
@@ -568,18 +568,26 @@ int main(int argc, const char * argv[]) {
             orb_indices1[samp_idx][0] = orb_indices2[weight_idx][0]; // single or double
             uint8_t o1_orb = orb_indices2[weight_idx][1];
             orb_indices1[samp_idx][1] = o1_orb; // 1st occupied orbital
-            orb_indices1[samp_idx][2] = comp_idx[samp_idx][1]; // 2nd occupied orbital index (doubles), converted to orbital below; unoccupied orbital index (singles)
+            uint8_t o2u1_orb = comp_idx[samp_idx][1]; // 2nd occupied orbital index (doubles), converted to orbital below; unoccupied orbital index (singles)
+            orb_indices1[samp_idx][2] = o2u1_orb;
             if (orb_indices1[samp_idx][0] == 0) { // double excitation
                 ndiv_vec[samp_idx] = 0;
                 uint8_t *occ_tmp = sol_vec.orbs_at_pos(det_idx);
-                orb_indices1[samp_idx][2] = occ_tmp[orb_indices1[samp_idx][2]];
-                double tot_weight = calc_u1_probs(hb_probs, subwt_mem[samp_idx], o1_orb, occ_tmp, n_elec_unf, new_hb);
+                orb_indices1[samp_idx][2] = occ_tmp[o2u1_orb];
+                int o1_spin = o1_orb / n_orb;
+                int o2_spin = o2u1_orb / n_orb;
+                double tot_weight = calc_u1_probs(hb_probs, subwt_mem[samp_idx], o1_orb, occ_tmp, n_elec_unf, new_hb && (o1_spin == o2_spin));
                 if (qmc_dist == unnorm_heat_bath) {
                     comp_vec2[samp_idx] *= tot_weight;
                 }
             }
             else { // single excitation
-                orb_indices1[samp_idx][3] = orb_indices2[weight_idx][3];
+                uint8_t n_virt = orb_indices2[weight_idx][3];
+                if (o2u1_orb >= n_virt) {
+                    comp_vec1[samp_idx] = 0;
+                    fprintf(stderr, "Error: index of chosen virtual orbital exceeds maximum\n");
+                }
+                orb_indices1[samp_idx][3] = n_virt;
                 ndiv_vec[samp_idx] = 1;
             }
         }
@@ -604,11 +612,12 @@ int main(int argc, const char * argv[]) {
             uint8_t o2_orb = orb_indices1[weight_idx][2];
             orb_indices2[samp_idx][2] = o2_orb; // 2nd occupied orbital (doubles); unoccupied orbital index (singles)
             if (orb_indices2[samp_idx][0] == 0) { // double excitation
-                uint8_t u1_orb = find_nth_virt(sol_vec.orbs_at_pos(det_idx), o1_orb / n_orb, n_elec_unf, n_orb, comp_idx[samp_idx][1] + new_hb);
+                uint8_t u1_orb = find_nth_virt(sol_vec.orbs_at_pos(det_idx), o1_orb / n_orb, n_elec_unf, n_orb, comp_idx[samp_idx][1]);
                 uint8_t *curr_det = sol_vec.indices()[det_idx];
                 if (read_bit(curr_det, u1_orb)) { // now this really should never happen
                     fprintf(stderr, "Error: occupied orbital chosen as 1st virtual\n");
                     comp_vec1[samp_idx] = 0;
+                    ndiv_vec[samp_idx] = 1;
                 }
                 else {
                     ndiv_vec[samp_idx] = 0;
@@ -708,6 +717,10 @@ int main(int argc, const char * argv[]) {
                     uint8_t *new_det = &spawn_dets[num_added * det_size];
                     memcpy(new_det, curr_det, det_size);
                     matr_el *= -eps / (1 - p_doub) * n_occ * orb_indices2[weight_idx][3] * el_sign * sing_det_parity(new_det, sing_orbs) * comp_vec2[samp_idx];
+                    if (sing_orbs[1] == 255) {
+                        fprintf(stderr, "Error: virtual orbital not found\n");
+                        continue;
+                    }
                     comp_vec1[num_added] = matr_el;
                     keep_idx(num_added, 0) = ini_flag;
 //                    keep_idx(num_added, 1) = determ_flag;
@@ -842,7 +855,7 @@ int main(int argc, const char * argv[]) {
 #endif
         sys_comp(&(sol_vec.values()[n_determ]), sol_vec.curr_size() - n_determ, loc_norms, n_samp, keep_exact, rn_sys);
         for (det_idx = 0; det_idx < sol_vec.curr_size() - n_determ; det_idx++) {
-            if (keep_exact[det_idx] && sol_vec.indices()[det_idx + n_determ] != hf_det) {
+            if (keep_exact[det_idx]) {
                 sol_vec.del_at_pos(det_idx + n_determ);
                 keep_exact[det_idx] = 0;
             }
