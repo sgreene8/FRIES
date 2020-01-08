@@ -192,6 +192,7 @@ int main(int argc, const char * argv[]) {
     
     // Parameters for systematic sampling
     double loc_norms[n_procs];
+    double rn_sys = 0;
     size_t *srt_arr = (size_t *)malloc(sizeof(size_t) * max_n_dets);
     for (det_idx = 0; det_idx < max_n_dets; det_idx++) {
         srt_arr[det_idx] = det_idx;
@@ -265,6 +266,16 @@ int main(int argc, const char * argv[]) {
         }
         sol_vec.perform_add();
         
+        size_t new_max_dets = sol_vec.max_size();
+        if (new_max_dets > max_n_dets) {
+            keep_exact = (int *)realloc(keep_exact, sizeof(int) * new_max_dets);
+            srt_arr = (size_t *)realloc(srt_arr, sizeof(size_t) * new_max_dets);
+            for (; max_n_dets < new_max_dets; max_n_dets++) {
+                keep_exact[max_n_dets] = 0;
+                srt_arr[max_n_dets] = max_n_dets;
+            }
+        }
+        
         // Compression step
         unsigned int n_samp = target_nonz;
         loc_norms[proc_rank] = find_preserve(sol_vec.values(), srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
@@ -295,6 +306,20 @@ int main(int argc, const char * argv[]) {
             fprintf(num_file, "%lf\n", matr_el);
             fprintf(den_file, "%lf\n", ref_element);
             printf("%6u, norm: %lf, en est: %lf, shift: %lf, n_neel: %lf\n", iterat, glob_norm, matr_el / ref_element, en_shift, ref_element);
+        }
+        
+        if (proc_rank == 0) {
+            rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
+        }
+#ifdef USE_MPI
+        MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+#endif
+        sys_comp(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
+        for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
+            if (keep_exact[det_idx] && !(proc_rank == 0 && det_idx == 0)) {
+                sol_vec.del_at_pos(det_idx);
+                keep_exact[det_idx] = 0;
+            }
         }
         
         // Save vector snapshot to disk

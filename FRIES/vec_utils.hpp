@@ -244,7 +244,7 @@ public:
     }
     
     /*! \brief Double the maximum number of elements that can be stored */
-    void expand() {
+    virtual void expand() {
         printf("Increasing storage capacity in vector\n");
         size_t new_max = max_size_ * 2;
         indices_.reshape(new_max, indices_.cols());

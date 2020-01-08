@@ -100,7 +100,9 @@ public:
     /*! \brief Double the maximum number of elements that can be stored */
     void expand() {
         DistVec<el_type>::expand();
-        neighb_.reshape(DistVec<el_type>::max_size_, neighb_.cols());
+        size_t new_size = DistVec<el_type>::max_size_;
+        neighb_.reshape(new_size, neighb_.cols());
+        phonon_nums_.reshape(new_size, phonon_nums_.cols());
     }
     
     /*! \returns A reference to the Matrix used to store information about empty neighboring orbitals of
