@@ -137,7 +137,7 @@ double seed_sys(double *norms, double *rn, unsigned int n_samp) {
 
 
 double find_keep_sub(double *values, unsigned int *n_div,
-                     const Matrix<double> &sub_weights, Matrix<uint8_t> &keep_idx,
+                     const Matrix<double> &sub_weights, BoolMat &keep_idx,
                      uint16_t *sub_sizes,
                      size_t count, unsigned int *n_samp, double *wt_remain) {
     double loc_one_norm = 0;
@@ -165,13 +165,13 @@ double find_keep_sub(double *values, unsigned int *n_div,
         }
         loc_sampled = 0;
         for (size_t det_idx = 0; det_idx < count; det_idx++) {
-            uint8_t *keep_row = keep_idx[det_idx];
+//            uint8_t *keep_row = keep_idx[det_idx];
             el_magn = values[det_idx];
             keep_thresh = glob_one_norm / (*n_samp - loc_sampled);
             if (el_magn >= keep_thresh) {
                 if (n_div[det_idx] > 0) {
-                    if (el_magn / n_div[det_idx] >= keep_thresh && !keep_row[0]) {
-                        keep_row[0] = 1;
+                    if (el_magn / n_div[det_idx] >= keep_thresh && !keep_idx(det_idx, 0)) {
+                        keep_idx(det_idx, 0) = 1;
                         wt_remain[det_idx] = 0;
                         loc_sampled += n_div[det_idx];
                         loc_one_norm -= el_magn;
@@ -188,10 +188,10 @@ double find_keep_sub(double *values, unsigned int *n_div,
                         n_sub = sub_sizes[det_idx];
                     }
                     for (sub_idx = 0; sub_idx < n_sub; sub_idx++) {
-                        if (!keep_row[sub_idx]) {
+                        if (!keep_idx(det_idx, sub_idx)) {
                             sub_magn = el_magn * subwt_row[sub_idx];
                             if (sub_magn >= keep_thresh && fabs(sub_magn) > 1e-10) {
-                                keep_row[sub_idx] = 1;
+                                keep_idx(det_idx, sub_idx) = 1;
                                 loc_sampled++;
                                 loc_one_norm -= sub_magn;
                                 glob_one_norm -= sub_magn;
@@ -300,7 +300,7 @@ void adjust_shift(double *shift, double one_norm, double *last_norm,
 }
 
 size_t sys_sub(double *values, unsigned int *n_div,
-               const Matrix<double> &sub_weights, Matrix<uint8_t> &keep_idx,
+               const Matrix<double> &sub_weights, BoolMat &keep_idx,
                uint16_t *sub_sizes,
                size_t count, unsigned int n_samp, double *wt_remain,
                double *loc_norms, double rand_num, double *new_vals,
@@ -337,8 +337,8 @@ size_t sys_sub(double *values, unsigned int *n_div,
         tmp_val = values[wt_idx];
         lbound += wt_remain[wt_idx];
         if (n_div[wt_idx] > 0) {
-            if (keep_idx[wt_idx][0]) {
-                keep_idx[wt_idx][0] = 0;
+            if (keep_idx(wt_idx, 0)) {
+                keep_idx(wt_idx, 0) = 0;
                 for (sub_idx = 0; sub_idx < n_div[wt_idx]; sub_idx++) {
                     new_vals[num_new] = tmp_val / n_div[wt_idx];
                     new_idx[num_new][0] = wt_idx;
@@ -366,8 +366,8 @@ size_t sys_sub(double *values, unsigned int *n_div,
                 n_sub = sub_sizes[wt_idx];
             }
             for (sub_idx = 0; sub_idx < n_sub; sub_idx++) {
-                if (keep_idx[wt_idx][sub_idx]) {
-                    keep_idx[wt_idx][sub_idx] = 0;
+                if (keep_idx(wt_idx, sub_idx)) {
+                    keep_idx(wt_idx, sub_idx) = 0;
                     new_vals[num_new] = tmp_val * sub_weights[wt_idx][sub_idx];
                     new_idx[num_new][0] = wt_idx;
                     new_idx[num_new][1] = sub_idx;
@@ -392,7 +392,7 @@ size_t sys_sub(double *values, unsigned int *n_div,
 
 
 size_t comp_sub(double *values, size_t count, unsigned int *n_div,
-                Matrix<double> &sub_weights, Matrix<uint8_t> &keep_idx,
+                Matrix<double> &sub_weights, BoolMat &keep_idx,
                 uint16_t *sub_sizes,
                 unsigned int n_samp, double *wt_remain, double rand_num,
                 double *new_vals, size_t new_idx[][2]) {

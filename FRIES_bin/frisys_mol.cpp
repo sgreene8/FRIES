@@ -372,8 +372,8 @@ int main(int argc, const char * argv[]) {
     size_t *det_indices2 = &det_indices1[spawn_length];
     uint8_t (*orb_indices2)[4] = (uint8_t (*)[4])malloc(sizeof(uint8_t) * 4 * spawn_length);
     unsigned int unocc_symm_cts[n_irreps][2];
-    Matrix<uint8_t> keep_idx(spawn_length, n_states);
-    bzero(keep_idx[0], sizeof(uint8_t) * spawn_length * n_states);
+    BoolMat keep_idx(spawn_length, n_states);
+//    bzero(keep_idx[0], sizeof(uint8_t) * spawn_length * n_states);
     double *wt_remain = (double *)calloc(spawn_length, sizeof(double));
     size_t samp_idx, weight_idx;
     

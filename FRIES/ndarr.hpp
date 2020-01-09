@@ -7,6 +7,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <vector>
 
 /*! \brief A class for representing and manipulating matrices with variable dimension sizes
  * \tparam mat_type The type of elements to be stored in the matrix
@@ -169,6 +170,38 @@ public:
 private:
     size_t len1_, len2_, len3_, len4_; ///< Dimensions of the array
     double* data_; ///< The data stored in the array
+};
+
+class BoolMat {
+    std::vector<bool> data_;
+    size_t rows_, cols_, tot_size_;
+public:
+    BoolMat(size_t rows, size_t cols) : rows_(rows), cols_(cols), tot_size_(rows * cols), data_(rows * cols, false) {
+    }
+    
+    typename std::vector<bool>::reference
+    operator() (size_t row, size_t col) {
+        return data_[cols_*row + col];
+    }
+    
+    /*! \brief Change the dimensions without moving any of the data
+     * \param [in] new_rows     Desired number of rows in the reshaped matrix
+     * \param [in] new_cols     Desired number of columns in the reshaped matrix
+     */
+    void reshape(size_t new_rows, size_t new_cols) {
+        size_t new_size = new_rows * new_cols;
+        if (new_size > tot_size_) {
+            tot_size_ = new_size;
+            data_.resize(tot_size_, false);
+        }
+        rows_ = new_rows;
+        cols_ = new_cols;
+    }
+    
+    /*! \return Current number of columns in matrix*/
+    size_t cols() const {
+        return cols_;
+    }
 };
 
 #endif /* ndarr_h */
