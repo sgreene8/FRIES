@@ -83,34 +83,6 @@ double find_preserve(double *values, size_t *srt_idx, int *keep_idx,
     return loc_one_norm;
 }
 
-
-double sum_mpi(double local, int my_rank, int n_procs) {
-    double rec_vals[n_procs];
-    rec_vals[my_rank] = local;
-#ifdef USE_MPI
-    MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, rec_vals, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-#endif
-    double global = 0;
-    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-        global += rec_vals[proc_idx];
-    }
-    return global;
-}
-
-
-int sum_mpi(int local, int my_rank, int n_procs) {
-    int rec_vals[n_procs];
-    rec_vals[my_rank] = local;
-#ifdef USE_MPI
-    MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, rec_vals, 1, MPI_INT, MPI_COMM_WORLD);
-#endif
-    int global = 0;
-    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-        global += rec_vals[proc_idx];
-    }
-    return global;
-}
-
 double seed_sys(double *norms, double *rn, unsigned int n_samp) {
     double lbound = 0;
     int n_procs = 1;

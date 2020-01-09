@@ -80,7 +80,18 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
  * \param [in] n_procs  Total number of MPI processes
  * \return The calculated sum
  */
-double sum_mpi(double local, int my_rank, int n_procs);
+inline double sum_mpi(double local, int my_rank, int n_procs)  {
+    double rec_vals[n_procs];
+    rec_vals[my_rank] = local;
+#ifdef USE_MPI
+    MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, rec_vals, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+#endif
+    double global = 0;
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        global += rec_vals[proc_idx];
+    }
+    return global;
+}
 
 
 /*! \brief Sum a variable across all MPI processes
@@ -90,7 +101,18 @@ double sum_mpi(double local, int my_rank, int n_procs);
  * \param [in] n_procs  Total number of MPI processes
  * \return The calculated sum
  */
-int sum_mpi(int local, int my_rank, int n_procs);
+inline int sum_mpi(int local, int my_rank, int n_procs) {
+    int rec_vals[n_procs];
+    rec_vals[my_rank] = local;
+#ifdef USE_MPI
+    MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, rec_vals, 1, MPI_INT, MPI_COMM_WORLD);
+#endif
+    int global = 0;
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        global += rec_vals[proc_idx];
+    }
+    return global;
+}
 
 
 /*! \brief Set-up for performing systematic compression across many MPI processes
