@@ -372,8 +372,8 @@ int main(int argc, const char * argv[]) {
     size_t *det_indices2 = &det_indices1[spawn_length];
     uint8_t (*orb_indices2)[4] = (uint8_t (*)[4])malloc(sizeof(uint8_t) * 4 * spawn_length);
     unsigned int unocc_symm_cts[n_irreps][2];
-    BoolMat keep_idx(spawn_length, n_states);
-//    bzero(keep_idx[0], sizeof(uint8_t) * spawn_length * n_states);
+    Matrix<uint8_t> keep_idx(spawn_length, n_states);
+    bzero(keep_idx[0], sizeof(uint8_t) * spawn_length * n_states);
     double *wt_remain = (double *)calloc(spawn_length, sizeof(double));
     size_t samp_idx, weight_idx;
     
@@ -526,6 +526,12 @@ int main(int argc, const char * argv[]) {
             det_indices2[samp_idx] = det_idx;
             orb_indices2[samp_idx][0] = orb_indices1[weight_idx][0]; // single or double
             orb_indices2[samp_idx][1] = comp_idx[samp_idx][1] + new_hb; // first occupied orbital index (converted to orbital below)
+            if (orb_indices2[samp_idx][1] >= n_elec_unf) {
+                fprintf(stderr, "Error: chosen occupied orbital (first) is out of bounds\n");
+                comp_vec1[samp_idx] = 0;
+                ndiv_vec[samp_idx] = 1;
+                continue;
+            }
             uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
             if (orb_indices2[samp_idx][0] == 0) { // double excitation
                 ndiv_vec[samp_idx] = 0;
@@ -571,11 +577,17 @@ int main(int argc, const char * argv[]) {
             uint8_t o2u1_orb = comp_idx[samp_idx][1]; // 2nd occupied orbital index (doubles), converted to orbital below; unoccupied orbital index (singles)
             orb_indices1[samp_idx][2] = o2u1_orb;
             if (orb_indices1[samp_idx][0] == 0) { // double excitation
+                if (o2u1_orb >= n_elec_unf) {
+                    fprintf(stderr, "Error: chosen occupied orbital (second) is out of bounds\n");
+                    comp_vec2[samp_idx] = 0;
+                    ndiv_vec[samp_idx] = 1;
+                    continue;
+                }
                 ndiv_vec[samp_idx] = 0;
                 uint8_t *occ_tmp = sol_vec.orbs_at_pos(det_idx);
                 orb_indices1[samp_idx][2] = occ_tmp[o2u1_orb];
                 int o1_spin = o1_orb / n_orb;
-                int o2_spin = o2u1_orb / n_orb;
+                int o2_spin = occ_tmp[o2u1_orb] / n_orb;
                 double tot_weight = calc_u1_probs(hb_probs, subwt_mem[samp_idx], o1_orb, occ_tmp, n_elec_unf, new_hb && (o1_spin == o2_spin));
                 if (qmc_dist == unnorm_heat_bath) {
                     comp_vec2[samp_idx] *= tot_weight;
@@ -686,18 +698,18 @@ int main(int argc, const char * argv[]) {
                     doub_orbs[0] = tmp;
                 }
                 matr_el = doub_matr_el_nosgn(doub_orbs, tot_orb, *eris, n_frz);
-                if (fabs(matr_el) > 1e-9 && comp_vec2[samp_idx] > 1e-9) {
+                double tot_weight;
+                if (qmc_dist == unnorm_heat_bath) {
+                    tot_weight = calc_unnorm_wt(hb_probs, doub_orbs);
+                }
+                else {
+                    tot_weight = calc_norm_wt(hb_probs, doub_orbs, occ_orbs, n_elec_unf, curr_det, symm_lookup, symm);
+                }
+                matr_el *= -eps / p_doub / tot_weight * comp_vec2[samp_idx];
+                if (fabs(matr_el) > 1e-9) {//}) && comp_vec2[samp_idx] > 1e-9) {
                     uint8_t *new_det = &spawn_dets[num_added * det_size];
                     memcpy(new_det, curr_det, det_size);
-                    double tot_weight;
-                    if (qmc_dist == unnorm_heat_bath) {
-                        tot_weight = calc_unnorm_wt(hb_probs, doub_orbs);
-                    }
-                    else {
-                        tot_weight = calc_norm_wt(hb_probs, doub_orbs, occ_orbs, n_elec_unf, curr_det, symm_lookup, symm);
-                    }
-                    matr_el *= -eps / p_doub / tot_weight * el_sign * comp_vec2[samp_idx];
-                    matr_el *= doub_det_parity(new_det, doub_orbs);
+                    matr_el *= doub_det_parity(new_det, doub_orbs) * el_sign;
                     comp_vec1[num_added] = matr_el;
                     keep_idx(num_added, 0) = ini_flag;
 //                    keep_idx(num_added, 1) = determ_flag;
@@ -791,6 +803,19 @@ int main(int argc, const char * argv[]) {
                 keep_exact[max_n_dets] = 0;
                 srt_arr[max_n_dets] = max_n_dets;
             }
+        }
+        
+        if (iterat == 1) {
+            FILE *vec_out = fopen("vec_out.csv", "w");
+            for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
+                char det_str[2 * det_size + 1];
+                print_str(sol_vec.indices()[det_idx], det_size, det_str);
+                //            if (strcmp(det_str, "000003c0201c") == 0) {
+                //                printf("%.9lf\n", sol_vec[det_idx][0]);
+                //            }
+                fprintf(vec_out, "%s, %.9lf\n", det_str, sol_vec[det_idx][0]);
+            }
+            fclose(vec_out);
         }
         
 #pragma mark Vector compression step
