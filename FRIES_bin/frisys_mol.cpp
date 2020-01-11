@@ -525,7 +525,7 @@ int main(int argc, const char * argv[]) {
             det_idx = det_indices1[weight_idx];
             det_indices2[samp_idx] = det_idx;
             orb_indices2[samp_idx][0] = orb_indices1[weight_idx][0]; // single or double
-            orb_indices2[samp_idx][1] = comp_idx[samp_idx][1] + new_hb; // first occupied orbital index (converted to orbital below)
+            orb_indices2[samp_idx][1] = comp_idx[samp_idx][1]; // first occupied orbital index (converted to orbital below)
             if (orb_indices2[samp_idx][1] >= n_elec_unf) {
                 fprintf(stderr, "Error: chosen occupied orbital (first) is out of bounds\n");
                 comp_vec1[samp_idx] = 0;
@@ -539,6 +539,7 @@ int main(int argc, const char * argv[]) {
                     calc_o2_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs, &orb_indices2[samp_idx][1]);
                 }
                 else {
+                    orb_indices2[samp_idx][1]++;
                     sub_sizes[samp_idx] = orb_indices2[samp_idx][1];
                     comp_vec1[samp_idx] *= calc_o2_probs_half(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs, &orb_indices2[samp_idx][1]);
                 }
