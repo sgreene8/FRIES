@@ -157,6 +157,9 @@ void gen_neel_det_1D(unsigned int n_sites, unsigned int n_elec, uint8_t ph_bits,
     else if ((n_sites + n_elec) % 8 != 0){
         det[byte_idx] = ((1 << ((n_sites + n_elec) % 8)) / 3) << 1;
     }
+    else {
+        det[byte_idx] = 0;
+    }
     for (byte_idx++; byte_idx < CEILING((2 + ph_bits) * n_sites, 8); byte_idx++) {
         det[byte_idx] = 0;
     }

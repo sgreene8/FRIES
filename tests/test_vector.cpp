@@ -108,17 +108,13 @@ TEST_CASE("Test generation of Neel bit strings", "[neel_bits]") {
     
     n_elec = 8;
     n_sites = 8;
-    str1[2] = 25;
     gen_neel_det_1D(n_sites, n_elec, 0, str1);
     REQUIRE(str1[0] == 0b01010101);
     REQUIRE(str1[1] == 0b10101010);
-    REQUIRE(str1[2] == 25);
     
     n_elec = 4;
     n_sites = 4;
-    str1[1] = 25;
     gen_neel_det_1D(n_sites, n_elec, 0, str1);
-    REQUIRE(str1[1] == 25);
     
     str2[0] = 0b10100101;
     REQUIRE(bit_str_equ(str1, str2, 1));

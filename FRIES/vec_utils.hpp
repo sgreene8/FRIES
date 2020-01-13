@@ -475,7 +475,7 @@ public:
         
         size_t el_size = sizeof(el_type);
         
-        char buffer[100];
+        char buffer[300];
         sprintf(buffer, "%sdets%d.dat", path, my_rank);
         FILE *file_p = fopen(buffer, "wb");
         fwrite(indices_.data(), indices_.cols(), curr_size_, file_p);
@@ -503,7 +503,7 @@ public:
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
 #endif
         
-        char buffer[100];
+        char buffer[300];
         if (my_rank == 0) {
             sprintf(buffer, "%sdense.txt", path);
             int dense_sizes[n_procs];

@@ -153,12 +153,11 @@ int main(int argc, const char * argv[]) {
         last_one_norm = glob_norm;
     }
     
-    char file_path[100];
+    char file_path[300];
     FILE *norm_file = NULL;
     FILE *num_file = NULL;
     FILE *den_file = NULL;
     FILE *shift_file = NULL;
-    FILE *nonz_file = NULL;
     if (proc_rank == ref_proc) {
         // Setup output files
         strcpy(file_path, result_dir);
@@ -329,7 +328,6 @@ int main(int argc, const char * argv[]) {
                 fflush(num_file);
                 fflush(den_file);
                 fflush(shift_file);
-                fflush(nonz_file);
             }
         }
     }
@@ -338,7 +336,6 @@ int main(int argc, const char * argv[]) {
         fclose(num_file);
         fclose(den_file);
         fclose(shift_file);
-        fclose(nonz_file);
     }
 #ifdef USE_MPI
     MPI_Finalize();

@@ -62,6 +62,8 @@ unsigned int hub_diag(uint8_t *det, unsigned int n_sites, byte_table *table);
 
 /*! \brief Generate the bit string for the Neel state
  *
+ * All phonon bits are zeroed
+ *
  * \param [in] n_sites      number of sites along one dimension of the lattice
  * \param [in] n_elec       number of electrons in the system
  * \param [in] ph_bits      Number of bits designated to represent the phonon occupation number for each site
