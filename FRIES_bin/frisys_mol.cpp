@@ -271,6 +271,7 @@ int main(int argc, const char * argv[]) {
     FILE *nkept_file = NULL;
     FILE *sign_file = NULL;
     FILE *ini_file = NULL;
+    FILE *time_file = NULL;
     
     size_t n_determ = 0; // Number of deterministic determinants on this process
     if (!load_dir && determ_path) {
@@ -346,6 +347,11 @@ int main(int argc, const char * argv[]) {
         strcpy(file_path, result_dir);
         strcat(file_path, "nini.txt");
         ini_file = fopen(file_path, "a");
+        
+        strcpy(file_path, result_dir);
+        strcat(file_path, "time.txt");
+        time_file = fopen(file_path, "a");
+        fprintf(time_file, "%ld\n", time(NULL));
         
         strcpy(file_path, result_dir);
         strcat(file_path, "params.txt");
@@ -902,6 +908,10 @@ int main(int argc, const char * argv[]) {
                 fflush(nkept_file);
                 fflush(sign_file);
             }
+        }
+        if ((iterat + 1) % 1000 == 0 && proc_rank == hf_proc) {
+            fprintf(time_file, "%ld\n", time(NULL));
+            fflush(time_file);
         }
     }
     sol_vec.save(result_dir);
