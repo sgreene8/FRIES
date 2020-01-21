@@ -16,7 +16,6 @@
 #include <FRIES/Ext_Libs/argparse.h>
 #include <FRIES/Hamiltonians/hub_holstein.hpp>
 #include <FRIES/hh_vec.hpp>
-#define max_iter 10000
 
 static const char *const usage[] = {
     "frisys_hh [options] [[--] args]",
@@ -41,6 +40,7 @@ int main(int argc, const char * argv[]) {
     unsigned int max_n_dets = 0;
     unsigned int init_thresh = 0;
     unsigned int tmp_norm = 0;
+    unsigned int max_iter = 1000000;
     struct argparse_option options[] = {
         OPT_HELP(),
         OPT_STRING('d', "params_path", &params_path, "Path to the file that contains the parameters defining the Hamiltonian, number of electrons, number of sites, etc."),
@@ -50,6 +50,7 @@ int main(int argc, const char * argv[]) {
         OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
         OPT_INTEGER('i', "initiator", &init_thresh, "Number of walkers on a determinant required to make it an initiator."),
         OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())."),
+        OPT_INTEGER('I', "max_iter", &max_iter, "Maximum number of iterations to run the calculation."),
         OPT_END(),
     };
     
@@ -126,7 +127,7 @@ int main(int argc, const char * argv[]) {
     
     // Solution vector
     unsigned int spawn_length = n_elec * 4 * max_n_dets / n_procs;
-    uint8_t ph_bits = 1;
+    uint8_t ph_bits = 3;
     HubHolVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, hub_len, ph_bits, n_elec, n_procs);
     size_t det_size = CEILING(2 * n_orb + ph_bits * n_orb, 8);
     sol_vec.proc_scrambler_ = proc_scrambler;

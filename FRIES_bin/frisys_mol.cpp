@@ -16,7 +16,6 @@
 #include <FRIES/Ext_Libs/argparse.h>
 #include <FRIES/Hamiltonians/heat_bathPP.hpp>
 #include <FRIES/Hamiltonians/molecule.hpp>
-#define max_iter 1000000 
 
 static const char *const usage[] = {
     "frisys_mol [options] [[--] args]",
@@ -38,6 +37,7 @@ int main(int argc, const char * argv[]) {
     unsigned int max_n_dets = 0;
     float init_thresh = 0;
     unsigned int tmp_norm = 0;
+    unsigned int max_iter = 1000000;
     struct argparse_option options[] = {
         OPT_HELP(),
         OPT_STRING('d', "hf_path", &hf_path, "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt"),
@@ -50,9 +50,10 @@ int main(int argc, const char * argv[]) {
         OPT_FLOAT('i', "initiator", &init_thresh, "Magnitude of vector element required to make the corresponding determinant an initiator."),
         OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous systematic FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())."),
         OPT_STRING('n', "ini_vec", &ini_path, "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)."),
-        OPT_STRING('t', "trial_vec", &trial_path, "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text files)."),
-        OPT_STRING('s', "sign_vec", &sgnv_path, "Prefix for files containing the vector with which to constrain the sign of the iterates (files must have names <trial_vec>dets and <trial_vec>vals and be text files)."),
-        OPT_STRING('s', "det_space", &determ_path, "Path to a .txt file containing the determinants used to define the deterministic space to use in a semistochastic calculation."),
+        OPT_STRING('v', "trial_vec", &trial_path, "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text files)."),
+        OPT_STRING('s', "sign_vec", &sgnv_path, "The vector to use to constrain the sign of the iterates. Can be 'HF' or a prefix for files containing the vector (files must have names <sgnv_path>dets and <sgnv_path>vals and be text files). If not specified, sign is not calculated."),
+        OPT_STRING('S', "det_space", &determ_path, "Path to a .txt file containing the determinants used to define the deterministic space to use in a semistochastic calculation."),
+        OPT_INTEGER('I', "max_iter", &max_iter, "Maximum number of iterations to run the calculation."),
         OPT_END(),
     };
     
@@ -215,42 +216,45 @@ int main(int argc, const char * argv[]) {
     for (det_idx = 0; det_idx < htrial_vec.curr_size(); det_idx++) {
         htrial_hashes[det_idx] = sol_vec.idx_to_hash(htrial_vec.indices()[det_idx]);
     }
-        
+    
     Matrix<uint8_t> sgnv_dets(0, det_size);
     double *sgnv_vals = NULL;
+    uintmax_t *sgn_hashes = nullptr;
     unsigned int n_sgnv = 0;
     if (sgnv_path) {
-        Matrix<uint8_t> &load_dets = sol_vec.indices();
-        double *load_vals = (double *)sol_vec.values();
-        
-        n_sgnv = (unsigned int)load_vec_txt(sgnv_path, load_dets, load_vals, DOUB);
-#ifdef USE_MPI
-        MPI_Bcast(&n_sgnv, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-#endif
-        sgnv_dets.reshape(n_sgnv, det_size);
-        sgnv_vals = (double *)malloc(sizeof(double) * n_sgnv);
-        
-        if (proc_rank == 0) {
-            memcpy(sgnv_dets.data(), load_dets.data(), det_size * n_sgnv);
-            memcpy(sgnv_vals, load_vals, sizeof(double) * n_sgnv);
+        if (strcasecmp(sgnv_path, "HF") == 0) {
+            sgnv_dets.reshape(1, det_size);
+            sgnv_vals = (double *)malloc(sizeof(double));
+            n_sgnv = 1;
+            
+            memcpy(sgnv_dets[0], hf_det, det_size);
+            sgnv_vals[0] = 1;
         }
-    }
-    else {
-        sgnv_dets.reshape(1, det_size);
-        sgnv_vals = (double *)malloc(sizeof(double));
-        n_sgnv = 1;
-        
-        memcpy(sgnv_dets[0], hf_det, det_size);
-        sgnv_vals[0] = 1;
-    }
+        else {
+            Matrix<uint8_t> &load_dets = sol_vec.indices();
+            double *load_vals = (double *)sol_vec.values();
+            
+            n_sgnv = (unsigned int)load_vec_txt(sgnv_path, load_dets, load_vals, DOUB);
 #ifdef USE_MPI
-    MPI_Bcast(sgnv_dets.data(), n_sgnv * det_size, MPI_UINT8_T, 0, MPI_COMM_WORLD);
-    MPI_Bcast(sgnv_vals, n_sgnv, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+            MPI_Bcast(&n_sgnv, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 #endif
-    
-    uintmax_t *sgn_hashes = (uintmax_t *)malloc(sizeof(uintmax_t) * n_sgnv);
-    for (det_idx = 0; det_idx < n_sgnv; det_idx++) {
-        sgn_hashes[det_idx] = sol_vec.idx_to_hash(sgnv_dets[det_idx]);
+            sgnv_dets.reshape(n_sgnv, det_size);
+            sgnv_vals = (double *)malloc(sizeof(double) * n_sgnv);
+            
+            if (proc_rank == 0) {
+                memcpy(sgnv_dets.data(), load_dets.data(), det_size * n_sgnv);
+                memcpy(sgnv_vals, load_vals, sizeof(double) * n_sgnv);
+            }
+        }
+#ifdef USE_MPI
+        MPI_Bcast(sgnv_dets.data(), n_sgnv * det_size, MPI_UINT8_T, 0, MPI_COMM_WORLD);
+        MPI_Bcast(sgnv_vals, n_sgnv, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+#endif
+        
+        sgn_hashes = (uintmax_t *)malloc(sizeof(uintmax_t) * n_sgnv);
+        for (det_idx = 0; det_idx < n_sgnv; det_idx++) {
+            sgn_hashes[det_idx] = sol_vec.idx_to_hash(sgnv_dets[det_idx]);
+        }
     }
     
     // Count # single/double excitations from HF
@@ -859,18 +863,20 @@ int main(int argc, const char * argv[]) {
         }
         
         // Calculate sign of iterate
-        matr_el = sol_vec.dot(sgnv_dets, sgnv_vals, n_sgnv, sgn_hashes);
+        if (n_sgnv) {
+            matr_el = sol_vec.dot(sgnv_dets, sgnv_vals, n_sgnv, sgn_hashes);
 #ifdef USE_MPI
-        MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
+            MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
 #else
-        recv_nums[0] = matr_el;
+            recv_nums[0] = matr_el;
 #endif
-        if (proc_rank == hf_proc) {
-            matr_el = 0;
-            for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-                matr_el += recv_nums[proc_idx];
+            if (proc_rank == hf_proc) {
+                matr_el = 0;
+                for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+                    matr_el += recv_nums[proc_idx];
+                }
+                fprintf(sign_file, "%lf\n", matr_el);
             }
-            fprintf(sign_file, "%lf\n", matr_el);
         }
         
         if (proc_rank == 0) {
