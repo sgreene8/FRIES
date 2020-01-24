@@ -816,19 +816,6 @@ int main(int argc, const char * argv[]) {
             }
         }
         
-        if (iterat == 1) {
-            FILE *vec_out = fopen("vec_out.csv", "w");
-            for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
-                char det_str[2 * det_size + 1];
-                print_str(sol_vec.indices()[det_idx], det_size, det_str);
-                //            if (strcmp(det_str, "000003c0201c") == 0) {
-                //                printf("%.9lf\n", sol_vec[det_idx][0]);
-                //            }
-                fprintf(vec_out, "%s, %.9lf\n", det_str, sol_vec[det_idx][0]);
-            }
-            fclose(vec_out);
-        }
-        
 #pragma mark Vector compression step
         unsigned int n_samp = target_nonz;
         loc_norms[proc_rank] = find_preserve(&(sol_vec.values()[n_determ]), srt_arr, keep_exact, sol_vec.curr_size() - n_determ, &n_samp, &glob_norm);
