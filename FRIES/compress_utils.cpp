@@ -307,6 +307,9 @@ size_t sys_sub(double *values, unsigned int *n_div,
     size_t n_sub = keep_idx.cols();
     for (size_t wt_idx = 0; wt_idx < count; wt_idx++) {
         tmp_val = values[wt_idx];
+        if (tmp_val == 0) {
+            continue;
+        }
         lbound += wt_remain[wt_idx];
         if (n_div[wt_idx] > 0) {
             if (keep_idx(wt_idx, 0)) {
@@ -322,12 +325,14 @@ size_t sys_sub(double *values, unsigned int *n_div,
             else if (tmp_val != 0) {
                 while (rn_sys < lbound) {
                     sub_idx = (lbound - rn_sys) * n_div[wt_idx] / tmp_val;
-                    new_vals[num_new] = tmp_glob_norm / n_samp;
-                    new_idx[num_new][0] = wt_idx;
-                    new_idx[num_new][1] = sub_idx;
-                    num_new++;
+                    if (sub_idx < n_div[wt_idx]) {
+                        new_vals[num_new] = tmp_glob_norm / n_samp;
+                        new_idx[num_new][0] = wt_idx;
+                        new_idx[num_new][1] = sub_idx;
+                        num_new++;
+                        loc_norms[proc_rank] += tmp_glob_norm / n_samp;
+                    }
                     rn_sys += tmp_glob_norm / n_samp;
-                    loc_norms[proc_rank] += tmp_glob_norm / n_samp;
                 }
             }
         }
@@ -338,8 +343,7 @@ size_t sys_sub(double *values, unsigned int *n_div,
                 n_sub = sub_sizes[wt_idx];
             }
             for (sub_idx = 0; sub_idx < n_sub; sub_idx++) {
-                if (keep_idx(wt_idx, sub_idx)) {
-                    keep_idx(wt_idx, sub_idx) = 0;
+                if (keep_idx(wt_idx, sub_idx) && sub_weights[wt_idx][sub_idx] != 0) {
                     new_vals[num_new] = tmp_val * sub_weights[wt_idx][sub_idx];
                     new_idx[num_new][0] = wt_idx;
                     new_idx[num_new][1] = sub_idx;
@@ -347,7 +351,7 @@ size_t sys_sub(double *values, unsigned int *n_div,
                 }
                 else {
                     sub_lbound += tmp_val * sub_weights[wt_idx][sub_idx];
-                    if (rn_sys < sub_lbound) {
+                    if (rn_sys < sub_lbound && sub_weights[wt_idx][sub_idx] != 0) {
                         new_vals[num_new] = tmp_glob_norm / n_samp;
                         new_idx[num_new][0] = wt_idx;
                         new_idx[num_new][1] = sub_idx;
@@ -356,6 +360,7 @@ size_t sys_sub(double *values, unsigned int *n_div,
                         rn_sys += tmp_glob_norm / n_samp;
                     }
                 }
+                keep_idx(wt_idx, sub_idx) = 0;
             }
         }
     }
