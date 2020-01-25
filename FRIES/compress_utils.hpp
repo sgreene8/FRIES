@@ -9,11 +9,26 @@
 
 #include <cstdio>
 #include <cstdint>
+#include <climits>
 #include <FRIES/Ext_Libs/heap.h>
 #include <FRIES/mpi_switch.h>
 #include <FRIES/det_store.h>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/ndarr.hpp>
+
+#if SIZE_MAX == UCHAR_MAX
+   #define my_MPI_SIZE_T MPI_UNSIGNED_CHAR
+#elif SIZE_MAX == USHRT_MAX
+   #define my_MPI_SIZE_T MPI_UNSIGNED_SHORT
+#elif SIZE_MAX == UINT_MAX
+   #define my_MPI_SIZE_T MPI_UNSIGNED
+#elif SIZE_MAX == ULONG_MAX
+   #define my_MPI_SIZE_T MPI_UNSIGNED_LONG
+#elif SIZE_MAX == ULLONG_MAX
+   #define my_MPI_SIZE_T MPI_UNSIGNED_LONG_LONG
+#else
+   #error "what is happening here?"
+#endif
 
 /*! \brief Round a non-integral number binomially.
  *
@@ -108,6 +123,27 @@ inline int sum_mpi(int local, int my_rank, int n_procs) {
     MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, rec_vals, 1, MPI_INT, MPI_COMM_WORLD);
 #endif
     int global = 0;
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        global += rec_vals[proc_idx];
+    }
+    return global;
+}
+
+
+/*! \brief Sum a variable across all MPI processes
+ *
+ * \param [in] local    local value to be summed
+ * \param [in] my_rank  Rank of the local processor
+ * \param [in] n_procs  Total number of MPI processes
+ * \return The calculated sum
+ */
+inline size_t sum_mpi(size_t local, int my_rank, int n_procs) {
+    size_t rec_vals[n_procs];
+    rec_vals[my_rank] = local;
+#ifdef USE_MPI
+    MPI_Allgather(MPI_IN_PLACE, 0, my_MPI_SIZE_T, rec_vals, 1, my_MPI_SIZE_T, MPI_COMM_WORLD);
+#endif
+    size_t global = 0;
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         global += rec_vals[proc_idx];
     }

@@ -157,6 +157,7 @@ protected:
     uint8_t n_bits_; ///< Number of bits used to encode each index of the vector
     byte_table *tabl_; ///< Pointer to struct used to decompose determinant indices into lists of occupied orbitals
     hash_table *vec_hash_; ///< Hash table for quickly finding indices in \p indices_
+    size_t n_sgn_coh;
 private:
     Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
 protected:
@@ -184,7 +185,7 @@ public:
      * \param [in] n_procs Number of MPI processes over which to distribute vector elements
      */
     DistVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_bits,
-            unsigned int n_elec, int n_procs) : values_(size), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0) {
+            unsigned int n_elec, int n_procs) : values_(size), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), n_sgn_coh(0) {
         matr_el_ = (double *)malloc(sizeof(double) * size);
         vec_hash_ = setup_ht(size, rn_ptr, n_bits);
         tabl_ = gen_byte_table();
@@ -370,6 +371,16 @@ public:
         return n_nonz_;
     }
     
+    size_t tot_sgn_coh() const {
+        int my_rank = 0;
+        int n_procs = 1;
+#ifdef USE_MPI
+        MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+#endif
+        return sum_mpi(n_sgn_coh, my_rank, n_procs);
+    }
+    
     /*! \returns A pointer to the byte_table struct used to perform bit manipulations for this vector */
     byte_table *tabl() const {
         return tabl_;
@@ -412,6 +423,9 @@ public:
             }
             int del_bool = 0;
             if ((ini_flag && idx_ptr) || (idx_ptr && (values_[*idx_ptr] * vals[el_idx]) > 0)) {
+                if (!ini_flag) {
+                    n_sgn_coh++;
+                }
                 values_[*idx_ptr] += vals[el_idx];
                 del_bool = values_[*idx_ptr] == 0 && *idx_ptr >= n_dense_;
             }

@@ -901,6 +901,7 @@ int main(int argc, const char * argv[]) {
             fflush(time_file);
         }
     }
+    printf("Total sign-coherent additions: %zu\n", sol_vec.tot_sgn_coh());
     sol_vec.save(result_dir);
     if (proc_rank == hf_proc) {
         fclose(num_file);
