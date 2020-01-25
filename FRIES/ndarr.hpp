@@ -172,11 +172,11 @@ private:
     double* data_; ///< The data stored in the array
 };
 
-class BoolMat {
+template<> class Matrix<bool>  {
     std::vector<bool> data_;
     size_t rows_, cols_, tot_size_;
 public:
-    BoolMat(size_t rows, size_t cols) : rows_(rows), cols_(cols), tot_size_(rows * cols), data_(rows * cols, false) {
+    Matrix(size_t rows, size_t cols) : rows_(rows), cols_(cols), tot_size_(rows * cols), data_(rows * cols, false) {
     }
     
     typename std::vector<bool>::reference

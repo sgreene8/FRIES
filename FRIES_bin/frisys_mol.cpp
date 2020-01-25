@@ -382,8 +382,7 @@ int main(int argc, const char * argv[]) {
     size_t *det_indices2 = &det_indices1[spawn_length];
     uint8_t (*orb_indices2)[4] = (uint8_t (*)[4])malloc(sizeof(uint8_t) * 4 * spawn_length);
     unsigned int unocc_symm_cts[n_irreps][2];
-    Matrix<uint8_t> keep_idx(spawn_length, n_states);
-    bzero(keep_idx[0], sizeof(uint8_t) * spawn_length * n_states);
+    Matrix<bool> keep_idx(spawn_length, n_states);
     double *wt_remain = (double *)calloc(spawn_length, sizeof(double));
     size_t samp_idx, weight_idx;
     
@@ -404,7 +403,7 @@ int main(int argc, const char * argv[]) {
     for (det_idx = 0; det_idx < max_n_dets; det_idx++) {
         srt_arr[det_idx] = det_idx;
     }
-    int *keep_exact = (int *)calloc(max_n_dets, sizeof(int));
+    std::vector<bool> keep_exact(max_n_dets, false);
     
 #pragma mark Pre-calculate deterministic subspace of Hamiltonian
     size_t determ_h_size = n_determ * n_elec_unf * n_elec_unf * (n_orb - n_elec_unf / 2) * (n_orb - n_elec_unf / 2);
@@ -808,10 +807,9 @@ int main(int argc, const char * argv[]) {
         
         size_t new_max_dets = sol_vec.max_size();
         if (new_max_dets > max_n_dets) {
-            keep_exact = (int *)realloc(keep_exact, sizeof(int) * new_max_dets);
+            keep_exact.resize(new_max_dets, false);
             srt_arr = (size_t *)realloc(srt_arr, sizeof(size_t) * new_max_dets);
             for (; max_n_dets < new_max_dets; max_n_dets++) {
-                keep_exact[max_n_dets] = 0;
                 srt_arr[max_n_dets] = max_n_dets;
             }
         }

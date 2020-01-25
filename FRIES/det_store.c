@@ -111,12 +111,6 @@ int bit_str_equ(uint8_t *str1, uint8_t *str2, uint8_t n_bytes) {
 }
 
 
-int read_bit(const uint8_t *bit_str, uint8_t bit_idx) {
-    uint8_t byte_idx = bit_idx / 8;
-    return !(!(bit_str[byte_idx] & (1 << (bit_idx % 8))));
-}
-
-
 void zero_bit(uint8_t *bit_str, uint8_t bit_idx) {
     uint8_t *byte = &bit_str[bit_idx / 8];
     uint8_t mask = ~0 ^ (1 << (bit_idx % 8));

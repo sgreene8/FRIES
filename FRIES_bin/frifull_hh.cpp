@@ -197,7 +197,7 @@ int main(int argc, const char * argv[]) {
     for (det_idx = 0; det_idx < max_n_dets; det_idx++) {
         srt_arr[det_idx] = det_idx;
     }
-    int *keep_exact = (int *)calloc(max_n_dets, sizeof(int));
+    std::vector<bool> keep_exact(max_n_dets, false);
     
     int ini_flag;
     double matr_el;
@@ -268,10 +268,9 @@ int main(int argc, const char * argv[]) {
         
         size_t new_max_dets = sol_vec.max_size();
         if (new_max_dets > max_n_dets) {
-            keep_exact = (int *)realloc(keep_exact, sizeof(int) * new_max_dets);
+            keep_exact.resize(new_max_dets, false);
             srt_arr = (size_t *)realloc(srt_arr, sizeof(size_t) * new_max_dets);
             for (; max_n_dets < new_max_dets; max_n_dets++) {
-                keep_exact[max_n_dets] = 0;
                 srt_arr[max_n_dets] = max_n_dets;
             }
         }

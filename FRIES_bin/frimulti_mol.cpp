@@ -323,7 +323,7 @@ int main(int argc, const char * argv[]) {
     for (det_idx = 0; det_idx < max_n_dets; det_idx++) {
         srt_arr[det_idx] = det_idx;
     }
-    int *keep_exact = (int *)calloc(max_n_dets, sizeof(int));
+    std::vector<bool> keep_exact(max_n_dets, false);
     
     unsigned int iterat;
     size_t n_ini;
