@@ -159,12 +159,12 @@ int main(int argc, const char * argv[]) {
         size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, INT);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
-            sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1, 0);
+            sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
         }
     }
     else {
         if (ref_proc == proc_rank) {
-            sol_vec.add(neel_det, 100, 1, 0);
+            sol_vec.add(neel_det, 100, 1);
         }
     }
     sol_vec.perform_add();
@@ -264,7 +264,7 @@ int main(int argc, const char * argv[]) {
                 zero_bit(new_det, spawn_orbs[walker_idx][0]);
                 set_bit(new_det, spawn_orbs[walker_idx][1]);
                 spawn_walker = -walk_sign;
-                sol_vec.add(new_det, spawn_walker, ini_flag, 0);
+                sol_vec.add(new_det, spawn_walker, ini_flag);
             }
             
             // Death/cloning step

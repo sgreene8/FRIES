@@ -144,7 +144,7 @@ int main(int argc, const char * argv[]) {
     }
     else {
         if (ref_proc == proc_rank) {
-            sol_vec.add(neel_det, 100, 1, 0);
+            sol_vec.add(neel_det, 100, 1);
         }
     }
     sol_vec.perform_add();
@@ -220,7 +220,7 @@ int main(int argc, const char * argv[]) {
                 memcpy(new_det, curr_det, det_size);
                 zero_bit(new_det, spawn_orbs[ex_idx][0]);
                 set_bit(new_det, spawn_orbs[ex_idx][1]);
-                sol_vec.add(new_det, eps * hub_t * (*curr_el), ini_flag, 0);
+                sol_vec.add(new_det, eps * hub_t * (*curr_el), ini_flag);
             }
             
             uint8_t *curr_occ = sol_vec.orbs_at_pos(det_idx);
@@ -231,11 +231,11 @@ int main(int argc, const char * argv[]) {
                 int doubly_occ = read_bit(curr_det, site + hub_len);
                 if (phonon_num > 0) {
                     sol_vec.det_from_ph(curr_det, new_det, site, -1);
-                    sol_vec.add(new_det, -eps * elec_ph * sqrt(phonon_num) * (doubly_occ + 1) * (*curr_el), ini_flag, 0);
+                    sol_vec.add(new_det, -eps * elec_ph * sqrt(phonon_num) * (doubly_occ + 1) * (*curr_el), ini_flag);
                 }
                 if (phonon_num + 1 < (1 << ph_bits)) {
                     sol_vec.det_from_ph(curr_det, new_det, site, +1);
-                    sol_vec.add(new_det, -eps * elec_ph * sqrt(phonon_num + 1) * (doubly_occ + 1) * (*curr_el), ini_flag, 0);
+                    sol_vec.add(new_det, -eps * elec_ph * sqrt(phonon_num + 1) * (doubly_occ + 1) * (*curr_el), ini_flag);
                 }
             }
             for (size_t elec_idx = n_elec / 2; elec_idx < n_elec; elec_idx++) {
@@ -245,11 +245,11 @@ int main(int argc, const char * argv[]) {
                     uint8_t phonon_num = curr_phonons[site];
                     if (phonon_num > 0) {
                         sol_vec.det_from_ph(curr_det, new_det, site, -1);
-                        sol_vec.add(new_det, -eps * elec_ph * sqrt(phonon_num) * (*curr_el), ini_flag, 0);
+                        sol_vec.add(new_det, -eps * elec_ph * sqrt(phonon_num) * (*curr_el), ini_flag);
                     }
                     if (phonon_num + 1 < (1 << ph_bits)) {
                         sol_vec.det_from_ph(curr_det, new_det, site, +1);
-                        sol_vec.add(new_det, -eps * elec_ph * sqrt(phonon_num + 1) * (*curr_el), ini_flag, 0);
+                        sol_vec.add(new_det, -eps * elec_ph * sqrt(phonon_num + 1) * (*curr_el), ini_flag);
                     }
                 }
             }
