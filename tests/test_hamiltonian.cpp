@@ -237,7 +237,7 @@ TEST_CASE("Test calculation of overlap with neel state in Hubbard-Holstein", "[n
     REQUIRE(bit_str_equ(bit_str1, dets[0], det_size));
     set_bit(dets[0], 2 * n_sites);
     phonons(0, 0) = 1;
-    REQUIRE(calc_ref_ovlp(dets, vals, phonons, 2, bit_str1, occ1, tabl, n_elec, n_sites, 10) == 20);
+    REQUIRE(calc_ref_ovlp(dets, vals, phonons, 2, bit_str1, occ1, tabl, n_elec, n_sites, 10) == -20);
     
     // Correctly ignore wrong phonon excitations
     phonons(0, 0) = 2;
