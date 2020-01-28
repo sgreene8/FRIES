@@ -231,11 +231,11 @@ int main(int argc, const char * argv[]) {
                 int doubly_occ = read_bit(curr_det, site + hub_len);
                 if (phonon_num > 0) {
                     sol_vec.det_from_ph(curr_det, new_det, site, -1);
-                    sol_vec.add(new_det, eps * elec_ph * sqrt(phonon_num) * (doubly_occ + 1) * (*curr_el), ini_flag, 0);
+                    sol_vec.add(new_det, -eps * elec_ph * sqrt(phonon_num) * (doubly_occ + 1) * (*curr_el), ini_flag, 0);
                 }
                 if (phonon_num + 1 < (1 << ph_bits)) {
                     sol_vec.det_from_ph(curr_det, new_det, site, +1);
-                    sol_vec.add(new_det, eps * elec_ph * sqrt(phonon_num + 1) * (doubly_occ + 1) * (*curr_el), ini_flag, 0);
+                    sol_vec.add(new_det, -eps * elec_ph * sqrt(phonon_num + 1) * (doubly_occ + 1) * (*curr_el), ini_flag, 0);
                 }
             }
             for (size_t elec_idx = n_elec / 2; elec_idx < n_elec; elec_idx++) {
@@ -245,11 +245,11 @@ int main(int argc, const char * argv[]) {
                     uint8_t phonon_num = curr_phonons[site];
                     if (phonon_num > 0) {
                         sol_vec.det_from_ph(curr_det, new_det, site, -1);
-                        sol_vec.add(new_det, eps * elec_ph * sqrt(phonon_num) * (*curr_el), ini_flag, 0);
+                        sol_vec.add(new_det, -eps * elec_ph * sqrt(phonon_num) * (*curr_el), ini_flag, 0);
                     }
                     if (phonon_num + 1 < (1 << ph_bits)) {
                         sol_vec.det_from_ph(curr_det, new_det, site, +1);
-                        sol_vec.add(new_det, eps * elec_ph * sqrt(phonon_num + 1) * (*curr_el), ini_flag, 0);
+                        sol_vec.add(new_det, -eps * elec_ph * sqrt(phonon_num + 1) * (*curr_el), ini_flag, 0);
                     }
                 }
             }

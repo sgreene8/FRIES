@@ -126,7 +126,7 @@ double calc_ref_ovlp(Matrix<uint8_t> &dets, T *vals, Matrix<uint8_t> &phonons,
                 }
             }
             if (num_ph == 1) {
-                result += vals[det_idx] * g_over_t;
+                result -= vals[det_idx] * g_over_t;
             }
         }
         else {
