@@ -64,7 +64,7 @@ public:
      * \param [in] n_procs  The number of processes
      * \param [in] vec         The vector to which elements will be added
      */
-    Adder(size_t size, int n_procs, DistVec<el_type> *vec) : n_bytes_(CEILING(vec->n_bits() + 3, 8)), send_idx_(n_procs, size * CEILING(vec->n_bits() + 3, 8)), send_vals_(n_procs, size), recv_idx_(n_procs, size * CEILING(vec->n_bits() + 3, 8)), recv_vals_(n_procs, size), parent_vec_(vec) {
+    Adder(size_t size, int n_procs, DistVec<el_type> *vec) : n_bytes_(CEILING(vec->n_bits() + 1, 8)), send_idx_(n_procs, size * CEILING(vec->n_bits() + 1, 8)), send_vals_(n_procs, size), recv_idx_(n_procs, size * CEILING(vec->n_bits() + 1, 8)), recv_vals_(n_procs, size), parent_vec_(vec) {
         send_cts_ = (int *)malloc(sizeof(int) * n_procs); // 1 allocation
         recv_cts_ = (int *) malloc(sizeof(int) * n_procs);
         idx_disp_ = (int *) malloc(sizeof(int) * n_procs);
@@ -95,10 +95,8 @@ public:
      * \param [in] idx      Index of the element to be added
      * \param [in] val      Value of the added element
      * \param [in] ini_flag     Either 1 or 0, indicates initiator status of the added element
-     * \param [in] det_flag     0, 1, or 2. If 0, no restrictions. If 1, will not be added if destined for the
-     *                  dense subspace. If 2, will only be added if destined for the dense subspace.
      */
-    void add(uint8_t *idx, el_type val, int proc_idx, int ini_flag, int det_flag);
+    void add(uint8_t *idx, el_type val, int proc_idx, int ini_flag);
 private:
     Matrix<uint8_t> send_idx_; ///< Send buffer for element indices
     Matrix<el_type> send_vals_; ///< Send buffer for element values
@@ -157,7 +155,7 @@ protected:
     uint8_t n_bits_; ///< Number of bits used to encode each index of the vector
     byte_table *tabl_; ///< Pointer to struct used to decompose determinant indices into lists of occupied orbitals
     hash_table *vec_hash_; ///< Hash table for quickly finding indices in \p indices_
-    size_t n_sgn_coh;
+    size_t nonini_occ_add; ///< Number of times an addition from a noninitiator determinant to an occupied determinant occurred
 private:
     Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
 protected:
@@ -185,7 +183,7 @@ public:
      * \param [in] n_procs Number of MPI processes over which to distribute vector elements
      */
     DistVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_bits,
-            unsigned int n_elec, int n_procs) : values_(size), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), n_sgn_coh(0) {
+            unsigned int n_elec, int n_procs) : values_(size), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0) {
         matr_el_ = (double *)malloc(sizeof(double) * size);
         vec_hash_ = setup_ht(size, rn_ptr, n_bits);
         tabl_ = gen_byte_table();
@@ -292,13 +290,11 @@ public:
      *
      * \param [in] idx          The index of the element in the vector
      * \param [in] val          The value of the added element
-     * \param [in] ini_flag     Either 1 or 0. If 0, will only be added if addition is sign-coherent
-     * \param [in] det_flag     0, 1, or 2. If 0, no restrictions. If 1, will not be added if destined for the
-     *                  dense subspace. If 2, will only be added if destined for the dense subspace.
+     * \param [in] ini_flag     Either 1 or 0. If 0, will only be added to a determinant that is already occupied
      */
-    void add(uint8_t *idx, el_type val, int ini_flag, int det_flag) {
+    void add(uint8_t *idx, el_type val, int ini_flag) {
         if (val != 0) {
-            adder_.add(idx, val, idx_to_proc(idx), ini_flag, det_flag);
+            adder_.add(idx, val, idx_to_proc(idx), ini_flag);
         }
     }
 
@@ -378,7 +374,7 @@ public:
         MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
 #endif
-        return sum_mpi(n_sgn_coh, my_rank, n_procs);
+        return sum_mpi(nonini_occ_add, my_rank, n_procs);
     }
     
     /*! \returns A pointer to the byte_table struct used to perform bit manipulations for this vector */
@@ -392,17 +388,14 @@ public:
      * \param [in] count    Number of elements to be added
      */
     void add_elements(uint8_t *indices, el_type *vals, size_t count) {
-        uint8_t add_n_bytes = CEILING(n_bits_ + 3, 8);
+        uint8_t add_n_bytes = CEILING(n_bits_ + 1, 8);
         uint8_t vec_n_bytes = indices_.cols();
         for (size_t el_idx = 0; el_idx < count; el_idx++) {
             uint8_t *new_idx = &indices[el_idx * add_n_bytes];
             int ini_flag = read_bit(new_idx, n_bits_);
-            int det_flag = read_bit(new_idx, n_bits_ + 1) | (read_bit(new_idx, n_bits_ + 2) << 1);
             zero_bit(new_idx, n_bits_);
-            zero_bit(new_idx, n_bits_ + 1);
-            zero_bit(new_idx, n_bits_ + 2);
             uintmax_t hash_val = idx_to_hash(new_idx);
-            ssize_t *idx_ptr = read_ht(vec_hash_, new_idx, hash_val, ini_flag && det_flag != 2);
+            ssize_t *idx_ptr = read_ht(vec_hash_, new_idx, hash_val, ini_flag);
             if (idx_ptr && *idx_ptr == -1) {
                 *idx_ptr = pop_stack();
                 if (*idx_ptr == -1) {
@@ -416,18 +409,16 @@ public:
                 initialize_at_pos(*idx_ptr);
                 n_nonz_++;
             }
-            // det_flag is 0, 1, or 2. If 0, no restrictions. If 1, will not be added if destined for the
-            // dense subspace. If 2, will only be added if destined for the dense subspace.
-            if ((det_flag == 1 && *idx_ptr < n_dense_) || (det_flag == 2 && idx_ptr && *idx_ptr >= n_dense_)) {
-                continue;
-            }
             int del_bool = 0;
-            if ((ini_flag && idx_ptr) || (idx_ptr && (values_[*idx_ptr] * vals[el_idx]) > 0)) {
-                if (!ini_flag) {
-                    n_sgn_coh++;
+            if (idx_ptr) {
+                if (!ini_flag && vals[*idx_ptr] == 0) {
+                    fprintf(stderr, "Alert: weird vector addition\n");
                 }
-                values_[*idx_ptr] += vals[el_idx];
-                del_bool = values_[*idx_ptr] == 0 && *idx_ptr >= n_dense_;
+                else {
+                    nonini_occ_add += !ini_flag;
+                    values_[*idx_ptr] += vals[el_idx];
+                    del_bool = values_[*idx_ptr] == 0 && *idx_ptr >= n_dense_;
+                }
             }
             if (del_bool == 1) {
                 push_stack(*idx_ptr);
@@ -585,7 +576,7 @@ public:
     size_t init_dense(const char *read_path, const char *save_dir) {
         size_t n_loaded = read_dets(read_path, indices_);
         for (size_t idx = 0; idx < n_loaded; idx++) {
-            add(indices_[idx], 1, 1, 0);
+            add(indices_[idx], 1, 1);
         }
         perform_add();
         
@@ -684,7 +675,7 @@ public:
 
 
 template <class el_type>
-void Adder<el_type>::add(uint8_t *idx, el_type val, int proc_idx, int ini_flag, int det_flag) {
+void Adder<el_type>::add(uint8_t *idx, el_type val, int proc_idx, int ini_flag) {
     int *count = &send_cts_[proc_idx];
     if (*count == send_vals_.cols()) {
         enlarge_();
@@ -695,12 +686,6 @@ void Adder<el_type>::add(uint8_t *idx, el_type val, int proc_idx, int ini_flag, 
     memcpy(cpy_idx, idx, CEILING(idx_bits, 8));
     if (ini_flag) {
         set_bit(cpy_idx, idx_bits);
-    }
-    if (det_flag & 1) {
-        set_bit(cpy_idx, idx_bits + 1);
-    }
-    if (det_flag & 0b10) {
-        set_bit(cpy_idx, idx_bits + 2);
     }
     send_vals_(proc_idx, *count) = val;
     (*count)++;

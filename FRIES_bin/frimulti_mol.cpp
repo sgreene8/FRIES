@@ -181,13 +181,13 @@ int main(int argc, const char * argv[]) {
     htrial_vec.proc_scrambler_ = proc_scrambler;
     if (trial_path) { // load trial vector from file
         for (det_idx = 0; det_idx < n_trial; det_idx++) {
-            trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1, 0);
-            htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1, 0);
+            trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
+            htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
         }
     }
     else { // Otherwise, use HF as trial vector
-        trial_vec.add(hf_det, 1, 1, 0);
-        htrial_vec.add(hf_det, 1, 1, 0);
+        trial_vec.add(hf_det, 1, 1);
+        htrial_vec.add(hf_det, 1, 1);
     }
     trial_vec.perform_add();
     htrial_vec.perform_add();
@@ -246,12 +246,12 @@ int main(int argc, const char * argv[]) {
         size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, DOUB);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
-            sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1, 0);
+            sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
         }
     }
     else {
         if (hf_proc == proc_rank) {
-            sol_vec.add(hf_det, 100, 1, 0);
+            sol_vec.add(hf_det, 100, 1);
         }
     }
     sol_vec.perform_add();
@@ -392,7 +392,7 @@ int main(int argc, const char * argv[]) {
                 if (fabs(matr_el) > 1e-9) {
                     memcpy(new_det, curr_det, det_size);
                     matr_el *= -eps / spawn_probs[walker_idx] / p_doub / n_walk * (*curr_el) * doub_det_parity(new_det, doub_orbs[walker_idx]);
-                    sol_vec.add(new_det, matr_el, ini_flag, 0);
+                    sol_vec.add(new_det, matr_el, ini_flag);
                 }
             }
             
@@ -403,7 +403,7 @@ int main(int argc, const char * argv[]) {
                 if (fabs(matr_el) > 1e-9) {
                     memcpy(new_det, curr_det, det_size);
                     matr_el *= -eps / spawn_probs[walker_idx] / (1 - p_doub) / n_walk * (*curr_el) * sing_det_parity(new_det, sing_orbs[walker_idx]);
-                    sol_vec.add(new_det, matr_el, ini_flag, 0);
+                    sol_vec.add(new_det, matr_el, ini_flag);
                 }
             }
             

@@ -190,14 +190,14 @@ int main(int argc, const char * argv[]) {
     htrial_vec.proc_scrambler_ = proc_scrambler;
     if (trial_path) { // load trial vector from file
         for (det_idx = 0; det_idx < n_trial; det_idx++) {
-            trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1, 0);
-            htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1, 0);
+            trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
+            htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
         }
     }
     else { // Otherwise, use HF as trial vector
         if (hf_proc == proc_rank) {
-            trial_vec.add(hf_det, 1, 1, 0);
-            htrial_vec.add(hf_det, 1, 1, 0);
+            trial_vec.add(hf_det, 1, 1);
+            htrial_vec.add(hf_det, 1, 1);
         }
     }
     trial_vec.perform_add();
@@ -304,14 +304,14 @@ int main(int argc, const char * argv[]) {
         size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, DOUB);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
-            sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1, 0);
+            sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
         }
         n_dets++; // just to be safe
         bzero(load_vals, n_dets * sizeof(double));
     }
     else {
         if (hf_proc == proc_rank) {
-            sol_vec.add(hf_det, 100, 1, 0);
+            sol_vec.add(hf_det, 100, 1);
         }
     }
     sol_vec.perform_add();
@@ -722,7 +722,6 @@ int main(int argc, const char * argv[]) {
                     matr_el *= doub_det_parity(new_det, doub_orbs) * el_sign;
                     comp_vec1[num_added] = matr_el;
                     keep_idx(num_added, 0) = ini_flag;
-//                    keep_idx(num_added, 1) = determ_flag;
                     num_added++;
                 }
             }
@@ -745,7 +744,6 @@ int main(int argc, const char * argv[]) {
                     }
                     comp_vec1[num_added] = matr_el;
                     keep_idx(num_added, 0) = ini_flag;
-//                    keep_idx(num_added, 1) = determ_flag;
                     num_added++;
                 }
             }
@@ -755,7 +753,7 @@ int main(int argc, const char * argv[]) {
         for (samp_idx = 0; samp_idx < determ_h_size; samp_idx++) {
             det_idx = determ_from[samp_idx];
             double mat_vec = *(sol_vec[det_idx]) * determ_matr_el[samp_idx];
-            sol_vec.add(determ_to[samp_idx], mat_vec, 1, 0);
+            sol_vec.add(determ_to[samp_idx], mat_vec, 1);
         }
         
 #pragma mark Death/cloning step
@@ -783,10 +781,8 @@ int main(int argc, const char * argv[]) {
                     break;
                 }
                 int ini_flag = keep_idx(samp_idx, 0);
-//                int determ_flag = keep_idx(samp_idx, 1);
                 keep_idx(samp_idx, 0) = 0;
-                keep_idx(samp_idx, 1) = 0;
-                sol_vec.add(&spawn_dets[samp_idx * det_size], comp_vec1[samp_idx], ini_flag, 0);
+                sol_vec.add(&spawn_dets[samp_idx * det_size], comp_vec1[samp_idx], ini_flag);
                 num_added++;
                 samp_idx++;
             }
@@ -892,14 +888,10 @@ int main(int argc, const char * argv[]) {
                 fflush(shift_file);
                 fflush(nkept_file);
                 fflush(sign_file);
+                printf("Total additions to nonzero: %zu\n", sol_vec.tot_sgn_coh());
             }
         }
-        if ((iterat + 1) % 1000 == 0 && proc_rank == hf_proc) {
-            fprintf(time_file, "%ld\n", time(NULL));
-            fflush(time_file);
-        }
     }
-    printf("Total sign-coherent additions: %zu\n", sol_vec.tot_sgn_coh());
     sol_vec.save(result_dir);
     if (proc_rank == hf_proc) {
         fclose(num_file);
