@@ -130,7 +130,7 @@ int main(int argc, const char * argv[]) {
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
     
     // Solution vector
-    unsigned int spawn_length = matr_samp * 2 / n_procs;
+    unsigned int spawn_length = matr_samp * 4 / n_procs;
     size_t adder_size = spawn_length > 1000000 ? 1000000 : spawn_length;
     DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
     size_t det_size = CEILING(2 * n_orb, 8);
@@ -882,13 +882,14 @@ int main(int argc, const char * argv[]) {
         
         if ((iterat + 1) % save_interval == 0) {
             sol_vec.save(result_dir);
+            uint64_t tot_add = sol_vec.tot_sgn_coh();
             if (proc_rank == hf_proc) {
                 fflush(num_file);
                 fflush(den_file);
                 fflush(shift_file);
                 fflush(nkept_file);
                 fflush(sign_file);
-                printf("Total additions to nonzero: %zu\n", sol_vec.tot_sgn_coh());
+                printf("Total additions to nonzero: %llu\n", tot_add);
             }
         }
     }

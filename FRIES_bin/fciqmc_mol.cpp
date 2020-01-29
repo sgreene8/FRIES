@@ -510,18 +510,21 @@ int main(int argc, const char * argv[]) {
         }
         
         // Calculate sign of iterate
-        matr_el = sol_vec.dot(sgnv_dets, sgnv_vals, n_sgnv, sgn_hashes);
+        if (n_sgnv) {
+            matr_el = sol_vec.dot(sgnv_dets, sgnv_vals, n_sgnv, sgn_hashes);
 #ifdef USE_MPI
-        MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
+            MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
 #else
-        recv_nums[0] = matr_el;
+            recv_nums[0] = matr_el;
 #endif
-        if (proc_rank == hf_proc) {
-            matr_el = 0;
-            for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-                matr_el += recv_nums[proc_idx];
+            if (proc_rank == hf_proc) {
+                matr_el = 0;
+                for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+                    matr_el += recv_nums[proc_idx];
+                }
+                fprintf(sign_file, "%lf\n", matr_el);
+                
             }
-            fprintf(sign_file, "%lf\n", matr_el);
         }
         
         // Save vector snapshot to disk

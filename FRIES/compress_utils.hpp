@@ -16,20 +16,6 @@
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/ndarr.hpp>
 
-#if SIZE_MAX == UCHAR_MAX
-   #define my_MPI_SIZE_T MPI_UNSIGNED_CHAR
-#elif SIZE_MAX == USHRT_MAX
-   #define my_MPI_SIZE_T MPI_UNSIGNED_SHORT
-#elif SIZE_MAX == UINT_MAX
-   #define my_MPI_SIZE_T MPI_UNSIGNED
-#elif SIZE_MAX == ULONG_MAX
-   #define my_MPI_SIZE_T MPI_UNSIGNED_LONG
-#elif SIZE_MAX == ULLONG_MAX
-   #define my_MPI_SIZE_T MPI_UNSIGNED_LONG_LONG
-#else
-   #error "what is happening here?"
-#endif
-
 /*! \brief Round a non-integral number binomially.
  *
  * Given a non-integral input p and a positive-integral input n, the result r of
@@ -137,13 +123,13 @@ inline int sum_mpi(int local, int my_rank, int n_procs) {
  * \param [in] n_procs  Total number of MPI processes
  * \return The calculated sum
  */
-inline size_t sum_mpi(size_t local, int my_rank, int n_procs) {
-    size_t rec_vals[n_procs];
+inline uint64_t sum_mpi(uint64_t local, int my_rank, int n_procs) {
+    uint64_t rec_vals[n_procs];
     rec_vals[my_rank] = local;
 #ifdef USE_MPI
-    MPI_Allgather(MPI_IN_PLACE, 0, my_MPI_SIZE_T, rec_vals, 1, my_MPI_SIZE_T, MPI_COMM_WORLD);
+    MPI_Allgather(MPI_IN_PLACE, 0, MPI_UINT64_T, rec_vals, 1, MPI_UINT64_T, MPI_COMM_WORLD);
 #endif
-    size_t global = 0;
+    uint64_t global = 0;
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         global += rec_vals[proc_idx];
     }

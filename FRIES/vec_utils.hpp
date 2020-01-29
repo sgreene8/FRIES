@@ -155,7 +155,7 @@ protected:
     uint8_t n_bits_; ///< Number of bits used to encode each index of the vector
     byte_table *tabl_; ///< Pointer to struct used to decompose determinant indices into lists of occupied orbitals
     hash_table *vec_hash_; ///< Hash table for quickly finding indices in \p indices_
-    size_t nonini_occ_add; ///< Number of times an addition from a noninitiator determinant to an occupied determinant occurred
+    uint64_t nonini_occ_add; ///< Number of times an addition from a noninitiator determinant to an occupied determinant occurred
 private:
     Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
 protected:
@@ -367,7 +367,7 @@ public:
         return n_nonz_;
     }
     
-    size_t tot_sgn_coh() const {
+    uint64_t tot_sgn_coh() const {
         int my_rank = 0;
         int n_procs = 1;
 #ifdef USE_MPI
@@ -411,7 +411,7 @@ public:
             }
             int del_bool = 0;
             if (idx_ptr) {
-                if (!ini_flag && vals[*idx_ptr] == 0) {
+                if (!ini_flag && values_[*idx_ptr] == 0) {
                     fprintf(stderr, "Alert: weird vector addition\n");
                 }
                 else {
