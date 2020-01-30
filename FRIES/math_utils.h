@@ -47,7 +47,7 @@ byte_table *gen_byte_table(void);
  * \param [in] n_bytes      The length of \p bit_str
  * \param [in] tabl     A byte_table struct to use to decode the bits
  */
-uint8_t find_bits(uint8_t *bit_str, uint8_t *bits, uint8_t n_bytes, byte_table *tabl);
+uint8_t find_bits(const uint8_t *bit_str, uint8_t *bits, uint8_t n_bytes, const byte_table *tabl);
 
 /*! \brief Count number of 1's between two bits in binary representation of a
  * number

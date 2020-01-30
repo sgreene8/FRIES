@@ -77,7 +77,7 @@ unsigned int bits_between(uint8_t *bit_str, uint8_t a, uint8_t b) {
 }
 
 
-uint8_t find_bits(uint8_t *bit_str, uint8_t *bits, uint8_t n_bytes, byte_table *tabl) {
+uint8_t find_bits(const uint8_t *restrict bit_str, uint8_t *restrict bits, uint8_t n_bytes, const byte_table *tabl) {
     unsigned int n_bits = 0, byte_idx;
     uint8_t byte_bits, det_byte, bit_idx;
     for (byte_idx = 0; byte_idx < n_bytes; byte_idx++) {
