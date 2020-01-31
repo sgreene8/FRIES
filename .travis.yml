@@ -5,6 +5,7 @@ before_install:
   -in .ci/travis_deploy_key.enc -out .ci/travis_deploy_key -d
 - sudo apt-get install doxygen libopenmpi-dev
 - test -n $CC && unset CC
+- /usr/lib/openmpi/lib/
 
 script: 
 - mkdir build
