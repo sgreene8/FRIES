@@ -137,7 +137,6 @@ double find_keep_sub(double *values, unsigned int *n_div,
         }
         loc_sampled = 0;
         for (size_t det_idx = 0; det_idx < count; det_idx++) {
-//            uint8_t *keep_row = keep_idx[det_idx];
             el_magn = values[det_idx];
             keep_thresh = glob_one_norm / (*n_samp - loc_sampled);
             if (el_magn >= keep_thresh) {
