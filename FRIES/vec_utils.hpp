@@ -160,15 +160,10 @@ private:
     Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
 protected:
     
-    virtual void initialize_at_pos(size_t pos) {
+    virtual void initialize_at_pos(size_t pos, uint8_t *orbs) {
         values_[pos] = 0;
         matr_el_[pos] = NAN;
-        uint8_t n_bytes = indices_.cols();
-        if (gen_orb_list(indices_[pos], occ_orbs_[pos]) != occ_orbs_.cols()) {
-            char det_txt[n_bytes * 2 + 1];
-            print_str(indices_[pos], n_bytes, det_txt);
-            fprintf(stderr, "Error: determinant %s created with an incorrect number of electrons.\n", det_txt);
-        }
+        memcpy(occ_orbs_[pos], orbs, occ_orbs_.cols());
     }
     
 public:
@@ -277,10 +272,14 @@ public:
      * \param [in] idx          Vector index
      * \return hash value
      */
-    virtual uintmax_t idx_to_hash(uint8_t *idx) {
+    virtual uintmax_t idx_to_hash(uint8_t *idx, uint8_t *orbs) {
         unsigned int n_elec = (unsigned int)occ_orbs_.cols();
-        uint8_t orbs[n_elec];
-        gen_orb_list(idx, orbs);
+        if (gen_orb_list(idx, orbs) != n_elec) {
+            uint8_t n_bytes = indices_.cols();
+            char det_txt[n_bytes * 2 + 1];
+            print_str(idx, n_bytes, det_txt);
+            fprintf(stderr, "Error: determinant %s created with an incorrect number of electrons.\n", det_txt);
+        }
         return hash_fxn(orbs, n_elec, NULL, 0, vec_hash_->scrambler);
     }
 
@@ -337,7 +336,7 @@ public:
      */
     void del_at_pos(size_t pos) {
         uint8_t *idx = indices_[pos];
-        uintmax_t hash_val = idx_to_hash(idx);
+        uintmax_t hash_val = idx_to_hash(idx, occ_orbs_[pos]);
         push_stack(pos);
         del_ht(vec_hash_, idx, hash_val);
         n_nonz_--;
@@ -390,11 +389,12 @@ public:
     void add_elements(uint8_t *indices, el_type *vals, size_t count) {
         uint8_t add_n_bytes = CEILING(n_bits_ + 1, 8);
         uint8_t vec_n_bytes = indices_.cols();
+        uint8_t tmp_occ[occ_orbs_.cols()];
         for (size_t el_idx = 0; el_idx < count; el_idx++) {
             uint8_t *new_idx = &indices[el_idx * add_n_bytes];
             int ini_flag = read_bit(new_idx, n_bits_);
             zero_bit(new_idx, n_bits_);
-            uintmax_t hash_val = idx_to_hash(new_idx);
+            uintmax_t hash_val = idx_to_hash(new_idx, tmp_occ);
             ssize_t *idx_ptr = read_ht(vec_hash_, new_idx, hash_val, ini_flag);
             if (idx_ptr && *idx_ptr == -1) {
                 *idx_ptr = pop_stack();
@@ -406,7 +406,7 @@ public:
                     curr_size_++;
                 }
                 memcpy(indices_[*idx_ptr], new_idx, vec_n_bytes);
-                initialize_at_pos(*idx_ptr);
+                initialize_at_pos(*idx_ptr, tmp_occ);
                 n_nonz_++;
             }
             int del_bool = 0;
@@ -543,6 +543,7 @@ public:
         fclose(file_p);
         
         n_nonz_ = 0;
+        uint8_t tmp_orbs[occ_orbs_.cols()];
         for (size_t det_idx = 0; det_idx < n_dets; det_idx++) {
             int is_nonz = 0;
             double value = 0;
@@ -552,11 +553,11 @@ public:
             }
             if (is_nonz) {
                 uint8_t *new_idx = indices_[det_idx];
-                uintmax_t hash_val = idx_to_hash(new_idx);
+                uintmax_t hash_val = idx_to_hash(new_idx, tmp_orbs);
                 ssize_t *idx_ptr = read_ht(vec_hash_, new_idx, hash_val, 1);
                 *idx_ptr = n_nonz_;
                 memmove(indices_[n_nonz_], new_idx, n_bytes);
-                initialize_at_pos(n_nonz_);
+                initialize_at_pos(n_nonz_, tmp_orbs);
                 values_[n_nonz_] = value;
                 n_nonz_++;
             }

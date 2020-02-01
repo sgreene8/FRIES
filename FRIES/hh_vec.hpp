@@ -88,10 +88,14 @@ public:
      * \param [in] idx          Vector index
      * \return hash value
      */
-    uintmax_t idx_to_hash(uint8_t *idx) {
+    uintmax_t idx_to_hash(uint8_t *idx, uint8_t *orbs) {
         unsigned int n_elec = (unsigned int)DistVec<el_type>::occ_orbs_.cols();
-        uint8_t orbs[n_elec];
-        gen_orb_list(idx, orbs);
+        if (gen_orb_list(idx, orbs) != n_elec) {
+            uint8_t n_bytes = DistVec<el_type>::indices_.cols();
+            char det_txt[n_bytes * 2 + 1];
+            print_str(idx, n_bytes, det_txt);
+            fprintf(stderr, "Error: determinant %s created with an incorrect number of electrons.\n", det_txt);
+        }
         uint8_t phonons[n_sites_];
         decode_phonons(idx, phonons);
         return hash_fxn(orbs, n_elec, phonons, n_sites_, DistVec<el_type>::vec_hash_->scrambler);
@@ -256,8 +260,8 @@ public:
     }
     
     
-    void initialize_at_pos(size_t pos) {
-        DistVec<el_type>::initialize_at_pos(pos);
+    void initialize_at_pos(size_t pos, uint8_t *orbs) {
+        DistVec<el_type>::initialize_at_pos(pos, orbs);
         uint8_t *det = DistVec<el_type>::indices_[pos];
         find_neighbors_1D(det, neighb_[pos]);
         decode_phonons(det, phonon_nums_[pos]);

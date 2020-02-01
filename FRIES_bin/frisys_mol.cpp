@@ -206,7 +206,7 @@ int main(int argc, const char * argv[]) {
     trial_vec.collect_procs();
     uintmax_t *trial_hashes = (uintmax_t *)malloc(sizeof(uintmax_t) * trial_vec.curr_size());
     for (det_idx = 0; det_idx < trial_vec.curr_size(); det_idx++) {
-        trial_hashes[det_idx] = sol_vec.idx_to_hash(trial_vec.indices()[det_idx]);
+        trial_hashes[det_idx] = sol_vec.idx_to_hash(trial_vec.indices()[det_idx], tmp_orbs);
     }
     
     // Calculate H * trial vector, and accumulate results on each processor
@@ -214,7 +214,7 @@ int main(int argc, const char * argv[]) {
     htrial_vec.collect_procs();
     uintmax_t *htrial_hashes = (uintmax_t *)malloc(sizeof(uintmax_t) * htrial_vec.curr_size());
     for (det_idx = 0; det_idx < htrial_vec.curr_size(); det_idx++) {
-        htrial_hashes[det_idx] = sol_vec.idx_to_hash(htrial_vec.indices()[det_idx]);
+        htrial_hashes[det_idx] = sol_vec.idx_to_hash(htrial_vec.indices()[det_idx], tmp_orbs);
     }
     
     Matrix<uint8_t> sgnv_dets(0, det_size);
@@ -253,7 +253,7 @@ int main(int argc, const char * argv[]) {
         
         sgn_hashes = (uintmax_t *)malloc(sizeof(uintmax_t) * n_sgnv);
         for (det_idx = 0; det_idx < n_sgnv; det_idx++) {
-            sgn_hashes[det_idx] = sol_vec.idx_to_hash(sgnv_dets[det_idx]);
+            sgn_hashes[det_idx] = sol_vec.idx_to_hash(sgnv_dets[det_idx], tmp_orbs);
         }
     }
     
