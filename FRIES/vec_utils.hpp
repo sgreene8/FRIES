@@ -390,40 +390,48 @@ public:
         uint8_t add_n_bytes = CEILING(n_bits_ + 1, 8);
         uint8_t vec_n_bytes = indices_.cols();
         uint8_t tmp_occ[occ_orbs_.cols()];
-        for (size_t el_idx = 0; el_idx < count; el_idx++) {
-            uint8_t *new_idx = &indices[el_idx * add_n_bytes];
-            int ini_flag = read_bit(new_idx, n_bits_);
-            zero_bit(new_idx, n_bits_);
-            uintmax_t hash_val = idx_to_hash(new_idx, tmp_occ);
-            ssize_t *idx_ptr = read_ht(vec_hash_, new_idx, hash_val, ini_flag);
-            if (idx_ptr && *idx_ptr == -1) {
-                *idx_ptr = pop_stack();
-                if (*idx_ptr == -1) {
-                    if (curr_size_ >= max_size_) {
-                        expand();
+        // The first time around, add only elements that came from noninitiators
+        for (int add_ini = 0; add_ini < 2; add_ini++) {
+            for (size_t el_idx = 0; el_idx < count; el_idx++) {
+                uint8_t *new_idx = &indices[el_idx * add_n_bytes];
+                int ini_flag = read_bit(new_idx, n_bits_);
+                if (ini_flag != add_ini) {
+                    continue;
+                }
+                if (ini_flag) {
+                    zero_bit(new_idx, n_bits_);
+                }
+                uintmax_t hash_val = idx_to_hash(new_idx, tmp_occ);
+                ssize_t *idx_ptr = read_ht(vec_hash_, new_idx, hash_val, ini_flag);
+                if (idx_ptr && *idx_ptr == -1) {
+                    *idx_ptr = pop_stack();
+                    if (*idx_ptr == -1) {
+                        if (curr_size_ >= max_size_) {
+                            expand();
+                        }
+                        *idx_ptr = curr_size_;
+                        curr_size_++;
                     }
-                    *idx_ptr = curr_size_;
-                    curr_size_++;
+                    memcpy(indices_[*idx_ptr], new_idx, vec_n_bytes);
+                    initialize_at_pos(*idx_ptr, tmp_occ);
+                    n_nonz_++;
                 }
-                memcpy(indices_[*idx_ptr], new_idx, vec_n_bytes);
-                initialize_at_pos(*idx_ptr, tmp_occ);
-                n_nonz_++;
-            }
-            int del_bool = 0;
-            if (idx_ptr) {
-                if (!ini_flag && values_[*idx_ptr] == 0) {
-                    fprintf(stderr, "Alert: weird vector addition\n");
+                int del_bool = 0;
+                if (idx_ptr) {
+                    if (!ini_flag && values_[*idx_ptr] == 0) {
+                        fprintf(stderr, "Alert: weird vector addition\n");
+                    }
+                    else {
+                        nonini_occ_add += !ini_flag;
+                        values_[*idx_ptr] += vals[el_idx];
+                        del_bool = values_[*idx_ptr] == 0 && *idx_ptr >= n_dense_;
+                    }
                 }
-                else {
-                    nonini_occ_add += !ini_flag;
-                    values_[*idx_ptr] += vals[el_idx];
-                    del_bool = values_[*idx_ptr] == 0 && *idx_ptr >= n_dense_;
+                if (del_bool == 1) {
+                    push_stack(*idx_ptr);
+                    del_ht(vec_hash_, new_idx, hash_val);
+                    n_nonz_--;
                 }
-            }
-            if (del_bool == 1) {
-                push_stack(*idx_ptr);
-                del_ht(vec_hash_, new_idx, hash_val);
-                n_nonz_--;
             }
         }
     }
