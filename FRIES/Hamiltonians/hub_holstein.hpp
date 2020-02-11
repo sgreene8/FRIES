@@ -105,29 +105,24 @@ double calc_ref_ovlp(Matrix<uint8_t> &dets, T *vals, Matrix<uint8_t> &phonons,
         uint8_t last_elec_mask = (1 << (2 * n_sites % 8)) - 1;
         int elec_same = bit_str_equ(curr_det, ref_det, 2 * n_sites / 8) && (curr_det[last_elec_byte - 1] & last_elec_mask) == (ref_det[last_elec_byte - 1] & last_elec_mask);
         if (elec_same) {
-            uint8_t num_ph = 0;
-            uint8_t ph_site = 255;
-            int same_site = 0;
-            // Test whether the current state differs by the reference state by 1 phonon excitation
-            for (uint8_t elec_idx = 0; elec_idx < n_elec && num_ph < 2; elec_idx++) {
-                uint8_t site = occ_ref[elec_idx] % n_sites;
+            uint8_t sites_found = 0;
+            uint8_t site_elecs = 0;
+            for (uint8_t site = 0; site < n_sites && sites_found < 2; site++) {
                 uint8_t ph_num = phonons(det_idx, site);
-                if (ph_num == 1) {
-                    if (site == ph_site) {
-                        same_site = 1;
-                    }
-                    else {
-                        num_ph++;
-                        ph_site = site;
-                    }
+                uint8_t n_occ = read_bit(ref_det, site) + read_bit(ref_det, site + n_sites);
+                if (ph_num > 1 || (ph_num == 1 && n_occ == 0)) {
+                    site_elecs = 0;
+                    break;
                 }
-                else if (ph_num != 0) {
-                    num_ph = 2;
+                else if (ph_num == 1) {
+                    site_elecs = n_occ;
+                    sites_found++;
                 }
             }
-            if (num_ph == 1) {
-                result -= vals[det_idx] * g_over_t;
+            if (sites_found == 2) {
+                site_elecs = 0;
             }
+            result -= vals[det_idx] * g_over_t * site_elecs;
         }
         else {
             uint8_t num_ph = 0;
