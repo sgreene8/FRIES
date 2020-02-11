@@ -6,12 +6,12 @@ before_install:
 - sudo apt-get install doxygen libopenmpi-dev
 - test -n $CC && unset CC
 - ls /usr/lib/openmpi/lib/
-- which mpicc
+- ls /usr/lib/openmpi/
 
 script: 
 - mkdir build
 - cd build
-- cmake .. -DCMAKE_INSTALL_PREFIX=~/local -DMPI_C_COMPILER=mpicc
+- cmake .. -DCMAKE_INSTALL_PREFIX=~/local -DMPI_C_LIBRARIES="-L/usr/lib/openmpi/lib/" -DMPI_C_ADDITIONAL_INCLUDE_DIRS="-I/usr/lib/openmpi/include/" -DMPI_CXX_LIBRARIES="-L/usr/lib/openmpi/lib/" -DMPI_CXX_ADDITIONAL_INCLUDE_DIRS="-I/usr/lib/openmpi/include/"
 - make install
 - ctest
 - cd ..
