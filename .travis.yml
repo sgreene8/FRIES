@@ -11,7 +11,7 @@ before_install:
 script: 
 - mkdir build
 - cd build
-- cmake .. -DCMAKE_INSTALL_PREFIX=~/local -DMPI_C_LIBRARIES="/usr/lib/openmpi/lib/" -DMPI_C_ADDITIONAL_INCLUDE_DIRS="/usr/lib/openmpi/include/" -DMPI_CXX_LIBRARIES="/usr/lib/openmpi/lib/" -DMPI_CXX_ADDITIONAL_INCLUDE_DIRS="/usr/lib/openmpi/include/"
+- cmake .. -DCMAKE_INSTALL_PREFIX=~/local -DMPI_C_LIBRARIES="/usr/lib/openmpi/lib/libmpi.so" -DMPI_C_ADDITIONAL_INCLUDE_DIRS="/usr/lib/openmpi/include/" -DMPI_CXX_LIBRARIES="/usr/lib/openmpi/lib/libmpi_cxx.so" -DMPI_CXX_ADDITIONAL_INCLUDE_DIRS="/usr/lib/openmpi/include/"
 - make install
 - ctest
 - cd ..
