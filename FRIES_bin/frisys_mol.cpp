@@ -273,14 +273,14 @@ int main(int argc, const char * argv[]) {
     FILE *ini_file = NULL;
     FILE *time_file = NULL;
     
-    size_t n_determ = 0; // Number of deterministic determinants on this process
+    unsigned int n_determ = 0; // Number of deterministic determinants on this process
     if (!load_dir && determ_path) {
-        n_determ = sol_vec.init_dense(determ_path, result_dir);
+        n_determ = (unsigned int) sol_vec.init_dense(determ_path, result_dir);
     }
     
 #pragma mark Initialize solution vector
     if (load_dir) {
-        n_determ = sol_vec.load(load_dir);
+        n_determ = (unsigned int) sol_vec.load(load_dir);
         
         // load energy shift (see https://stackoverflow.com/questions/13790662/c-read-only-last-line-of-a-file-no-loops)
         static const long max_len = 20;
@@ -487,7 +487,7 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec1, sol_vec.curr_size() - n_determ, ndiv_vec, subwt_mem, keep_idx, NULL, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
+        comp_len = comp_sub(comp_vec1, sol_vec.curr_size() - n_determ, ndiv_vec, subwt_mem, keep_idx, NULL, matr_samp - n_determ, wt_remain, rn_sys, comp_vec2, comp_idx);
         if (comp_len > spawn_length) {
             fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
         }
@@ -523,7 +523,7 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, subwt_mem, keep_idx, NULL, matr_samp, wt_remain, rn_sys, comp_vec1, comp_idx);
+        comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, subwt_mem, keep_idx, NULL, matr_samp - n_determ, wt_remain, rn_sys, comp_vec1, comp_idx);
         if (comp_len > spawn_length) {
             fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
         }
@@ -569,7 +569,7 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, subwt_mem, keep_idx, new_hb ? sub_sizes : NULL, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
+        comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, subwt_mem, keep_idx, new_hb ? sub_sizes : NULL, matr_samp - n_determ, wt_remain, rn_sys, comp_vec2, comp_idx);
         if (comp_len > spawn_length) {
             fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
         }
@@ -616,7 +616,7 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, subwt_mem, keep_idx, NULL, matr_samp, wt_remain, rn_sys, comp_vec1, comp_idx);
+        comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, subwt_mem, keep_idx, NULL, matr_samp - n_determ, wt_remain, rn_sys, comp_vec1, comp_idx);
         if (comp_len > spawn_length) {
             fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
         }
@@ -664,7 +664,7 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, subwt_mem, keep_idx, sub_sizes, matr_samp, wt_remain, rn_sys, comp_vec2, comp_idx);
+        comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, subwt_mem, keep_idx, sub_sizes, matr_samp - n_determ, wt_remain, rn_sys, comp_vec2, comp_idx);
         if (comp_len > spawn_length) {
             fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
         }
