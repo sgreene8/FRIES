@@ -19,9 +19,7 @@ public:
     * \param [in] rows     The number of rows the matrix should have initially
     * \param [in] cols     The number of columns the matrix should have initially
      */
-    Matrix(size_t rows, size_t cols) : rows_(rows), cols_(cols), tot_size_(rows * cols) {
-        data_ = (mat_type *)malloc(sizeof(mat_type) * tot_size_);
-    }
+    Matrix(size_t rows, size_t cols) : rows_(rows), cols_(cols), tot_size_(rows * cols), data_(rows * cols) {}
     
     /*! \brief Access matrix element
      * \param [in] row      Row index of element
@@ -69,7 +67,8 @@ public:
             
             size_t row_idx;
             for (row_idx = rows_; row_idx > 0; row_idx--) {
-                memmove(&data_[(row_idx - 1) * new_col], &data_[(row_idx - 1) * old_cols], sizeof(mat_type) * n_keep[row_idx - 1]);
+                auto begin = data_.begin();
+                std::copy_backward(begin + (row_idx - 1) * old_cols, begin + (row_idx - 1) * old_cols + n_keep[row_idx - 1], begin + (row_idx - 1) * new_col + n_keep[row_idx - 1]);
             }
         }
     }
@@ -83,15 +82,10 @@ public:
         size_t new_size = new_rows * new_cols;
         if (new_size > tot_size_) {
             tot_size_ = new_size;
-            data_ = (mat_type *) realloc(data_, sizeof(mat_type) * tot_size_);
+            data_.resize(tot_size_);
         }
         rows_ = new_rows;
         cols_ = new_cols;
-    }
-    
-    /*! \brief Destructor*/
-    ~Matrix() {
-        free(data_);
     }
     
     Matrix(const Matrix& m) = delete;
@@ -108,12 +102,12 @@ public:
     
     /*! \return Pointer to the  data in the matrix*/
     mat_type *data() const {
-        return data_;
+        return (mat_type *) data_.data();
     }
     
 private:
     size_t rows_, cols_, tot_size_;
-    mat_type* data_;
+    std::vector<mat_type> data_;
 };
 
 
