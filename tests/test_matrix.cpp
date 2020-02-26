@@ -29,3 +29,18 @@ TEST_CASE("Test reshaping of a matrix", "[reshape]") {
         }
     }
 }
+
+TEST_CASE("Test use of Matrix<bool>", "[bool]") {
+    Matrix<bool> test_mat(2, 76);
+    
+    test_mat(0, 6) = true;
+    test_mat(0, 70) = true;
+    test_mat(1, 30) = true;
+    
+    uint64_t *row0 = test_mat[0];
+    REQUIRE(row0[0] == uint64_t(0x1) << 6);
+    REQUIRE(row0[1] == uint64_t(0x1) << (70 - 64));
+    
+    uint64_t *row1 = test_mat[1];
+    REQUIRE(row1[0] == uint64_t(0x1) << 30);
+}

@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <vector>
+#include <FRIES/math_utils.h>
 
 /*! \brief A class for representing and manipulating matrices with variable dimension sizes
  * \tparam mat_type The type of elements to be stored in the matrix
@@ -167,15 +168,48 @@ private:
 };
 
 template<> class Matrix<bool>  {
-    std::vector<bool> data_;
-    size_t rows_, cols_, tot_size_;
+    std::vector<uint64_t> data_;
+    size_t rows_, cols_, tot_size_, cols_coarse_;
+    
+    class bool_reference
+    {
+    private:
+        uint64_t & value_;
+        uint64_t mask_;
+        
+    public:
+        bool_reference(uint64_t & value, uint8_t nbit)
+        : value_(value), mask_(uint64_t(0x1) << nbit)
+        { }
+        
+        void zero(void) noexcept { value_ &= ~(mask_); }
+        
+        void one(void) noexcept { value_ |= (mask_); }
+        
+        bool get() const noexcept { return !!(value_ & mask_); }
+        
+        void set(bool b) noexcept
+        {
+            if(b)
+                one();
+            else
+                zero();
+        }
+        
+        bool_reference & operator=(bool b) noexcept { set(b); return *this; }
+        
+        bool_reference & operator=(const bool_reference & br) noexcept { return *this = bool(br); }
+        
+        operator bool() const noexcept { return get(); }
+    };
+
 public:
-    Matrix(size_t rows, size_t cols) : rows_(rows), cols_(cols), tot_size_(rows * cols), data_(rows * cols, false) {
+    Matrix(size_t rows, size_t cols) : rows_(rows), cols_(cols), cols_coarse_(CEILING(cols, 64)), tot_size_(rows * CEILING(cols, 64)), data_(rows * CEILING(cols, 64), 0) {
     }
     
-    typename std::vector<bool>::reference
-    operator() (size_t row, size_t col) {
-        return data_[cols_*row + col];
+    bool_reference operator() (size_t row, size_t col) {
+        bool_reference ref(data_[cols_coarse_ * row + col / 64], col % 64);
+        return ref;
     }
     
     /*! \brief Change the dimensions without moving any of the data
@@ -183,10 +217,11 @@ public:
      * \param [in] new_cols     Desired number of columns in the reshaped matrix
      */
     void reshape(size_t new_rows, size_t new_cols) {
-        size_t new_size = new_rows * new_cols;
+        cols_coarse_ = CEILING(new_cols, 64);
+        size_t new_size = new_rows * cols_coarse_;
         if (new_size > tot_size_) {
             tot_size_ = new_size;
-            data_.resize(tot_size_, false);
+            data_.resize(tot_size_, 0);
         }
         rows_ = new_rows;
         cols_ = new_cols;
@@ -195,6 +230,22 @@ public:
     /*! \return Current number of columns in matrix*/
     size_t cols() const {
         return cols_;
+    }
+    
+    /*! \brief Access matrix row
+     * \param [in] row      Row index
+     * \return pointer to 0th element in a row of a matrix
+     */
+    uint64_t *operator[] (size_t row) {
+        return &data_[cols_coarse_ * row];
+    }
+    
+    /*! \brief Access matrix row
+     * \param [in] row      Row index
+     * \return pointer to 0th element in a row of a matrix
+     */
+    const uint64_t *operator[] (size_t row) const {
+        return &data_[cols_coarse_ * row];
     }
 };
 
