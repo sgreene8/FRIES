@@ -37,10 +37,18 @@ TEST_CASE("Test use of Matrix<bool>", "[bool]") {
     test_mat(0, 70) = true;
     test_mat(1, 30) = true;
     
-    uint64_t *row0 = test_mat[0];
-    REQUIRE(row0[0] == uint64_t(0x1) << 6);
-    REQUIRE(row0[1] == uint64_t(0x1) << (70 - 64));
+    Matrix<bool>::RowReference row0 = test_mat[0];
+    REQUIRE(row0[6]);
+    REQUIRE(row0[70]);
+    REQUIRE(!row0[7]);
+    REQUIRE(!row0[0]);
+    REQUIRE(!row0[60]);
     
-    uint64_t *row1 = test_mat[1];
-    REQUIRE(row1[0] == uint64_t(0x1) << 30);
+    Matrix<bool>::RowReference row1 = test_mat[1];
+    REQUIRE(row1[30]);
+    REQUIRE(!row1[29]);
+    
+    REQUIRE(!test_mat(1, 71));
+    row1[71] = true;
+    REQUIRE(test_mat(1, 71));
 }

@@ -171,16 +171,11 @@ template<> class Matrix<bool>  {
     std::vector<uint64_t> data_;
     size_t rows_, cols_, tot_size_, cols_coarse_;
     
-    class bool_reference
+    class BoolReference
     {
     private:
         uint64_t & value_;
         uint64_t mask_;
-        
-    public:
-        bool_reference(uint64_t & value, uint8_t nbit)
-        : value_(value), mask_(uint64_t(0x1) << nbit)
-        { }
         
         void zero(void) noexcept { value_ &= ~(mask_); }
         
@@ -196,9 +191,14 @@ template<> class Matrix<bool>  {
                 zero();
         }
         
-        bool_reference & operator=(bool b) noexcept { set(b); return *this; }
+    public:
+        BoolReference(uint64_t & value, uint8_t nbit)
+        : value_(value), mask_(uint64_t(0x1) << nbit)
+        { }
         
-        bool_reference & operator=(const bool_reference & br) noexcept { return *this = bool(br); }
+        BoolReference & operator=(bool b) noexcept { set(b); return *this; }
+        
+        BoolReference & operator=(const BoolReference & br) noexcept { return *this = bool(br); }
         
         operator bool() const noexcept { return get(); }
         };
@@ -207,8 +207,8 @@ template<> class Matrix<bool>  {
         Matrix(size_t rows, size_t cols) : rows_(rows), cols_(cols), cols_coarse_(CEILING(cols, 64)), tot_size_(rows * CEILING(cols, 64)), data_(rows * CEILING(cols, 64), 0) {
         }
         
-        bool_reference operator() (size_t row, size_t col) {
-            bool_reference ref(data_[cols_coarse_ * row + col / 64], col % 64);
+        BoolReference operator() (size_t row, size_t col) {
+            BoolReference ref(data_[cols_coarse_ * row + col / 64], col % 64);
             return ref;
         }
         
@@ -232,12 +232,26 @@ template<> class Matrix<bool>  {
             return cols_;
         }
         
+        class RowReference {
+            private:
+            uint64_t *row_;
+            
+            public:
+            RowReference(uint64_t *row) : row_(row) {}
+            
+            BoolReference operator[] (size_t idx) {
+                BoolReference ref(row_[idx / 64], idx % 64);
+                return ref;
+            }
+        };
+        
         /*! \brief Access matrix row
          * \param [in] row      Row index
          * \return pointer to 0th element in a row of a matrix
          */
-        uint64_t *operator[] (size_t row) {
-            return &data_[cols_coarse_ * row];
+        RowReference operator[] (size_t row) {
+            RowReference ref(&data_[cols_coarse_ * row]);
+            return ref;
         }
         
         /*! \brief Access matrix row
