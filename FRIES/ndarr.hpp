@@ -17,8 +17,8 @@ template <class mat_type>
 class Matrix {
 public:
     /*! \brief Constructor for Matrix class
-    * \param [in] rows     The number of rows the matrix should have initially
-    * \param [in] cols     The number of columns the matrix should have initially
+     * \param [in] rows     The number of rows the matrix should have initially
+     * \param [in] cols     The number of columns the matrix should have initially
      */
     Matrix(size_t rows, size_t cols) : rows_(rows), cols_(cols), tot_size_(rows * cols), data_(rows * cols) {}
     
@@ -116,7 +116,7 @@ private:
 class FourDArr {
 public:
     /*! \brief Constructor
-    * \param [in] len1 len2 len3 len4    Lengths of the 4 dimensions of the array
+     * \param [in] len1 len2 len3 len4    Lengths of the 4 dimensions of the array
      */
     FourDArr(size_t len1, size_t len2, size_t len3, size_t len4)
     : len1_(len1)
@@ -128,21 +128,21 @@ public:
     }
     
     /*! \brief Access an element of the 4-D array
-    * \param [in] i1 First index
-    * \param [in] i2 Second index
-    * \param [in] i3 Third index
-    * \param [in] i4 Fourth index
+     * \param [in] i1 First index
+     * \param [in] i2 Second index
+     * \param [in] i3 Third index
+     * \param [in] i4 Fourth index
      * \returns Reference to array element
      */
     double& operator() (size_t i1, size_t i2, size_t i3, size_t i4) {
-      return data_[i1 * len2_ * len3_ * len4_ + i2 * len3_ * len4_ + i3 * len4_ + i4];
+        return data_[i1 * len2_ * len3_ * len4_ + i2 * len3_ * len4_ + i3 * len4_ + i4];
     }
     
     /*! \brief Access an element of the 4-D array
-    * \param [in] i1 First index
-    * \param [in] i2 Second index
-    * \param [in] i3 Third index
-    * \param [in] i4 Fourth index
+     * \param [in] i1 First index
+     * \param [in] i2 Second index
+     * \param [in] i3 Third index
+     * \param [in] i4 Fourth index
      * \returns Array element
      */
     double  operator() (size_t i1, size_t i2, size_t i3, size_t i4) const {
@@ -201,52 +201,52 @@ template<> class Matrix<bool>  {
         bool_reference & operator=(const bool_reference & br) noexcept { return *this = bool(br); }
         
         operator bool() const noexcept { return get(); }
-    };
-
-public:
-    Matrix(size_t rows, size_t cols) : rows_(rows), cols_(cols), cols_coarse_(CEILING(cols, 64)), tot_size_(rows * CEILING(cols, 64)), data_(rows * CEILING(cols, 64), 0) {
-    }
-    
-    bool_reference operator() (size_t row, size_t col) {
-        bool_reference ref(data_[cols_coarse_ * row + col / 64], col % 64);
-        return ref;
-    }
-    
-    /*! \brief Change the dimensions without moving any of the data
-     * \param [in] new_rows     Desired number of rows in the reshaped matrix
-     * \param [in] new_cols     Desired number of columns in the reshaped matrix
-     */
-    void reshape(size_t new_rows, size_t new_cols) {
-        cols_coarse_ = CEILING(new_cols, 64);
-        size_t new_size = new_rows * cols_coarse_;
-        if (new_size > tot_size_) {
-            tot_size_ = new_size;
-            data_.resize(tot_size_, 0);
+        };
+        
+    public:
+        Matrix(size_t rows, size_t cols) : rows_(rows), cols_(cols), cols_coarse_(CEILING(cols, 64)), tot_size_(rows * CEILING(cols, 64)), data_(rows * CEILING(cols, 64), 0) {
         }
-        rows_ = new_rows;
-        cols_ = new_cols;
-    }
+        
+        bool_reference operator() (size_t row, size_t col) {
+            bool_reference ref(data_[cols_coarse_ * row + col / 64], col % 64);
+            return ref;
+        }
+        
+        /*! \brief Change the dimensions without moving any of the data
+         * \param [in] new_rows     Desired number of rows in the reshaped matrix
+         * \param [in] new_cols     Desired number of columns in the reshaped matrix
+         */
+        void reshape(size_t new_rows, size_t new_cols) {
+            cols_coarse_ = CEILING(new_cols, 64);
+            size_t new_size = new_rows * cols_coarse_;
+            if (new_size > tot_size_) {
+                tot_size_ = new_size;
+                data_.resize(tot_size_, 0);
+            }
+            rows_ = new_rows;
+            cols_ = new_cols;
+        }
+        
+        /*! \return Current number of columns in matrix*/
+        size_t cols() const {
+            return cols_;
+        }
+        
+        /*! \brief Access matrix row
+         * \param [in] row      Row index
+         * \return pointer to 0th element in a row of a matrix
+         */
+        uint64_t *operator[] (size_t row) {
+            return &data_[cols_coarse_ * row];
+        }
+        
+        /*! \brief Access matrix row
+         * \param [in] row      Row index
+         * \return pointer to 0th element in a row of a matrix
+         */
+        const uint64_t *operator[] (size_t row) const {
+            return &data_[cols_coarse_ * row];
+        }
+    };
     
-    /*! \return Current number of columns in matrix*/
-    size_t cols() const {
-        return cols_;
-    }
-    
-    /*! \brief Access matrix row
-     * \param [in] row      Row index
-     * \return pointer to 0th element in a row of a matrix
-     */
-    uint64_t *operator[] (size_t row) {
-        return &data_[cols_coarse_ * row];
-    }
-    
-    /*! \brief Access matrix row
-     * \param [in] row      Row index
-     * \return pointer to 0th element in a row of a matrix
-     */
-    const uint64_t *operator[] (size_t row) const {
-        return &data_[cols_coarse_ * row];
-    }
-};
-
 #endif /* ndarr_h */
