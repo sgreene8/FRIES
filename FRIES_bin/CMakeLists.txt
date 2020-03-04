@@ -2,6 +2,9 @@
 add_executable(fciqmc_mol fciqmc_mol.cpp)
 target_link_libraries(fciqmc_mol PRIVATE fries)
 
+add_executable(fciqmc_fp_mol fciqmc_fp_mol.cpp)
+target_link_libraries(fciqmc_fp_mol PRIVATE fries)
+
 add_executable(frimulti_mol frimulti_mol.cpp)
 target_link_libraries(frimulti_mol PRIVATE fries)
 
@@ -17,6 +20,7 @@ target_link_libraries(frifull_hh PRIVATE fries)
 install(
     TARGETS
         fciqmc_mol
+        fciqmc_fp_mol
         frimulti_mol
         frisys_mol
         fciqmc_hh
