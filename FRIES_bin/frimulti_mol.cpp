@@ -318,7 +318,6 @@ int main(int argc, const char * argv[]) {
     double rn_sys = 0;
     double lbound;
     double weight;
-    int glob_n_nonz; // Number of nonzero elements in whole vector (across all processors)
     size_t *srt_arr = (size_t *)malloc(sizeof(size_t) * max_n_dets);
     for (det_idx = 0; det_idx < max_n_dets; det_idx++) {
         srt_arr[det_idx] = det_idx;
@@ -329,7 +328,6 @@ int main(int argc, const char * argv[]) {
     size_t n_ini;
     for (iterat = 0; iterat < max_iter; iterat++) {
         n_ini = 0;
-        glob_n_nonz = sum_mpi(sol_vec.n_nonz(), proc_rank, n_procs);
         
         // Systematic sampling to determine number of samples for each column
         if (proc_rank == 0) {
@@ -339,14 +337,7 @@ int main(int argc, const char * argv[]) {
         MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
         unsigned int curr_mat_samp = (iterat < 10) ? matr_samp / 10 : matr_samp;
-        if (glob_n_nonz < curr_mat_samp) {
-            lbound = seed_sys(loc_norms, &rn_sys, curr_mat_samp - (unsigned int)glob_n_nonz);
-        }
-        else {
-            fprintf(stderr, "Warning: target number of matrix samples (%u) is less than number of nonzero vector elements (%d)\n", curr_mat_samp, glob_n_nonz);
-            lbound = 0;
-            rn_sys = INFINITY;
-        }
+        lbound = seed_sys(loc_norms, &rn_sys, curr_mat_samp);
         for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
             double *curr_el = sol_vec[det_idx];
             uint8_t *curr_det = sol_vec.indices()[det_idx];
@@ -354,11 +345,15 @@ int main(int argc, const char * argv[]) {
             if (weight == 0) {
                 continue;
             }
-            n_walk = 1;
+            n_walk = 0;
             lbound += weight;
             while (rn_sys < lbound) {
                 n_walk++;
-                rn_sys += glob_norm / (curr_mat_samp - glob_n_nonz);
+                rn_sys += glob_norm / (curr_mat_samp);
+            }
+            double colsamp_wt = weight / (glob_norm / curr_mat_samp);
+            if (colsamp_wt > 1) {
+                colsamp_wt = 1;
             }
             
             ini_flag = weight > init_thresh;
@@ -391,7 +386,7 @@ int main(int argc, const char * argv[]) {
                 matr_el = doub_matr_el_nosgn(doub_orbs[walker_idx], tot_orb, *eris, n_frz);
                 if (fabs(matr_el) > 1e-9) {
                     memcpy(new_det, curr_det, det_size);
-                    matr_el *= -eps / spawn_probs[walker_idx] / p_doub / n_walk * (*curr_el) * doub_det_parity(new_det, doub_orbs[walker_idx]);
+                    matr_el *= -eps / spawn_probs[walker_idx] / p_doub / n_walk * (*curr_el) * doub_det_parity(new_det, doub_orbs[walker_idx]) / colsamp_wt;
                     sol_vec.add(new_det, matr_el, ini_flag);
                 }
             }
@@ -402,7 +397,7 @@ int main(int argc, const char * argv[]) {
                 matr_el = sing_matr_el_nosgn(sing_orbs[walker_idx], occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec_unf);
                 if (fabs(matr_el) > 1e-9) {
                     memcpy(new_det, curr_det, det_size);
-                    matr_el *= -eps / spawn_probs[walker_idx] / (1 - p_doub) / n_walk * (*curr_el) * sing_det_parity(new_det, sing_orbs[walker_idx]);
+                    matr_el *= -eps / spawn_probs[walker_idx] / (1 - p_doub) / n_walk * (*curr_el) * sing_det_parity(new_det, sing_orbs[walker_idx]) / colsamp_wt;
                     sol_vec.add(new_det, matr_el, ini_flag);
                 }
             }
