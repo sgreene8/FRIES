@@ -241,7 +241,7 @@ public:
         memcpy(new_det, orig, n_bytes);
         new_det[bit_idx / 8] = det_segment & 255;
         if (bit_idx / 8 + 1 < n_bytes) {
-            new_det[bit_idx / 8 + 1] |= det_segment >> 8;
+            new_det[bit_idx / 8 + 1] = det_segment >> 8;
         }
         return 1;
     }
