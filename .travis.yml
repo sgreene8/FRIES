@@ -11,6 +11,7 @@ script:
 - mkdir build
 - cd build
 - cmake .. -DCMAKE_INSTALL_PREFIX=~/local
+- cat CMakeFiles/CMakeError.log
 # -DMPI_C_COMPILER=`pwd`/../mpich/bin/mpicc -DMPI_C_INCLUDE_PATH=`pwd`/../mpich/include -DMPIEXEC=`pwd`/../mpich/bin/mpirun
 - make install
 - ctest
