@@ -547,7 +547,7 @@ public:
             fprintf(stderr, "Error: could not open saved binary vector file at %s\n", buffer);
             return n_dense_;
         }
-        fread(values_.data(), el_size, n_dets, file_p);
+        (void) fread(values_.data(), el_size, n_dets, file_p);
         fclose(file_p);
         
         n_nonz_ = 0;

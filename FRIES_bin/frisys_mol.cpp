@@ -893,7 +893,7 @@ int main(int argc, const char * argv[]) {
                 fflush(shift_file);
                 fflush(nkept_file);
                 fflush(sign_file);
-                printf("Total additions to nonzero: %llu\n", tot_add);
+                printf("Total additions to nonzero: %" PRIu64 "\n", tot_add);
             }
         }
     }

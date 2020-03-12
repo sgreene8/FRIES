@@ -228,7 +228,7 @@ int main(int argc, const char * argv[]) {
         sprintf(file_path, "%sS.txt", load_dir);
         shift_file = fopen(file_path, "rb");
         fseek(shift_file, -max_len, SEEK_END);
-        fread(file_path, max_len, 1, shift_file);
+        (void) fread(file_path, max_len, 1, shift_file);
         fclose(shift_file);
         shift_file = NULL;
         

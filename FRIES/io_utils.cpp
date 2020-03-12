@@ -429,7 +429,7 @@ void load_proc_hash(const char *path, unsigned int *proc_hash) {
         fprintf(stderr, "Error: could not open saved hash scrambler at %s\n", buffer);
         return;
     }
-    fread(proc_hash, sizeof(unsigned int), 1000, file_p);
+    (void) fread(proc_hash, sizeof(unsigned int), 1000, file_p);
     fclose(file_p);
 }
 
