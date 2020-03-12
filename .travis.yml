@@ -9,10 +9,7 @@ before_install:
 script: 
 - mkdir build
 - cd build
-- cmake .. -DCMAKE_INSTALL_PREFIX=~/local --debug-output
-- ls CMakeFiles/
-- cat CMakeFiles/CMakeOutput.log
-- cat CMakeFiles/CMakeOutput.err
+- cmake .. -DCMAKE_INSTALL_PREFIX=~/local
 - make install
 - ctest
 - cd ..
