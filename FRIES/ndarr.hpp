@@ -168,14 +168,14 @@ private:
 };
 
 template<> class Matrix<bool>  {
-    std::vector<uint64_t> data_;
+    std::vector<uint8_t> data_;
     size_t rows_, cols_, tot_size_, cols_coarse_;
     
     class BoolReference
     {
     private:
-        uint64_t & value_;
-        uint64_t mask_;
+        uint8_t & value_;
+        uint8_t mask_;
         
         void zero(void) noexcept { value_ &= ~(mask_); }
         
@@ -192,8 +192,8 @@ template<> class Matrix<bool>  {
         }
         
     public:
-        BoolReference(uint64_t & value, uint8_t nbit)
-        : value_(value), mask_(uint64_t(0x1) << nbit)
+        BoolReference(uint8_t & value, uint8_t nbit)
+        : value_(value), mask_(uint8_t(0x1) << nbit)
         { }
         
         BoolReference & operator=(bool b) noexcept { set(b); return *this; }
@@ -204,11 +204,11 @@ template<> class Matrix<bool>  {
         };
         
     public:
-        Matrix(size_t rows, size_t cols) : rows_(rows), cols_(cols), cols_coarse_(CEILING(cols, 64)), tot_size_(rows * CEILING(cols, 64)), data_(rows * CEILING(cols, 64), 0) {
+        Matrix(size_t rows, size_t cols) : rows_(rows), cols_(cols), cols_coarse_(CEILING(cols, 8)), tot_size_(rows * CEILING(cols, 8)), data_(rows * CEILING(cols, 8), 0) {
         }
         
         BoolReference operator() (size_t row, size_t col) {
-            BoolReference ref(data_[cols_coarse_ * row + col / 64], col % 64);
+            BoolReference ref(data_[cols_coarse_ * row + col / 8], col % 8);
             return ref;
         }
         
@@ -217,7 +217,7 @@ template<> class Matrix<bool>  {
          * \param [in] new_cols     Desired number of columns in the reshaped matrix
          */
         void reshape(size_t new_rows, size_t new_cols) {
-            cols_coarse_ = CEILING(new_cols, 64);
+            cols_coarse_ = CEILING(new_cols, 8);
             size_t new_size = new_rows * cols_coarse_;
             if (new_size > tot_size_) {
                 tot_size_ = new_size;
@@ -234,14 +234,18 @@ template<> class Matrix<bool>  {
         
         class RowReference {
             private:
-            uint64_t *row_;
+            uint8_t *row_;
             
             public:
-            RowReference(uint64_t *row) : row_(row) {}
+            RowReference(uint8_t *row) : row_(row) {}
             
             BoolReference operator[] (size_t idx) {
-                BoolReference ref(row_[idx / 64], idx % 64);
+                BoolReference ref(row_[idx / 8], idx % 8);
                 return ref;
+            }
+            
+            uint8_t *row_ptr() const {
+                return row_;
             }
         };
         
@@ -258,7 +262,7 @@ template<> class Matrix<bool>  {
          * \param [in] row      Row index
          * \return pointer to 0th element in a row of a matrix
          */
-        const uint64_t *operator[] (size_t row) const {
+        const uint8_t *operator[] (size_t row) const {
             return &data_[cols_coarse_ * row];
         }
     };
