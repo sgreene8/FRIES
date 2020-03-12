@@ -3,8 +3,12 @@ cmake_minimum_required(VERSION 3.6)
 project(FRIES LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 14)
-SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -restrict")
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+
+if(NOT ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang") OR ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU"))
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -restrict")
+endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include(GNUInstallDirs)
