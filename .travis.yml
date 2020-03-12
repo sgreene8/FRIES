@@ -5,7 +5,6 @@ before_install:
   -in .ci/travis_deploy_key.enc -out .ci/travis_deploy_key -d
 - sudo apt-get install doxygen libopenmpi-dev
 - test -n $CC && unset CC
-#- sh .ci/get_mpich.sh
 
 script: 
 - mkdir build
@@ -14,14 +13,12 @@ script:
 - ls CMakeFiles/
 - cat CMakeFiles/CMakeOutput.log
 - cat CMakeFiles/CMakeOutput.err
-# -DMPI_C_COMPILER=`pwd`/../mpich/bin/mpicc -DMPI_C_INCLUDE_PATH=`pwd`/../mpich/include -DMPIEXEC=`pwd`/../mpich/bin/mpirun
 - make install
 - ctest
 - cd ..
 - mkdir build_examples
 - cd build_examples
 - cmake ../examples -DCMAKE_INSTALL_PREFIX=~/local
-# -DMPI_C_COMPILER=`pwd`/../mpich/bin/mpicc -DMPI_C_INCLUDE_PATH=`pwd`/../mpich/include -DMPIEXEC=`pwd`/../mpich/bin/mpirun
 - make
 - ./compress_1D
 - cd ..
