@@ -10,6 +10,11 @@ if(NOT (("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang") OR ("${CMAKE_CXX_COMPILER_I
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -restrict")
 endif()
 
+if(NOT ("${CMAKE_CXX_COMPILER_ID}" MATCHES "AppleClang"))
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -xavx")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -xavx")
+endif()
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include(GNUInstallDirs)
 
