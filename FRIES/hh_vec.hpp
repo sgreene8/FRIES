@@ -205,7 +205,7 @@ public:
             curr_byte = curr_bit / 8;
             numbers[site_idx] = (det[curr_byte] >> (curr_bit % 8)) & mask;
             if ((curr_bit % 8) + ph_bits_ > 8) {
-                numbers[site_idx] += det[curr_byte + 1] << (8 - (curr_bit % 8));
+                numbers[site_idx] += (det[curr_byte + 1] << (8 - (curr_bit % 8))) & mask;
             }
         }
     }
