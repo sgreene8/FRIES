@@ -8,6 +8,7 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 
 #define CEILING(x,y) ((x + y - 1) / y)
 
@@ -61,6 +62,18 @@ uint8_t find_bits(const uint8_t *bit_str, uint8_t *bits, uint8_t n_bytes, const 
  */
 unsigned int bits_between(uint8_t *bit_str, uint8_t a, uint8_t b);
 
+
+/*! \brief Given an ordered list of numbers, return a copy, modified such that the element at a specified index is
+ * replaced with a new element and re-sorted
+ *
+ * \param [in] orig_list     The original ordered list of numbers
+ * \param [out] new_list    The resulting, new list
+ * \param [in] length   The number of elements in the original and new lists
+ * \param [in]  del_idx     The index of the item to be replaced
+ * \param [in]  new_el      The element replacing the removed element
+ */
+void repl_sorted(uint8_t *orig_list, uint8_t *new_list,
+                 uint8_t length, uint8_t del_idx, uint8_t new_el);
 
 #ifdef __cplusplus
 }

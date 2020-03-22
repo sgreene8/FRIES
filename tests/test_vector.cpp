@@ -35,6 +35,49 @@ TEST_CASE("Test bit string math", "[binary]") {
 }
 
 
+TEST_CASE("Test insertion into sorted lists", "[ins_sorted]") {
+    uint8_t src[] = {2, 4, 6, 8, 10};
+    uint8_t dst[5];
+    
+    repl_sorted(src, dst, 5, 2, 9);
+    uint8_t res0[] = {2, 4, 8, 9, 10};
+    for (size_t idx = 0; idx < 5; idx++) {
+        REQUIRE(dst[idx] == res0[idx]);
+    }
+    
+    res0[0] = 1;
+    res0[1] = 2;
+    res0[2] = 4;
+    res0[3] = 8;
+    repl_sorted(src, dst, 5, 2, 1);
+    for (size_t idx = 0; idx < 5; idx++) {
+        REQUIRE(dst[idx] == res0[idx]);
+    }
+    
+    res0[0] = 2;
+    res0[1] = 4;
+    res0[2] = 6;
+    res0[4] = 12;
+    repl_sorted(src, dst, 5, 4, 12);
+    for (size_t idx = 0; idx < 5; idx++) {
+        REQUIRE(dst[idx] == res0[idx]);
+    }
+    
+    res0[4] = 10;
+    res0[2] = 7;
+    repl_sorted(src, dst, 5, 2, 7);
+    for (size_t idx = 0; idx < 5; idx++) {
+        REQUIRE(dst[idx] == res0[idx]);
+    }
+    
+    res0[2] = 5;
+    repl_sorted(src, dst, 5, 2, 5);
+    for (size_t idx = 0; idx < 5; idx++) {
+        REQUIRE(dst[idx] == res0[idx]);
+    }
+}
+
+
 TEST_CASE("Test generation of Hartree-Fock bit strings", "[hf_bits]") {
     uint8_t bit_str1[7];
     uint8_t bit_str2[7];

@@ -7,9 +7,9 @@
 
 
 byte_table *gen_byte_table(void) {
-    byte_table *new_table = malloc(sizeof(byte_table));
-    new_table->nums = malloc(sizeof(uint8_t) * 256);
-    new_table->pos = malloc(sizeof(uint8_t) * 256 * 8);
+    byte_table *new_table = (byte_table *) malloc(sizeof(byte_table));
+    new_table->nums = (uint8_t *) malloc(sizeof(uint8_t) * 256);
+    new_table->pos = (uint8_t (*)[8]) malloc(sizeof(uint8_t) * 256 * 8);
     unsigned int num, byte, bit;
     for (byte = 0; byte < 256; byte++) {
         num = 0;
@@ -89,4 +89,36 @@ uint8_t find_bits(const uint8_t *restrict bit_str, uint8_t *restrict bits, uint8
         n_bits += byte_bits;
     }
     return n_bits;
+}
+
+
+void repl_sorted(uint8_t *restrict orig_list, uint8_t *restrict new_list,
+                 uint8_t length, uint8_t del_idx, uint8_t new_el) {
+    uint8_t offset = 0;
+    if (new_el > orig_list[del_idx]) {
+        memcpy(new_list, orig_list, sizeof(uint8_t) * del_idx);
+        for (uint8_t idx = del_idx + 1; idx < length; idx++) {
+            if (orig_list[idx] < new_el) {
+                new_list[idx - 1] = orig_list[idx];
+                offset++;
+            }
+            else {
+                new_list[idx] = orig_list[idx];
+            }
+        }
+        new_list[del_idx + offset] = new_el;
+    }
+    else {
+        for (uint8_t idx = 0; idx < del_idx; idx++) {
+            if (orig_list[idx] > new_el) {
+                new_list[idx +  1] = orig_list[idx];
+                offset++;
+            }
+            else {
+                new_list[idx] = orig_list[idx];
+            }
+        }
+        new_list[del_idx - offset] = new_el;
+        memcpy(new_list + del_idx + 1, orig_list + del_idx + 1, length - del_idx - 1);
+    }
 }

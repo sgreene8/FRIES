@@ -264,6 +264,16 @@ public:
 #endif
         return hash_val % n_procs;
     }
+    
+    virtual int idx_to_proc(uint8_t *idx, uint8_t *orbs) {
+        unsigned int n_elec = (unsigned int)occ_orbs_.cols();
+        uintmax_t hash_val = hash_fxn(orbs, n_elec, NULL, 0, proc_scrambler_);
+        int n_procs = 1;
+#ifdef USE_MPI
+        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+#endif
+        return hash_val % n_procs;
+    }
 
     /*! \brief Hash function mapping vector index to local hash value
      *
@@ -294,6 +304,12 @@ public:
     void add(uint8_t *idx, el_type val, uint8_t ini_flag) {
         if (val != 0) {
             adder_.add(idx, val, idx_to_proc(idx), ini_flag);
+        }
+    }
+    
+    void add(uint8_t *idx, uint8_t *orbs, el_type val, uint8_t ini_flag) {
+        if (val != 0) {
+            adder_.add(idx, val, idx_to_proc(idx, orbs), ini_flag);
         }
     }
 
