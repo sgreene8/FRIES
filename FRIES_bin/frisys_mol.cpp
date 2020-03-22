@@ -668,38 +668,7 @@ int main(int argc, const char * argv[]) {
         }
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
-        }/*
-        if (iterat == 1000) {
-            char buffer[300];
-            sprintf(buffer, "%sr%d.csv", result_dir, proc_rank);
-            FILE *r_file = fopen(buffer, "w");
-            sprintf(buffer, "%sP%d.csv", result_dir, proc_rank);
-            FILE *P_file = fopen(buffer, "w");
-            
-            size_t n_sub = subwt_mem.cols();
-            for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
-                fprintf(r_file, "%lf\n", comp_vec1[1]);
-                size_t sub_idx = 0;
-                if (ndiv_vec[samp_idx] > 0) {
-                    fprintf(P_file, "1,");
-                }
-                else {
-                    if (sub_sizes) {
-                        n_sub = sub_sizes[samp_idx];
-                    }
-                    for (sub_idx = 0; sub_idx < n_sub; sub_idx++) {
-                        fprintf(P_file, "%lf,", subwt_mem(samp_idx, sub_idx));
-                    }
-                }
-                for (; sub_idx < subwt_mem.cols(); sub_idx++) {
-                    fprintf(P_file, "0,");
-                }
-                fprintf(P_file, "\n");
-            }
-            
-            fclose(r_file);
-            fclose(P_file);
-        }*/
+        }
         comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, subwt_mem, keep_idx, sub_sizes, matr_samp - tot_dense_h, wt_remain, rn_sys, comp_vec2, comp_idx);
         if (comp_len > spawn_length) {
             fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
