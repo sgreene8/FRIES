@@ -191,7 +191,7 @@ void h_op(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
         }
 
         double *diag_el = vec.matr_el_at_pos(det_idx);
-        if (isnan(*diag_el)) {
+        if (std::isnan(*diag_el)) {
             *diag_el = diag_matrel(occ_orbs, n_orbs, eris, h_core, n_frozen, n_elec + n_frozen) - hf_en;
         }
         *curr_el *= (id_fac + h_fac * (*diag_el));

@@ -257,7 +257,7 @@ int main(int argc, const char * argv[]) {
             // Death/cloning step
             if (*curr_el != 0) {
                 double *diag_el = sol_vec.matr_el_at_pos(det_idx);
-                if (isnan(*diag_el)) {
+                if (std::isnan(*diag_el)) {
                     *diag_el = hub_diag(curr_det, hub_len, sol_vec.tabl());
                 }
                 double phonon_diag = sol_vec.total_ph(det_idx) * ph_freq;

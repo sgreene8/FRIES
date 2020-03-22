@@ -9,6 +9,7 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
+#include <cinttypes>
 #include <FRIES/Hamiltonians/near_uniform.hpp>
 #include <FRIES/io_utils.hpp>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
@@ -667,20 +668,51 @@ int main(int argc, const char * argv[]) {
         }
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
-        }
+        }/*
+        if (iterat == 1000) {
+            char buffer[300];
+            sprintf(buffer, "%sr%d.csv", result_dir, proc_rank);
+            FILE *r_file = fopen(buffer, "w");
+            sprintf(buffer, "%sP%d.csv", result_dir, proc_rank);
+            FILE *P_file = fopen(buffer, "w");
+            
+            size_t n_sub = subwt_mem.cols();
+            for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
+                fprintf(r_file, "%lf\n", comp_vec1[1]);
+                size_t sub_idx = 0;
+                if (ndiv_vec[samp_idx] > 0) {
+                    fprintf(P_file, "1,");
+                }
+                else {
+                    if (sub_sizes) {
+                        n_sub = sub_sizes[samp_idx];
+                    }
+                    for (sub_idx = 0; sub_idx < n_sub; sub_idx++) {
+                        fprintf(P_file, "%lf,", subwt_mem(samp_idx, sub_idx));
+                    }
+                }
+                for (; sub_idx < subwt_mem.cols(); sub_idx++) {
+                    fprintf(P_file, "0,");
+                }
+                fprintf(P_file, "\n");
+            }
+            
+            fclose(r_file);
+            fclose(P_file);
+        }*/
         comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, subwt_mem, keep_idx, sub_sizes, matr_samp - tot_dense_h, wt_remain, rn_sys, comp_vec2, comp_idx);
         if (comp_len > spawn_length) {
             fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
         }
         
         size_t num_added = 0;
-        keep_idx.reshape(spawn_length, 2);
+        uint8_t *ini_info = keep_idx.data();
         for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
             weight_idx = comp_idx[samp_idx][0];
             det_idx = det_indices2[weight_idx];
             uint8_t *curr_det = sol_vec.indices()[det_idx];
             double *curr_el = sol_vec[det_idx];
-            int ini_flag = fabs(*curr_el) > init_thresh;
+            uint8_t ini_flag = fabs(*curr_el) > init_thresh;
 //            int determ_flag = det_idx < n_determ;
             int el_sign = 1 - 2 * (*curr_el < 0);
             uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
@@ -725,7 +757,7 @@ int main(int argc, const char * argv[]) {
                     memcpy(new_det, curr_det, det_size);
                     matr_el *= doub_det_parity(new_det, doub_orbs) * el_sign;
                     comp_vec1[num_added] = matr_el;
-                    keep_idx(num_added, 0) = ini_flag;
+                    ini_info[num_added] = ini_flag;
                     num_added++;
                 }
             }
@@ -747,7 +779,7 @@ int main(int argc, const char * argv[]) {
                         continue;
                     }
                     comp_vec1[num_added] = matr_el;
-                    keep_idx(num_added, 0) = ini_flag;
+                    ini_info[num_added] = ini_flag;
                     num_added++;
                 }
             }
@@ -784,8 +816,8 @@ int main(int argc, const char * argv[]) {
                 if (num_added >= adder_size) {
                     break;
                 }
-                int ini_flag = keep_idx(samp_idx, 0);
-                keep_idx(samp_idx, 0) = 0;
+                uint8_t ini_flag = ini_info[samp_idx];
+                ini_info[samp_idx] = 0;
                 sol_vec.add(&spawn_dets[samp_idx * det_size], comp_vec1[samp_idx], ini_flag);
                 num_added++;
                 samp_idx++;

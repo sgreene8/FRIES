@@ -269,7 +269,7 @@ int main(int argc, const char * argv[]) {
             
             // Death/cloning step
             double *diag_el = sol_vec.matr_el_at_pos(det_idx);
-            if (isnan(*diag_el)) {
+            if (std::isnan(*diag_el)) {
                 *diag_el = hub_diag(curr_det, hub_len, sol_vec.tabl()) * hub_u;
             }
             matr_el = (1 - eps * (*diag_el - en_shift - hf_en)) * walk_sign;
@@ -303,7 +303,7 @@ int main(int argc, const char * argv[]) {
 #endif
         if (proc_rank == ref_proc) {
             double *diag_el = sol_vec.matr_el_at_pos(0);
-            if (isnan(*diag_el)) {
+            if (std::isnan(*diag_el)) {
                 *diag_el = hub_diag(neel_det, hub_len, sol_vec.tabl()) * hub_u;
             }
             int ref_element = *(sol_vec[0]);
