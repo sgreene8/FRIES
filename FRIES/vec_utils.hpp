@@ -96,7 +96,7 @@ public:
      * \param [in] val      Value of the added element
      * \param [in] ini_flag     Either 1 or 0, indicates initiator status of the added element
      */
-    void add(uint8_t *idx, el_type val, int proc_idx, int ini_flag);
+    void add(uint8_t *idx, el_type val, int proc_idx, uint8_t ini_flag);
 private:
     Matrix<uint8_t> send_idx_; ///< Send buffer for element indices
     Matrix<el_type> send_vals_; ///< Send buffer for element values
@@ -291,7 +291,7 @@ public:
      * \param [in] val          The value of the added element
      * \param [in] ini_flag     Either 1 or 0. If 0, will only be added to a determinant that is already occupied
      */
-    void add(uint8_t *idx, el_type val, int ini_flag) {
+    void add(uint8_t *idx, el_type val, uint8_t ini_flag) {
         if (val != 0) {
             adder_.add(idx, val, idx_to_proc(idx), ini_flag);
         }
@@ -684,7 +684,7 @@ public:
 
 
 template <class el_type>
-void Adder<el_type>::add(uint8_t *idx, el_type val, int proc_idx, int ini_flag) {
+void Adder<el_type>::add(uint8_t *idx, el_type val, int proc_idx, uint8_t ini_flag) {
     int *count = &send_cts_[proc_idx];
     if (*count == send_vals_.cols()) {
         enlarge_();

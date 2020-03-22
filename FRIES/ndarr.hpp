@@ -262,8 +262,13 @@ template<> class Matrix<bool>  {
          * \param [in] row      Row index
          * \return pointer to 0th element in a row of a matrix
          */
-        const uint8_t *operator[] (size_t row) const {
+        const uint8_t *row_ptr (size_t row) const {
             return &data_[cols_coarse_ * row];
+        }
+
+        /*! \return Pointer to the  data in the matrix*/
+        uint8_t *data() const {
+            return (uint8_t *)data_.data();
         }
     };
     
