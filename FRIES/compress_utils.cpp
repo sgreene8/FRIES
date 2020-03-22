@@ -32,7 +32,8 @@ double find_preserve(double *values, size_t *srt_idx, std::vector<bool> &keep_id
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
 #endif
     
-    heapify(values, srt_idx, heap_count);
+    auto val_compare = [values](size_t i, size_t j){return fabs(values[i]) < fabs(values[j]); };
+    std::make_heap(srt_idx, srt_idx + heap_count, val_compare);
     int loc_sampled, glob_sampled = 1;
     int keep_going = 1;
     
@@ -53,9 +54,7 @@ double find_preserve(double *values, size_t *srt_idx, std::vector<bool> &keep_id
                 
                 heap_count--;
                 if (heap_count) {
-                    srt_idx[0] = srt_idx[heap_count];
-                    srt_idx[heap_count] = max_idx;
-                    sift_down(values, srt_idx, 0, heap_count - 1);
+                    std::pop_heap(srt_idx, srt_idx + heap_count + 1, val_compare);
                 }
                 else {
                     keep_going = 0;

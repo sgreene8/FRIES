@@ -10,8 +10,7 @@ list(APPEND FRIES_FILELIST
         io_utils.cpp
         math_utils.c
         Ext_Libs/argparse.c
-        Ext_Libs/csvparser.c
-        Ext_Libs/heap.c)
+        Ext_Libs/csvparser.c)
 
 add_library(fries SHARED ${FRIES_FILELIST})
 

@@ -10,7 +10,8 @@
 #include <cstdio>
 #include <cstdint>
 #include <climits>
-#include <FRIES/Ext_Libs/heap.h>
+#include <cmath>
+#include <algorithm>
 #include <FRIES/mpi_switch.h>
 #include <FRIES/det_store.h>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
