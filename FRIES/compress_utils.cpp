@@ -114,7 +114,6 @@ double find_keep_sub(double *values, unsigned int *n_div,
                      size_t count, unsigned int *n_samp, double *wt_remain) {
     double loc_one_norm = 0;
     double glob_one_norm = 0;
-    size_t sub_idx;
     for (size_t det_idx = 0; det_idx < count; det_idx++) {
         loc_one_norm += values[det_idx];
         wt_remain[det_idx] = values[det_idx];
@@ -127,7 +126,7 @@ double find_keep_sub(double *values, unsigned int *n_div,
 #endif
     
     int loc_sampled, glob_sampled = 1;
-    double el_magn, sub_magn, keep_thresh, sub_remain;
+    double sub_magn, sub_remain;
     int last_pass = 0;
     size_t n_sub = sub_weights.cols();
     size_t coarse_size = 8;
@@ -151,12 +150,14 @@ double find_keep_sub(double *values, unsigned int *n_div,
                 fine_limit = coarse_size;
             }
             double wt_factor = *n_samp - loc_sampled;
+            double *wt_remain2 = &wt_remain[coarse_idx * coarse_size];
+            double *values2 = &values[coarse_idx * coarse_size];
+            unsigned int *ndiv2 = &n_div[coarse_idx * coarse_size];
             for (size_t fine_idx = 0; fine_idx < fine_limit; fine_idx++) {
-                size_t det_idx = coarse_idx * coarse_size + fine_idx;
-                if (wt_remain[det_idx] > 0) {
-                    coarse_weights[fine_idx] = values[det_idx] * wt_factor;
-                    if (n_div[det_idx] > 0) {
-                        coarse_weights[fine_idx] /= n_div[det_idx];
+                if (wt_remain2[fine_idx] > 0) {
+                    coarse_weights[fine_idx] = values2[fine_idx] * wt_factor;
+                    if (ndiv2[fine_idx] > 0) {
+                        coarse_weights[fine_idx] /= ndiv2[fine_idx];
                     }
                     coarse_bool += (coarse_weights[fine_idx] >= glob_one_norm) << fine_idx;
                 }
@@ -181,27 +182,44 @@ double find_keep_sub(double *values, unsigned int *n_div,
                     if (sub_sizes) {
                         n_sub = sub_sizes[det_idx];
                     }
-                    for (sub_idx = 0; sub_idx < n_sub; sub_idx++) {
-                        if (!keep_idx(det_idx, sub_idx)) {
-//                            sub_magn = el_magn * subwt_row[sub_idx];
-                            sub_magn = coarse_weights[lookup->pos[coarse_bool][fine_idx]] * subwt_row[sub_idx];
-                            if (sub_magn >= glob_one_norm && fabs(sub_magn) > 1e-10) {
-//                            if (sub_magn >= keep_thresh && fabs(sub_magn) > 1e-10) {
-                                keep_idx(det_idx, sub_idx) = 1;
+                    double coarse_wt = coarse_weights[lookup->pos[coarse_bool][fine_idx]];
+                    
+                    uint8_t *keep_row = keep_idx[det_idx].row_ptr();
+                    for (size_t sub_coarse = 0; sub_coarse < (n_sub / 8); sub_coarse++) {
+                        uint8_t not_kept = ~keep_row[sub_coarse];
+                        uint8_t row_bool = 0;
+                        uint8_t n_not_kept = lookup->nums[not_kept];
+                        for (size_t sub_fine = 0; sub_fine < n_not_kept; sub_fine++) {
+                            uint8_t pos = lookup->pos[not_kept][sub_fine];
+                            sub_magn = coarse_wt * subwt_row[sub_coarse * 8 + pos];
+                            if (sub_magn >= glob_one_norm && fabs(sub_magn) > 1e-12) {
+                                row_bool += (1 << pos);
                                 loc_sampled++;
-                                
-//                                loc_one_norm -= sub_magn;
-//                                glob_one_norm -= sub_magn;
-//                                if (glob_one_norm < 0) {
-//                                    wt_remain[det_idx] = 0;
-//                                    break;
-//                                }
-//                                keep_thresh = glob_one_norm / (*n_samp - loc_sampled);
                             }
                             else {
                                 sub_remain += sub_magn;
                             }
                         }
+                        keep_row[sub_coarse] |= row_bool;
+                    }
+                    if (n_sub % 8) {
+                        size_t sub_coarse = n_sub / 8;
+                        uint8_t not_kept = ~keep_row[sub_coarse];
+                        not_kept &= (1 << (n_sub % 8)) - 1;
+                        uint8_t row_bool = 0;
+                        uint8_t n_not_kept = lookup->nums[not_kept];
+                        for (size_t sub_fine = 0; sub_fine < n_not_kept; sub_fine++) {
+                            uint8_t pos = lookup->pos[not_kept][sub_fine];
+                            sub_magn = coarse_wt * subwt_row[sub_coarse * 8 + pos];
+                            if (sub_magn >= glob_one_norm && fabs(sub_magn) > 1e-10) {
+                                row_bool += (1 << pos);
+                                loc_sampled++;
+                            }
+                            else {
+                                sub_remain += sub_magn;
+                            }
+                        }
+                        keep_row[sub_coarse] |= row_bool;
                     }
                     sub_remain /= wt_factor;
                     double change = wt_remain[det_idx] - sub_remain;
@@ -210,9 +228,6 @@ double find_keep_sub(double *values, unsigned int *n_div,
                     glob_one_norm -= change;
                 }
             }
-//            if (glob_one_norm < 0) {
-//                break;
-//            }
         }
         glob_sampled = sum_mpi(loc_sampled, proc_rank, n_procs);
         (*n_samp) -= glob_sampled;
