@@ -72,8 +72,19 @@ unsigned int bits_between(uint8_t *bit_str, uint8_t a, uint8_t b);
  * \param [in]  del_idx     The index of the item to be replaced
  * \param [in]  new_el      The element replacing the removed element
  */
-void repl_sorted(uint8_t *orig_list, uint8_t *new_list,
-                 uint8_t length, uint8_t del_idx, uint8_t new_el);
+void new_sorted(uint8_t *orig_list, uint8_t *new_list,
+                uint8_t length, uint8_t del_idx, uint8_t new_el);
+
+
+/*! \brief Given an ordered list of numbers, replace an element at a specified index with a new element and re-sort
+ *
+ * \param [in] srt_list     The original ordered list of numbers
+ * \param [in] length   The number of elements in the original and new lists
+ * \param [in]  del_idx     The index of the item to be replaced
+ * \param [in]  new_el      The element replacing the removed element
+ */
+ void repl_sorted(uint8_t *srt_list, uint8_t length, uint8_t del_idx, uint8_t new_el);
+
 
 #ifdef __cplusplus
 }

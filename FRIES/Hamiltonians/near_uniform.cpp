@@ -333,7 +333,7 @@ unsigned int count_sing_virt(uint8_t *occ_orbs, uint8_t num_elec,
         unsigned int virt_allowed = unocc_sym_counts[occ_symm][elec_idx / (num_elec / 2)];
         if (virt_allowed != 0) {
             if (num_allowed == *occ_choice) {
-                *occ_choice = occ_orbs[elec_idx];
+                *occ_choice = elec_idx;
                 return virt_allowed;
             }
             num_allowed++;

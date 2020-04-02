@@ -51,6 +51,21 @@ int doub_det_parity(uint8_t *det, uint8_t *orbs) {
     return sign;
 }
 
+
+void doub_ex_orbs(uint8_t *curr_orbs, uint8_t *new_orbs, uint8_t *ex_orbs,
+                  uint8_t n_elec) {
+    uint8_t spin_shift1 = (ex_orbs[0] / (n_elec / 2)) * n_elec / 2;
+    uint8_t spin_shift2 = (ex_orbs[1] / (n_elec / 2)) * n_elec / 2;
+    new_sorted(curr_orbs + spin_shift1, new_orbs + spin_shift1, n_elec / 2, ex_orbs[0] - spin_shift1, ex_orbs[2]);
+    if (spin_shift1 == spin_shift2) {
+        memcpy(new_orbs + n_elec / 2 - spin_shift1, curr_orbs + n_elec / 2 - spin_shift1, n_elec / 2);
+        repl_sorted(new_orbs + spin_shift1, n_elec / 2, ex_orbs[1] - spin_shift1, ex_orbs[3]);
+    }
+    else {
+        new_sorted(curr_orbs + spin_shift2, new_orbs + spin_shift2, n_elec / 2, ex_orbs[1] - spin_shift2, ex_orbs[3]);
+    }
+}
+
 int excite_sign(uint8_t cre_op, uint8_t des_op, uint8_t *det) {
     unsigned int n_perm = bits_between(det, cre_op, des_op);
     if (n_perm % 2 == 0)
@@ -69,4 +84,11 @@ uint8_t find_nth_virt(uint8_t *occ_orbs, int spin, uint8_t n_elec,
         }
     }
     return virt_orb;
+}
+
+void sing_ex_orbs(uint8_t *restrict curr_orbs, uint8_t *restrict new_orbs,
+                  uint8_t *ex_orbs, uint8_t n_elec) {
+    uint8_t spin_shift = (ex_orbs[0] / (n_elec / 2)) * n_elec / 2;
+    new_sorted(curr_orbs + spin_shift, new_orbs + spin_shift, n_elec / 2, ex_orbs[0] - spin_shift, ex_orbs[1]);
+    memcpy(new_orbs + n_elec / 2 - spin_shift, curr_orbs + n_elec / 2 - spin_shift, n_elec / 2);
 }

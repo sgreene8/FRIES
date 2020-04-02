@@ -424,8 +424,8 @@ TEST_CASE("Test evaluation of sampling weights for the new heat-bath distributio
     REQUIRE(norm_chk == Approx(o1_norm).margin(1e-7));
     
     uint8_t o1 = 3;
-    double o2_norm = calc_o2_probs_half(hbtens, probs, n_elec, occ, &o1);
-    REQUIRE(o1 == occ[3]);
+    double o2_norm = calc_o2_probs_half(hbtens, probs, n_elec, occ, o1);
+    o1 = occ[3];
     norm_chk = 0;
     for (j = 0; j < n_elec / 2; j++) {
         REQUIRE(probs[j] * o2_norm == Approx(hbtens->d_diff[(occ[3] - n_orb) * n_orb + occ[j]] / hbtens->s_tens[occ[3] % n_orb]).margin(1e-7));

@@ -92,33 +92,53 @@ uint8_t find_bits(const uint8_t *restrict bit_str, uint8_t *restrict bits, uint8
 }
 
 
-void repl_sorted(uint8_t *restrict orig_list, uint8_t *restrict new_list,
-                 uint8_t length, uint8_t del_idx, uint8_t new_el) {
+void new_sorted(uint8_t *restrict orig_list, uint8_t *restrict new_list,
+                uint8_t length, uint8_t del_idx, uint8_t new_el) {
     uint8_t offset = 0;
+    uint8_t idx;
     if (new_el > orig_list[del_idx]) {
         memcpy(new_list, orig_list, sizeof(uint8_t) * del_idx);
-        for (uint8_t idx = del_idx + 1; idx < length; idx++) {
+        for (idx = del_idx + 1; idx < length; idx++) {
             if (orig_list[idx] < new_el) {
-                new_list[idx - 1] = orig_list[idx];
                 offset++;
             }
-            else {
-                new_list[idx] = orig_list[idx];
-            }
         }
+        memcpy(new_list + del_idx, orig_list + del_idx + 1, sizeof(uint8_t) * offset);
         new_list[del_idx + offset] = new_el;
+        memcpy(new_list + del_idx + offset + 1, orig_list + del_idx + offset + 1, sizeof(uint8_t) * (length - del_idx - offset - 1));
     }
     else {
-        for (uint8_t idx = 0; idx < del_idx; idx++) {
+        for (idx = 0; idx < del_idx; idx++) {
             if (orig_list[idx] > new_el) {
-                new_list[idx +  1] = orig_list[idx];
                 offset++;
             }
-            else {
-                new_list[idx] = orig_list[idx];
+        }
+        memcpy(new_list, orig_list, sizeof(uint8_t) * (del_idx - offset));
+        new_list[del_idx - offset] = new_el;
+        memcpy(new_list + del_idx - offset + 1, orig_list + del_idx - offset, sizeof(uint8_t) * offset);
+        memcpy(new_list + del_idx + 1, orig_list + del_idx + 1, (length - del_idx - 1) * sizeof(uint8_t));
+    }
+}
+
+void repl_sorted(uint8_t *srt_list, uint8_t length, uint8_t del_idx, uint8_t new_el) {
+    uint8_t offset = 0;
+    uint8_t idx;
+    if (new_el > srt_list[del_idx]) {
+        for (idx = del_idx + 1; idx < length; idx++) {
+            if (srt_list[idx] < new_el) {
+                offset++;
             }
         }
-        new_list[del_idx - offset] = new_el;
-        memcpy(new_list + del_idx + 1, orig_list + del_idx + 1, length - del_idx - 1);
+        memmove(srt_list + del_idx, srt_list + del_idx + 1, offset * sizeof(uint8_t));
+        srt_list[del_idx + offset] = new_el;
+    }
+    else {
+        for (idx = 0; idx < del_idx; idx++) {
+            if (srt_list[idx] > new_el) {
+                offset++;
+            }
+        }
+        memmove(srt_list + del_idx - offset + 1, srt_list + del_idx - offset, offset * sizeof(uint8_t));
+        srt_list[del_idx - offset] = new_el;
     }
 }

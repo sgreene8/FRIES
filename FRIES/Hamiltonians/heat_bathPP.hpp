@@ -88,12 +88,11 @@ double calc_o1_probs(hb_info *tens, double *prob_arr, unsigned int n_elec,
  * \param [in] n_elec       Number of electrons in the determinant
  * \param [in] occ_orbs     array containing the indices of occupied orbitals in
  *                          the determinant (length \p n_elec)
- * \param [in,out] o1       Ponter to the index of the first occupied orbital.
- *                          Upon return, pointer to the orbital itself
+ * \param [in,out] o1_idx       The index of the first occupied orbital
  * \return sum of all single-electron weights before normalization
  */
 double calc_o2_probs(hb_info *tens, double *prob_arr, unsigned int n_elec,
-                     uint8_t *occ_orbs, uint8_t *o1);
+                     uint8_t *occ_orbs, uint8_t o1_idx);
 
 
 /*! \brief Calculate the normalized probabilities for choosing the second occupied orbital in a double
@@ -105,12 +104,11 @@ double calc_o2_probs(hb_info *tens, double *prob_arr, unsigned int n_elec,
  * \param [in] n_elec       Number of electrons in the determinant
  * \param [in] occ_orbs     array containing the indices of occupied orbitals in
  *                          the determinant (length \p n_elec)
- * \param [in,out] o1       Ponter to the index of the first occupied orbital.
- *                          Upon return, pointer to the orbital itself
+ * \param [in,out] o1_idx       The index of the first occupied orbital
  * \return sum of all single-electron weights before normalization
  */
  double calc_o2_probs_half(hb_info *tens, double *prob_arr, unsigned int n_elec,
-                           uint8_t *occ_orbs, uint8_t *o1);
+                           uint8_t *occ_orbs, uint8_t o1_idx);
 
 
 /*! \brief Calculate the normalized probabilities for choosing the first

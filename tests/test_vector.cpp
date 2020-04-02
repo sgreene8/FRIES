@@ -39,42 +39,135 @@ TEST_CASE("Test insertion into sorted lists", "[ins_sorted]") {
     uint8_t src[] = {2, 4, 6, 8, 10};
     uint8_t dst[5];
     
-    repl_sorted(src, dst, 5, 2, 9);
+    new_sorted(src, dst, 5, 2, 9);
+    repl_sorted(src, 5, 2, 9);
     uint8_t res0[] = {2, 4, 8, 9, 10};
     for (size_t idx = 0; idx < 5; idx++) {
         REQUIRE(dst[idx] == res0[idx]);
+        REQUIRE(src[idx] == res0[idx]);
     }
+    src[2] = 6;
+    src[3] = 8;
     
     res0[0] = 1;
     res0[1] = 2;
     res0[2] = 4;
     res0[3] = 8;
-    repl_sorted(src, dst, 5, 2, 1);
+    new_sorted(src, dst, 5, 2, 1);
+    repl_sorted(src, 5, 2, 1);
     for (size_t idx = 0; idx < 5; idx++) {
         REQUIRE(dst[idx] == res0[idx]);
+        REQUIRE(src[idx] == res0[idx]);
     }
+    src[0] = 2;
+    src[1] = 4;
+    src[2] = 6;
     
     res0[0] = 2;
     res0[1] = 4;
     res0[2] = 6;
     res0[4] = 12;
-    repl_sorted(src, dst, 5, 4, 12);
+    new_sorted(src, dst, 5, 4, 12);
+    repl_sorted(src, 5, 4, 12);
     for (size_t idx = 0; idx < 5; idx++) {
         REQUIRE(dst[idx] == res0[idx]);
+        REQUIRE(src[idx] == res0[idx]);
     }
+    src[4] = 10;
     
     res0[4] = 10;
     res0[2] = 7;
-    repl_sorted(src, dst, 5, 2, 7);
+    new_sorted(src, dst, 5, 2, 7);
+    repl_sorted(src, 5, 2, 7);
     for (size_t idx = 0; idx < 5; idx++) {
         REQUIRE(dst[idx] == res0[idx]);
+        REQUIRE(src[idx] == res0[idx]);
     }
+    src[2] = 6;
     
     res0[2] = 5;
-    repl_sorted(src, dst, 5, 2, 5);
+    new_sorted(src, dst, 5, 2, 5);
+    repl_sorted(src, 5, 2, 5);
     for (size_t idx = 0; idx < 5; idx++) {
         REQUIRE(dst[idx] == res0[idx]);
+        REQUIRE(src[idx] == res0[idx]);
     }
+}
+
+TEST_CASE("Test generation of occupied lists from excitations", "[ex_occ]") {
+    uint8_t n_elec = 10;
+    uint8_t occ_orig[] = {2, 4, 6, 8, 10, 21, 23, 25, 27, 29};
+    uint8_t occ_new[n_elec];
+    uint8_t occ_result[] = {2, 4, 6, 8, 10, 21, 23, 25, 27, 29};
+    
+    uint8_t sing_ex[] = {2, 15};
+    sing_ex_orbs(occ_orig, occ_new, sing_ex, n_elec);
+    occ_result[2] = 8;
+    occ_result[3] = 10;
+    occ_result[4] = 15;
+    for (size_t idx = 0; idx < n_elec; idx++) {
+        REQUIRE(occ_new[idx] == occ_result[idx]);
+    }
+    occ_result[2] = 6;
+    occ_result[3] = 8;
+    occ_result[4] = 10;
+    
+    sing_ex[1] = 1;
+    sing_ex_orbs(occ_orig, occ_new, sing_ex, n_elec);
+    occ_result[0] = 1;
+    occ_result[1] = 2;
+    occ_result[2] = 4;
+    for (size_t idx = 0; idx < n_elec; idx++) {
+        REQUIRE(occ_new[idx] == occ_result[idx]);
+    }
+    occ_result[0] = 2;
+    occ_result[1] = 4;
+    occ_result[2] = 6;
+    
+    sing_ex[0] = 5;
+    sing_ex[1] = 35;
+    sing_ex_orbs(occ_orig, occ_new, sing_ex, n_elec);
+    occ_result[5] = 23;
+    occ_result[6] = 25;
+    occ_result[7] = 27;
+    occ_result[8] = 29;
+    occ_result[9] = 35;
+    for (size_t idx = 0; idx < n_elec; idx++) {
+        REQUIRE(occ_new[idx] == occ_result[idx]);
+    }
+    occ_result[5] = 21;
+    occ_result[6] = 23;
+    occ_result[7] = 25;
+    occ_result[8] = 27;
+    occ_result[9] = 29;
+    
+    uint8_t doub_ex[] = {2, 4, 1, 19};
+    occ_result[0] = 1;
+    occ_result[1] = 2;
+    occ_result[2] = 4;
+    occ_result[4] = 19;
+    doub_ex_orbs(occ_orig, occ_new, doub_ex, n_elec);
+    for (size_t idx = 0; idx < n_elec; idx++) {
+        REQUIRE(occ_new[idx] == occ_result[idx]);
+    }
+    occ_result[0] = 2;
+    occ_result[1] = 4;
+    occ_result[2] = 6;
+    occ_result[4] = 10;
+    
+    doub_ex[1] = 7;
+    doub_ex[2] = 7;
+    doub_ex[3] = 22;
+    occ_result[2] = 7;
+    occ_result[6] = 22;
+    occ_result[7] = 23;
+    doub_ex_orbs(occ_orig, occ_new, doub_ex, n_elec);
+    for (size_t idx = 0; idx < n_elec; idx++) {
+        REQUIRE(occ_new[idx] == occ_result[idx]);
+    }
+    occ_result[2] = 6;
+    occ_result[6] = 23;
+    occ_result[7] = 25;
 }
 
 

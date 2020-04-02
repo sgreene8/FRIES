@@ -45,6 +45,19 @@ void gen_hf_bitstring(unsigned int n_orb, unsigned int n_elec, uint8_t *det);
 int doub_det_parity(uint8_t *det, uint8_t *orbs);
 
 
+/*! \brief Given an ordered list of occupied orbitals and the orbitals involved in a single excitation, generate
+ * a new ordered list of orbitals after excitation
+ *
+ * \param [in] curr_orbs    List of occupied orbitals in starting determinant
+ * \param [out] new_orbs     List of occupied orbitals after excitation
+ * \param [in] ex_orbs      An array of 4 numbers, the first two of which are the indices of the occupied
+ * orbitals in the excitation, and the last two of which are the virtual orbitals themselves
+ * \param [in] n_elec       The number of occupied orbitals
+ */
+void doub_ex_orbs(uint8_t *curr_orbs, uint8_t *new_orbs, uint8_t *ex_orbs,
+                  uint8_t n_elec);
+
+
 /*! \brief Calculate the parity and determinant resulting from a single
  * excitation
  *
@@ -59,6 +72,19 @@ int doub_det_parity(uint8_t *det, uint8_t *orbs);
  * \return parity of the excitation (+1 or -1)
  */
 int sing_det_parity(uint8_t *det, uint8_t *orbs);
+
+
+/*! \brief Given an ordered list of occupied orbitals and the orbitals involved in a single excitation, generate
+ * a new ordered list of orbitals after excitation
+ *
+ * \param [in] curr_orbs    List of occupied orbitals in starting determinant
+ * \param [out] new_orbs     List of occupied orbitals after excitation
+ * \param [in] ex_orbs      An array of 2 numbers, the first of which is the index of the occupied orbital in
+ * the excitation, and the second of which is the virtual orbital itself
+ * \param [in] n_elec       The number of occupied orbitals
+ */
+void sing_ex_orbs(uint8_t *curr_orbs, uint8_t *new_orbs, uint8_t *ex_orbs,
+                  uint8_t n_elec);
 
 
 /*! \brief Calculate the parity of a single excitation
