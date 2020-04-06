@@ -95,8 +95,15 @@ public:
      * \param [in] idx      Index of the element to be added
      * \param [in] val      Value of the added element
      * \param [in] ini_flag     Either 1 or 0, indicates initiator status of the added element
+     * \return The index of the added element in the buffer
      */
-    void add(uint8_t *idx, el_type val, int proc_idx, uint8_t ini_flag);
+    size_t add(uint8_t *idx, el_type val, int proc_idx, uint8_t ini_flag);
+    
+    bool get_add_result(size_t row, size_t col, double *weight) const {
+        *weight = send_vals_(row, col);
+        Matrix<bool>::RowReference success((uint8_t *) send_idx_[row]);
+        return success[col];
+    }
 private:
     Matrix<uint8_t> send_idx_; ///< Send buffer for element indices
     Matrix<el_type> send_vals_; ///< Send buffer for element values
@@ -143,10 +150,15 @@ template <class el_type>
 class DistVec {
 private:
     std::vector<el_type> values_; ///< Array of values of vector elements
+    std::vector<el_type> value_cache_;
+    std::vector<double> ini_success_;
+    std::vector<double> ini_fail_;
     double *matr_el_; ///< Array of pre-calculated diagonal matrix elements associated with each vector element
     size_t n_dense_; ///< The first \p n_dense elements in the DistVec object will always be stored, even if their corresponding values are 0
     stack_entry *vec_stack_; ///< Pointer to top of stack for managing available positions in the indices array
     int n_nonz_; ///< Current number of nonzero elements in vector, including all in the dense subspace
+    std::function<double(const uint8_t *)> diag_calc_;
+    double *curr_shift_;
 protected:
     Matrix<uint8_t> indices_; ///< Array of indices of vector elements
     size_t max_size_; ///< Maximum number of vector elements that can be stored
@@ -178,7 +190,7 @@ public:
      * \param [in] n_procs Number of MPI processes over which to distribute vector elements
      */
     DistVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_bits,
-            unsigned int n_elec, int n_procs) : values_(size), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0) {
+            unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr) : values_(size), value_cache_(diag_fxn ? size : 0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr) {
         matr_el_ = (double *)malloc(sizeof(double) * size);
         vec_hash_ = setup_ht(size, rn_ptr, n_bits);
         tabl_ = gen_byte_table();
@@ -245,6 +257,11 @@ public:
         matr_el_ = (double *)realloc(matr_el_, sizeof(double) * new_max);
         occ_orbs_.reshape(new_max, occ_orbs_.cols());
         values_.resize(new_max);
+        if (diag_calc_) {
+            value_cache_.resize(new_max);
+            ini_success_.resize(new_max);
+            ini_fail_.resize(new_max);
+        }
         max_size_ = new_max;
     }
 
@@ -307,10 +324,9 @@ public:
         }
     }
     
-    void add(uint8_t *idx, uint8_t *orbs, el_type val, uint8_t ini_flag) {
-        if (val != 0) {
-            adder_.add(idx, val, idx_to_proc(idx, orbs), ini_flag);
-        }
+    size_t add(uint8_t *idx, uint8_t *orbs, el_type val, uint8_t ini_flag, int *proc_idx) {
+        *proc_idx = idx_to_proc(idx, orbs);
+        return adder_.add(idx, val, *proc_idx, ini_flag);
     }
 
     /*! \brief Incorporate elements from the Adder buffer into the vector
@@ -363,6 +379,15 @@ public:
         return (el_type *)values_.data();
     }
     
+    void diag_cache_mult_(size_t index, double matr_el) {
+        values_[index] += value_cache_[index] * matr_el;
+    }
+    
+    void zero_ini() {
+        std::fill(ini_success_.begin(), ini_success_.end(), 0);
+        std::fill(ini_fail_.begin(), ini_fail_.end(), 0);
+    }
+    
     Matrix<uint8_t> &indices() {
         return indices_;
     }
@@ -397,58 +422,56 @@ public:
         return tabl_;
     }
     
+    void cache_values() {
+        std::fill(value_cache_.begin(), value_cache_.end(), 0);
+        value_cache_.swap(values_);
+        // values is now all zero
+    }
+    
+    const el_type *value_cache() const {
+        return value_cache_.data();
+    }
+    
     /*! \brief Add elements destined for this process to the DistVec object
      * \param [in] indices Indices of the elements to be added
      * \param [in] vals     Values of the elements to be added
      * \param [in] count    Number of elements to be added
      */
-    void add_elements(uint8_t *indices, el_type *vals, size_t count) {
+    void add_elements(uint8_t *indices, el_type *vals, size_t count,
+                      Matrix<bool>::RowReference successes) {
         uint8_t add_n_bytes = CEILING(n_bits_ + 1, 8);
         uint8_t vec_n_bytes = indices_.cols();
         uint8_t tmp_occ[occ_orbs_.cols()];
-        // The first time around, add only elements that came from noninitiators
-        for (int add_ini = 0; add_ini < 2; add_ini++) {
-            for (size_t el_idx = 0; el_idx < count; el_idx++) {
-                uint8_t *new_idx = &indices[el_idx * add_n_bytes];
-                int ini_flag = read_bit(new_idx, n_bits_);
-                if (ini_flag != add_ini) {
-                    continue;
-                }
-                if (ini_flag) {
-                    zero_bit(new_idx, n_bits_);
-                }
-                uintmax_t hash_val = idx_to_hash(new_idx, tmp_occ);
-                ssize_t *idx_ptr = read_ht(vec_hash_, new_idx, hash_val, ini_flag);
-                if (idx_ptr && *idx_ptr == -1) {
-                    *idx_ptr = pop_stack();
-                    if (*idx_ptr == -1) {
-                        if (curr_size_ >= max_size_) {
-                            expand();
-                        }
-                        *idx_ptr = curr_size_;
-                        curr_size_++;
-                    }
-                    memcpy(indices_[*idx_ptr], new_idx, vec_n_bytes);
-                    initialize_at_pos(*idx_ptr, tmp_occ);
-                    n_nonz_++;
-                }
-                int del_bool = 0;
-                if (idx_ptr) {
-                    if (!ini_flag && values_[*idx_ptr] == 0) {
-                        fprintf(stderr, "Alert: weird vector addition\n");
-                    }
-                    else {
-                        nonini_occ_add += !ini_flag;
-                        values_[*idx_ptr] += vals[el_idx];
-                        del_bool = values_[*idx_ptr] == 0 && *idx_ptr >= n_dense_;
-                    }
-                }
-                if (del_bool == 1) {
-                    push_stack(*idx_ptr);
-                    del_ht(vec_hash_, new_idx, hash_val);
-                    n_nonz_--;
-                }
+        for (size_t el_idx = 0; el_idx < count; el_idx++) {
+            uint8_t *new_idx = &indices[el_idx * add_n_bytes];
+            int ini_flag = read_bit(new_idx, n_bits_);
+            if (ini_flag) {
+                zero_bit(new_idx, n_bits_);
             }
+            uintmax_t hash_val = idx_to_hash(new_idx, tmp_occ);
+            ssize_t *idx_ptr = read_ht(vec_hash_, new_idx, hash_val, ini_flag);
+            if (idx_ptr && *idx_ptr == -1) {
+                *idx_ptr = pop_stack();
+                if (*idx_ptr == -1) {
+                    if (curr_size_ >= max_size_) {
+                        expand();
+                    }
+                    *idx_ptr = curr_size_;
+                    curr_size_++;
+                }
+                memcpy(indices_[*idx_ptr], new_idx, vec_n_bytes);
+                initialize_at_pos(*idx_ptr, tmp_occ);
+                n_nonz_++;
+            }
+            if (idx_ptr) {
+                nonini_occ_add += !ini_flag;
+                values_[*idx_ptr] += vals[el_idx];
+                vals[el_idx] = 0;
+            }
+            if (!ini_flag && diag_calc_) {
+                vals[el_idx] /= (diag_calc_(tmp_occ) - *curr_shift_);
+            }
+            successes[el_idx] = (bool) idx_ptr;
         }
     }
     
@@ -687,6 +710,9 @@ public:
         if (tot_size > max_size_) {
             indices_.reshape(tot_size, n_bytes);
             values_.resize(tot_size);
+            value_cache_.resize(tot_size);
+            ini_success_.resize(tot_size);
+            ini_fail_.resize(tot_size);
         }
         memmove(indices_[disps[my_rank]], indices_.data(), vec_sizes[my_rank] * n_bytes);
         memmove(&values_.data()[disps[my_rank]], values_.data(), vec_sizes[my_rank] * el_size);
@@ -696,11 +722,33 @@ public:
 #endif
         curr_size_ = tot_size;
     }
+    
+    bool get_add_info(size_t row, size_t col, double *weight) const {
+        return adder_.get_add_result(row, col, weight);
+    }
+    
+    void add_ini_weight(size_t idx, bool success, double weight) {
+        if (success) {
+            ini_success_[idx] += weight;
+        }
+        else {
+            ini_fail_[idx] += weight;
+        }
+    }
+    
+    double get_pacc(size_t idx) {
+        if (diag_calc_) {
+            return ini_success_[idx] / (ini_success_[idx] + ini_fail_[idx]);
+        }
+        else {
+            return 1;
+        }
+    }
 };
 
 
 template <class el_type>
-void Adder<el_type>::add(uint8_t *idx, el_type val, int proc_idx, uint8_t ini_flag) {
+size_t Adder<el_type>::add(uint8_t *idx, el_type val, int proc_idx, uint8_t ini_flag) {
     int *count = &send_cts_[proc_idx];
     if (*count == send_vals_.cols()) {
         enlarge_();
@@ -713,7 +761,9 @@ void Adder<el_type>::add(uint8_t *idx, el_type val, int proc_idx, uint8_t ini_fl
         set_bit(cpy_idx, idx_bits);
     }
     send_vals_(proc_idx, *count) = val;
+    size_t ret_val = *count;
     (*count)++;
+    return ret_val;
 }
 
 template <class el_type>
@@ -744,8 +794,23 @@ void Adder<el_type>::perform_add() {
 #endif
     // Move elements from receiving buffers to vector
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        parent_vec_->add_elements(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx], Matrix<bool>::RowReference(recv_idx_[proc_idx]));
+    }
+#ifdef USE_MPI
+    mpi_atoav(recv_vals_.data(), recv_cts_, val_disp_, send_vals_.data(), send_cts_);
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        recv_idx_cts[proc_idx] = CEILING(recv_cts_[proc_idx], 8);
+        send_idx_cts[proc_idx] = CEILING(send_cts_[proc_idx], 8);
+    }
+    MPI_Alltoallv(recv_idx_.data(), recv_idx_cts, idx_disp_, MPI_UINT8_T, send_idx_.data(), send_idx_cts, idx_disp_, MPI_UINT8_T, MPI_COMM_WORLD);
+#else
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        memcpy(send_vals_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx] * el_size);
+        memcpy(send_idx_[proc_idx], recv_idx_[proc_idx], CEILING(recv_cts_[proc_idx], 8));
+    }
+#endif
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         send_cts_[proc_idx] = 0;
-        parent_vec_->add_elements(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx]);
     }
 }
 

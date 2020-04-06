@@ -183,7 +183,7 @@ double find_keep_sub(double *values, unsigned int *n_div,
                     }
                     double coarse_wt = coarse_weights[lookup->pos[coarse_bool][fine_idx]];
                     
-                    uint8_t *keep_row = keep_idx[det_idx].row_ptr();
+                    uint8_t *keep_row = keep_idx.row_ptr(det_idx);
                     for (size_t sub_coarse = 0; sub_coarse < (n_sub / 8); sub_coarse++) {
                         uint8_t not_kept = ~keep_row[sub_coarse];
                         uint8_t row_bool = 0;

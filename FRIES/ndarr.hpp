@@ -243,10 +243,6 @@ template<> class Matrix<bool>  {
                 BoolReference ref(row_[idx / 8], idx % 8);
                 return ref;
             }
-            
-            uint8_t *row_ptr() const {
-                return row_;
-            }
         };
         
         /*! \brief Access matrix row
@@ -262,8 +258,8 @@ template<> class Matrix<bool>  {
          * \param [in] row      Row index
          * \return pointer to 0th element in a row of a matrix
          */
-        const uint8_t *row_ptr (size_t row) const {
-            return &data_[cols_coarse_ * row];
+        uint8_t *row_ptr (size_t row) const {
+            return (uint8_t *)&data_[cols_coarse_ * row];
         }
 
         /*! \return Pointer to the  data in the matrix*/
