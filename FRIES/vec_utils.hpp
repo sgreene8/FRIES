@@ -190,7 +190,7 @@ public:
      * \param [in] n_procs Number of MPI processes over which to distribute vector elements
      */
     DistVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_bits,
-            unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr) : values_(size), value_cache_(diag_fxn ? size : 0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr) {
+            unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr) : values_(size), value_cache_(size), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr) {
         matr_el_ = (double *)malloc(sizeof(double) * size);
         vec_hash_ = setup_ht(size, rn_ptr, n_bits);
         tabl_ = gen_byte_table();
@@ -466,7 +466,6 @@ public:
             if (idx_ptr) {
                 nonini_occ_add += !ini_flag;
                 values_[*idx_ptr] += vals[el_idx];
-                vals[el_idx] = 0;
             }
             if (!ini_flag && diag_calc_) {
                 vals[el_idx] /= (diag_calc_(tmp_occ) - *curr_shift_);

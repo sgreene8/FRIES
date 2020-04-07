@@ -39,7 +39,7 @@ int main(int argc, const char * argv[]) {
     float init_thresh = 0;
     unsigned int tmp_norm = 0;
     unsigned int max_iter = 1000000;
-    int unbias;
+    bool unbias = false;
     struct argparse_option options[] = {
         OPT_HELP(),
         OPT_STRING('d', "hf_path", &hf_path, "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt"),
@@ -488,7 +488,7 @@ int main(int argc, const char * argv[]) {
         for (det_idx = n_determ; det_idx < sol_vec.curr_size(); det_idx++) {
             double *curr_el = sol_vec[det_idx];
             weight = fabs(*curr_el);
-            n_ini += weight > init_thresh;
+            n_ini += weight >= init_thresh;
             comp_vec1[det_idx - n_determ] = weight;
             if (weight > 0) {
                 subwt_mem(det_idx - n_determ, 0) = p_doub;
@@ -688,35 +688,25 @@ int main(int argc, const char * argv[]) {
             fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
         }
         
-        uint8_t *__restrict__ ini_info = keep_idx.data();
-        for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
-            weight_idx = comp_idx[samp_idx][0];
-            det_idx = det_indices2[weight_idx];
-            double *__restrict__ curr_el = sol_vec[det_idx];
-            if (*curr_el < 0) {
-                comp_vec2[samp_idx] *= -1;
-            }
-            ini_info[samp_idx] = fabs(*curr_el) > init_thresh;
-        }
-        
         sol_vec.cache_values();
         if (unbias) {
             sol_vec.zero_ini();
         }
         
-        size_t num_added = determ_h_size;
-        int glob_adding = 1;
-        samp_idx = 0;
         // The first time around, add only elements that came from noninitiators
         for (int add_ini = 0; add_ini < 2; add_ini++) {
+            size_t num_added = 0;
+            int glob_adding = 1;
+            samp_idx = 0;
             while (glob_adding) {
                 size_t start_idx = samp_idx;
                 while (samp_idx < comp_len && num_added < adder_size) {
-                    uint8_t ini_flag = ini_info[samp_idx];
+                    double curr_val = sol_vec.value_cache()[det_idx];
+                    uint8_t ini_flag = fabs(curr_val) >= init_thresh;
                     if (ini_flag != add_ini) {
+                        samp_idx++;
                         continue;
                     }
-                    ini_info[samp_idx] = 0;
                     weight_idx = comp_idx[samp_idx][0];
                     det_idx = det_indices2[weight_idx];
                     uint8_t *curr_det = sol_vec.indices()[det_idx];
@@ -771,6 +761,9 @@ int main(int argc, const char * argv[]) {
                         }
                         double add_el = unsigned_mat * -eps / p_doub / tot_weight * comp_vec2[samp_idx];
                         if (fabs(add_el) > 1e-9) {
+                            if (curr_val < 0) {
+                                add_el *= -1;
+                            }
                             memcpy(new_det, curr_det, det_size);
                             add_el *= doub_det_parity(new_det, doub_orbs);
                             doub_orbs[0] = o1_idx;
@@ -799,6 +792,9 @@ int main(int argc, const char * argv[]) {
                                 comp_vec2[samp_idx] = 0;
                                 samp_idx++;
                                 continue;
+                            }
+                            if (curr_val < 0) {
+                                add_el *= -1;
                             }
                             sing_orbs[0] = o1_idx;
                             sing_ex_orbs(occ_orbs, new_occ, sing_orbs, n_elec_unf);
@@ -852,13 +848,17 @@ int main(int argc, const char * argv[]) {
         
 #pragma mark Death/cloning step
         for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
-            if (sol_vec.value_cache()[det_idx] != 0) {
+            double curr_val = sol_vec.value_cache()[det_idx];
+            if (curr_val != 0) {
                 double *diag_el = sol_vec.matr_el_at_pos(det_idx);
                 uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
                 if (std::isnan(*diag_el)) {
                     *diag_el = diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
                 }
-                double local_shift = en_shift * sol_vec.get_pacc(det_idx);
+                double local_shift = en_shift;
+                if (curr_val < init_thresh) {
+                    local_shift *= sol_vec.get_pacc(det_idx);
+                }
                 sol_vec.diag_cache_mult_(det_idx, 1 - eps * (*diag_el - local_shift));
             }
         }
