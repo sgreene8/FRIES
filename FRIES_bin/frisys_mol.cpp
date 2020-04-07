@@ -14,7 +14,7 @@
 #include <FRIES/io_utils.hpp>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/compress_utils.hpp>
-#include <FRIES/Ext_Libs/argparse.h>
+#include <FRIES/Ext_Libs/argparse.hpp>
 #include <FRIES/Hamiltonians/heat_bathPP.hpp>
 #include <FRIES/Hamiltonians/molecule.hpp>
 
@@ -25,31 +25,60 @@ static const char *const usage[] = {
 };
 
 int main(int argc, const char * argv[]) {
-    const char *hf_path = NULL;
-    const char *dist_str = NULL;
-    const char *result_dir = "./";
     const char *load_dir = NULL;
     const char *ini_path = NULL;
     const char *trial_path = NULL;
     const char *sgnv_path = NULL;
     const char *determ_path = NULL;
-    unsigned int target_nonz = 0;
-    unsigned int matr_samp = 0;
-    unsigned int max_n_dets = 0;
-    float init_thresh = 0;
-    unsigned int tmp_norm = 0;
     unsigned int max_iter = 1000000;
     bool unbias = false;
+    
+    argparse::ArgumentParser program("systematic FRI for molecules");
+    auto int_converter = [](const std::string &value) {return std::stoul(value);};
+    auto float_converter = [](const std::string &value) {return std::stof(value);};
+    program.add_argument("hf_path")
+      .help("Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt");
+    program.add_argument("target")
+      .help("Target one-norm of solution vector")
+      .action(int_converter);
+    program.add_argument("distribution")
+      .help("Hamiltonian factorization to use, either heat-bath Power-Pitzer (HB) or unnormalized heat-bath Power-Pitzer (HB_unnorm)")
+      .action([](const std::string &value) {
+          static const std::vector<std::string> choices = { "HB", "HB_unnorm" };
+          if (std::find(choices.begin(), choices.end(), value) != choices.end()) {
+            return value;
+          }
+          std::cout << "Using unnormalized HB distrbution" << std::endl;
+          return std::string{ "HB_unnorm" };
+      });
+    program.add_argument("vec_nonz")
+      .help("Target number of nonzero vector elements to keep after each iteration")
+      .action(int_converter);
+    program.add_argument("mat_nonz")
+      .help("Target number of nonzero matrix elements to use in compression operations")
+      .action(int_converter);
+    program.add_argument("result_dir")
+      .help("Directory in which to save output files")
+      .default_value("./");
+    program.add_argument("max_dets")
+      .help("Maximum number of determinants on a single MPI process.")
+      .action(int_converter);
+    program.add_argument("initiator")
+      .help("Magnitude of vector element required to make it an initiator.")
+      .default_value(std::string("0"))
+      .action(float_converter);
+    
+    auto hf_path = program.get("hf_path");
+    unsigned long tmp_norm = program.get<unsigned long>("target");
+    const std::string dist_str = program.get("distribution");
+    unsigned int target_nonz = program.get<unsigned long>("vec_nonz");
+    unsigned int matr_samp = program.get<unsigned long>("mat_nonz");
+    const std::string result_dir = program.get("result_dir");
+    unsigned int max_n_dets = program.get<unsigned long>("max_dets");
+    float init_thresh = program.get<float>("initiator");
+    
     struct argparse_option options[] = {
         OPT_HELP(),
-        OPT_STRING('d', "hf_path", &hf_path, "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt"),
-        OPT_INTEGER('t', "target", &tmp_norm, "Target one-norm of solution vector"),
-        OPT_STRING('q', "distribution", &dist_str, "Hamiltonian factorization to use, either heat-bath Power-Pitzer (HB) or unnormalized heat-bath Power-Pitzer (HB_unnorm)"),
-        OPT_INTEGER('m', "vec_nonz", &target_nonz, "Target number of nonzero vector elements to keep after each iteration"),
-        OPT_INTEGER('M', "mat_nonz", &matr_samp, "Target number of nonzero matrix elements to keep after each iteration"),
-        OPT_STRING('y', "result_dir", &result_dir, "Directory in which to save output files"),
-        OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
-        OPT_FLOAT('i', "initiator", &init_thresh, "Magnitude of vector element required to make the corresponding determinant an initiator."),
         OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous systematic FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())."),
         OPT_STRING('n', "ini_vec", &ini_path, "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)."),
         OPT_STRING('v', "trial_vec", &trial_path, "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text files)."),
