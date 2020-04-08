@@ -25,14 +25,6 @@ static const char *const usage[] = {
 };
 
 int main(int argc, const char * argv[]) {
-    const char *load_dir = NULL;
-    const char *ini_path = NULL;
-    const char *trial_path = NULL;
-    const char *sgnv_path = NULL;
-    const char *determ_path = NULL;
-    unsigned int max_iter = 1000000;
-    bool unbias = false;
-    
     argparse::ArgumentParser program("systematic FRI for molecules");
     auto int_converter = [](const std::string &value) {return std::stoul(value);};
     auto float_converter = [](const std::string &value) {return std::stof(value);};
@@ -67,6 +59,25 @@ int main(int argc, const char * argv[]) {
       .help("Magnitude of vector element required to make it an initiator.")
       .default_value(std::string("0"))
       .action(float_converter);
+    program.add_argument("load_dir")
+      .help("Directory from which to load checkpoint files from a previous systematic FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load()).");
+    program.add_argument("ini_vec")
+      .help("Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files).");
+    program.add_argument("trial_vec")
+      .help("Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text files).");
+    program.add_argument("sign_vec")
+      .help("The vector to use to constrain the sign of the iterates. Can be 'HF' or a prefix for files containing the vector (files must have names <sgnv_path>dets and <sgnv_path>vals and be text files). If not specified, sign is not calculated.");
+    program.add_argument("det_space")
+      .help("Path to a .txt file containing the determinants used to define the deterministic space to use in a semistochastic calculation.");
+    program.add_argument("max_iter")
+      .help("Maximum number of iterations to run the calculation.")
+      .default_value(1000000)
+      .action(int_converter);
+    program.add_argument("unbias")
+      .help("'Unbias' the initiator approximation.")
+      .default_value(false)
+      .implicit_value(true);
+
     
     auto hf_path = program.get("hf_path");
     unsigned long tmp_norm = program.get<unsigned long>("target");
@@ -76,23 +87,17 @@ int main(int argc, const char * argv[]) {
     const std::string result_dir = program.get("result_dir");
     unsigned int max_n_dets = program.get<unsigned long>("max_dets");
     float init_thresh = program.get<float>("initiator");
+    const std::string load_dir = program.get("load_dir");
+    const std::string ini_path = program.get("ini_vec");
+    const std::string trial_path = program.get("trial_vec");
+    const std::string sgnv_path = program.get("sign_vec");
+    const std::string determ_path = program.get("det_space");
+    unsigned int max_iter = program.get<unsigned long>("max_iter");
+    bool unbias = program.get<bool>("unbias");
     
-    struct argparse_option options[] = {
-        OPT_HELP(),
-        OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous systematic FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())."),
-        OPT_STRING('n', "ini_vec", &ini_path, "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)."),
-        OPT_STRING('v', "trial_vec", &trial_path, "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text files)."),
-        OPT_STRING('s', "sign_vec", &sgnv_path, "The vector to use to constrain the sign of the iterates. Can be 'HF' or a prefix for files containing the vector (files must have names <sgnv_path>dets and <sgnv_path>vals and be text files). If not specified, sign is not calculated."),
-        OPT_STRING('S', "det_space", &determ_path, "Path to a .txt file containing the determinants used to define the deterministic space to use in a semistochastic calculation."),
-        OPT_INTEGER('I', "max_iter", &max_iter, "Maximum number of iterations to run the calculation."),
-        OPT_BOOLEAN('u', "unbias", &unbias, "'Unbias' the initiator approximation."),
-        OPT_END(),
-    };
-    
-    struct argparse argparse;
-    argparse_init(&argparse, options, usage, 0);
-    argparse_describe(&argparse, "\nPerform an FCIQMC calculation.", "");
-    argc = argparse_parse(&argparse, argc, argv);
+    try {
+        program.parse_args(argc, argv);
+    }
     
     if (hf_path == NULL) {
         fprintf(stderr, "Error: HF directory not specified.\n");
