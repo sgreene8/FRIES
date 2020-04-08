@@ -18,12 +18,6 @@
 #include <FRIES/Hamiltonians/heat_bathPP.hpp>
 #include <FRIES/Hamiltonians/molecule.hpp>
 
-static const char *const usage[] = {
-    "frisys_mol [options] [[--] args]",
-    "frisys_mol [options]",
-    NULL,
-};
-
 int main(int argc, const char * argv[]) {
     argparse::ArgumentParser program("systematic FRI for molecules");
     auto int_converter = [](const std::string &value) {return std::stoul(value);};
@@ -33,8 +27,9 @@ int main(int argc, const char * argv[]) {
     program.add_argument("target")
       .help("Target one-norm of solution vector")
       .action(int_converter);
-    program.add_argument("distribution")
+    program.add_argument("--distribution")
       .help("Hamiltonian factorization to use, either heat-bath Power-Pitzer (HB) or unnormalized heat-bath Power-Pitzer (HB_unnorm)")
+      .default_value(std::string("HB_unnorm"))
       .action([](const std::string &value) {
           static const std::vector<std::string> choices = { "HB", "HB_unnorm" };
           if (std::find(choices.begin(), choices.end(), value) != choices.end()) {
@@ -49,83 +44,86 @@ int main(int argc, const char * argv[]) {
     program.add_argument("mat_nonz")
       .help("Target number of nonzero matrix elements to use in compression operations")
       .action(int_converter);
-    program.add_argument("result_dir")
-      .help("Directory in which to save output files")
-      .default_value("./");
     program.add_argument("max_dets")
-      .help("Maximum number of determinants on a single MPI process.")
-      .action(int_converter);
-    program.add_argument("initiator")
+    .help("Maximum number of determinants on a single MPI process.")
+    .action(int_converter);
+    program.add_argument("--result_dir")
+      .help("Directory in which to save output files")
+      .default_value(std::string("./"));
+    program.add_argument("--initiator")
       .help("Magnitude of vector element required to make it an initiator.")
       .default_value(std::string("0"))
       .action(float_converter);
-    program.add_argument("load_dir")
+    program.add_argument("--load_dir")
       .help("Directory from which to load checkpoint files from a previous systematic FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load()).");
-    program.add_argument("ini_vec")
+    program.add_argument("--ini_vec")
       .help("Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files).");
-    program.add_argument("trial_vec")
+    program.add_argument("--trial_vec")
       .help("Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text files).");
-    program.add_argument("sign_vec")
+    program.add_argument("--sign_vec")
       .help("The vector to use to constrain the sign of the iterates. Can be 'HF' or a prefix for files containing the vector (files must have names <sgnv_path>dets and <sgnv_path>vals and be text files). If not specified, sign is not calculated.");
-    program.add_argument("det_space")
+    program.add_argument("--det_space")
       .help("Path to a .txt file containing the determinants used to define the deterministic space to use in a semistochastic calculation.");
-    program.add_argument("max_iter")
+    program.add_argument("--max_iter")
       .help("Maximum number of iterations to run the calculation.")
-      .default_value(1000000)
+      .default_value(std::string("1000000"))
       .action(int_converter);
-    program.add_argument("unbias")
+    program.add_argument("--unbias")
       .help("'Unbias' the initiator approximation.")
       .default_value(false)
       .implicit_value(true);
-
-    
-    auto hf_path = program.get("hf_path");
-    unsigned long tmp_norm = program.get<unsigned long>("target");
-    const std::string dist_str = program.get("distribution");
-    unsigned int target_nonz = program.get<unsigned long>("vec_nonz");
-    unsigned int matr_samp = program.get<unsigned long>("mat_nonz");
-    const std::string result_dir = program.get("result_dir");
-    unsigned int max_n_dets = program.get<unsigned long>("max_dets");
-    float init_thresh = program.get<float>("initiator");
-    const std::string load_dir = program.get("load_dir");
-    const std::string ini_path = program.get("ini_vec");
-    const std::string trial_path = program.get("trial_vec");
-    const std::string sgnv_path = program.get("sign_vec");
-    const std::string determ_path = program.get("det_space");
-    unsigned int max_iter = program.get<unsigned long>("max_iter");
-    bool unbias = program.get<bool>("unbias");
     
     try {
         program.parse_args(argc, argv);
     }
+    catch (const std::runtime_error& err) {
+      std::cout << err.what() << std::endl;
+      std::cout << program;
+      exit(0);
+    }
     
-    if (hf_path == NULL) {
-        fprintf(stderr, "Error: HF directory not specified.\n");
-        return 0;
+    const char *hf_path = program.get("hf_path").c_str();
+    unsigned long tmp_norm = program.get<unsigned long>("target");
+    const std::string dist_str = program.get("--distribution");
+    unsigned int target_nonz = (unsigned int)program.get<unsigned long>("vec_nonz");
+    unsigned int matr_samp = (unsigned int)program.get<unsigned long>("mat_nonz");
+    unsigned int max_n_dets = (unsigned int)program.get<unsigned long>("max_dets");
+    unsigned int max_iter = (unsigned int)program.get<unsigned long>("--max_iter");
+    float init_thresh = program.get<float>("--initiator");
+    const char *result_dir = program.get("--result_dir").c_str();
+    
+    const char *load_dir = NULL;
+    if (auto arg = program.present("--load_dir")) {
+        load_dir = arg.value().c_str();
     }
-    if (target_nonz == 0) {
-        fprintf(stderr, "Error: target number of nonzero vector elements not specified\n");
-        return 0;
+    const char *ini_path = NULL;
+    if (auto arg = program.present("--ini_vec")) {
+        ini_path = arg.value().c_str();
     }
-    if (matr_samp == 0) {
-        fprintf(stderr, "Error: target number of nonzero matrix elements not specified\n");
-        return 0;
+    const char *trial_path = NULL;
+    if (auto arg = program.present("--trial_vec")) {
+        trial_path = arg.value().c_str();
     }
-    if (max_n_dets == 0) {
-        fprintf(stderr, "Error: maximum number of determinants expected on each processor not specified.\n");
-        return 0;
+    const char *sgnv_path = NULL;
+    if (auto arg = program.present("--sign_vec")) {
+        sgnv_path = arg.value().c_str();
+    }
+    const char *determ_path = NULL;
+    if (auto arg = program.present("--det_space")) {
+        sgnv_path = arg.value().c_str();
+    }
+    
+    bool unbias = false;
+    if (program["--unbias"] == true) {
+        unbias = true;
     }
     
     h_dist qmc_dist;
-    if (!dist_str || strcmp(dist_str, "HB") == 0) {
+    if (dist_str.compare("HB") == 0) {
         qmc_dist = heat_bath;
     }
-    else if (strcmp(dist_str, "HB_unnorm") == 0) {
-        qmc_dist = unnorm_heat_bath;
-    }
     else {
-        fprintf(stderr, "Error: specified distribution for compressing Hamiltonian (%s) is not supported.\n", dist_str);
-        return 0;
+        qmc_dist = unnorm_heat_bath;
     }
     int new_hb = qmc_dist == unnorm_heat_bath;
     
