@@ -18,6 +18,7 @@
 #include <FRIES/ndarr.hpp>
 #include <FRIES/compress_utils.hpp>
 #include <vector>
+#include <functional>
 
 using namespace std;
 
