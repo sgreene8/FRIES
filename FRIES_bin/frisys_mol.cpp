@@ -26,7 +26,7 @@ int main(int argc, const char * argv[]) {
       .help("Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt");
     program.add_argument("target")
       .help("Target one-norm of solution vector")
-      .action(int_converter);
+      .action(float_converter);
     program.add_argument("--distribution")
       .help("Hamiltonian factorization to use, either heat-bath Power-Pitzer (HB) or unnormalized heat-bath Power-Pitzer (HB_unnorm)")
       .default_value(std::string("HB_unnorm"))
@@ -60,8 +60,6 @@ int main(int argc, const char * argv[]) {
       .help("Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files).");
     program.add_argument("--trial_vec")
       .help("Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text files).");
-    program.add_argument("--sign_vec")
-      .help("The vector to use to constrain the sign of the iterates. Can be 'HF' or a prefix for files containing the vector (files must have names <sgnv_path>dets and <sgnv_path>vals and be text files). If not specified, sign is not calculated.");
     program.add_argument("--det_space")
       .help("Path to a .txt file containing the determinants used to define the deterministic space to use in a semistochastic calculation.");
     program.add_argument("--max_iter")
@@ -83,7 +81,7 @@ int main(int argc, const char * argv[]) {
     }
     
     const char *hf_path = program.get("hf_path").c_str();
-    unsigned long tmp_norm = program.get<unsigned long>("target");
+    double target_norm = program.get<float>("target");
     const std::string dist_str = program.get("--distribution");
     unsigned int target_nonz = (unsigned int)program.get<unsigned long>("vec_nonz");
     unsigned int matr_samp = (unsigned int)program.get<unsigned long>("mat_nonz");
@@ -104,13 +102,9 @@ int main(int argc, const char * argv[]) {
     if (auto arg = program.present("--trial_vec")) {
         trial_path = arg.value().c_str();
     }
-    const char *sgnv_path = NULL;
-    if (auto arg = program.present("--sign_vec")) {
-        sgnv_path = arg.value().c_str();
-    }
     const char *determ_path = NULL;
     if (auto arg = program.present("--det_space")) {
-        sgnv_path = arg.value().c_str();
+        determ_path = arg.value().c_str();
     }
     
     bool unbias = false;
@@ -126,8 +120,6 @@ int main(int argc, const char * argv[]) {
         qmc_dist = unnorm_heat_bath;
     }
     int new_hb = qmc_dist == unnorm_heat_bath;
-    
-    double target_norm = tmp_norm;
     
     int n_procs = 1;
     int proc_rank = 0;
@@ -261,46 +253,6 @@ int main(int argc, const char * argv[]) {
         htrial_hashes[det_idx] = sol_vec.idx_to_hash(htrial_vec.indices()[det_idx], tmp_orbs);
     }
     
-    Matrix<uint8_t> sgnv_dets(0, det_size);
-    double *sgnv_vals = NULL;
-    uintmax_t *sgn_hashes = nullptr;
-    unsigned int n_sgnv = 0;
-    if (sgnv_path) {
-        if (strcasecmp(sgnv_path, "HF") == 0) {
-            sgnv_dets.reshape(1, det_size);
-            sgnv_vals = (double *)malloc(sizeof(double));
-            n_sgnv = 1;
-            
-            memcpy(sgnv_dets[0], hf_det, det_size);
-            sgnv_vals[0] = 1;
-        }
-        else {
-            Matrix<uint8_t> &load_dets = sol_vec.indices();
-            double *load_vals = (double *)sol_vec.values();
-            
-            n_sgnv = (unsigned int)load_vec_txt(sgnv_path, load_dets, load_vals, DOUB);
-#ifdef USE_MPI
-            MPI_Bcast(&n_sgnv, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-#endif
-            sgnv_dets.reshape(n_sgnv, det_size);
-            sgnv_vals = (double *)malloc(sizeof(double) * n_sgnv);
-            
-            if (proc_rank == 0) {
-                memcpy(sgnv_dets.data(), load_dets.data(), det_size * n_sgnv);
-                memcpy(sgnv_vals, load_vals, sizeof(double) * n_sgnv);
-            }
-        }
-#ifdef USE_MPI
-        MPI_Bcast(sgnv_dets.data(), n_sgnv * det_size, MPI_UINT8_T, 0, MPI_COMM_WORLD);
-        MPI_Bcast(sgnv_vals, n_sgnv, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-#endif
-        
-        sgn_hashes = (uintmax_t *)malloc(sizeof(uintmax_t) * n_sgnv);
-        for (det_idx = 0; det_idx < n_sgnv; det_idx++) {
-            sgn_hashes[det_idx] = sol_vec.idx_to_hash(sgnv_dets[det_idx], tmp_orbs);
-        }
-    }
-    
     // Count # single/double excitations from HF
     sol_vec.gen_orb_list(hf_det, tmp_orbs);
     size_t n_hf_doub = doub_ex_symm(hf_det, tmp_orbs, n_elec_unf, n_orb, orb_indices1, symm);
@@ -313,7 +265,6 @@ int main(int argc, const char * argv[]) {
     FILE *shift_file = NULL;
     FILE *norm_file = NULL;
     FILE *nkept_file = NULL;
-    FILE *sign_file = NULL;
     FILE *ini_file = NULL;
     FILE *time_file = NULL;
     
@@ -376,9 +327,6 @@ int main(int argc, const char * argv[]) {
         strcpy(file_path, result_dir);
         strcat(file_path, "projden.txt");
         den_file = fopen(file_path, "a");
-        strcpy(file_path, result_dir);
-        strcat(file_path, "sign.txt");
-        sign_file = fopen(file_path, "a");
         strcpy(file_path, result_dir);
         strcat(file_path, "S.txt");
         shift_file = fopen(file_path, "a");
@@ -934,23 +882,6 @@ int main(int argc, const char * argv[]) {
             fprintf(ini_file, "%zu\n", n_ini);
         }
         
-        // Calculate sign of iterate
-        if (n_sgnv) {
-            double d_prod = sol_vec.dot(sgnv_dets, sgnv_vals, n_sgnv, sgn_hashes);
-#ifdef USE_MPI
-            MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
-#else
-            recv_nums[0] = d_prod;
-#endif
-            if (proc_rank == hf_proc) {
-                d_prod = 0;
-                for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-                    d_prod += recv_nums[proc_idx];
-                }
-                fprintf(sign_file, "%lf\n", d_prod);
-            }
-        }
-        
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
@@ -973,7 +904,6 @@ int main(int argc, const char * argv[]) {
                 fflush(den_file);
                 fflush(shift_file);
                 fflush(nkept_file);
-                fflush(sign_file);
                 printf("Total additions to nonzero: %" PRIu64 "\n", tot_add);
             }
         }
@@ -984,7 +914,6 @@ int main(int argc, const char * argv[]) {
         fclose(den_file);
         fclose(shift_file);
         fclose(nkept_file);
-        fclose(sign_file);
     }
 #ifdef USE_MPI
     MPI_Finalize();

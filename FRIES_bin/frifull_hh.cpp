@@ -13,15 +13,9 @@
 #include <FRIES/io_utils.hpp>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/compress_utils.hpp>
-#include <FRIES/Ext_Libs/argparse.h>
+#include <FRIES/Ext_Libs/argparse.hpp>
 #include <FRIES/Hamiltonians/hub_holstein.hpp>
 #include <FRIES/hh_vec.hpp>
-
-static const char *const usage[] = {
-    "frisys_hh [options] [[--] args]",
-    "frisys_hh [options]",
-    NULL,
-};
 
 int main(int argc, const char * argv[]) {
     int n_procs = 1;
@@ -33,46 +27,54 @@ int main(int argc, const char * argv[]) {
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
 #endif
     
-    const char *params_path = NULL;
-    const char *result_dir = "./";
+    argparse::ArgumentParser program("FRI without matrix compression for Hubbard-Holstein");
+    auto int_converter = [](const std::string &value) {return std::stoul(value);};
+    auto float_converter = [](const std::string &value) {return std::stof(value);};
+    program.add_argument("params_path").help("Path to the file that contains the parameters defining the Hamiltonian, number of electrons, number of sites, etc.");
+    program.add_argument("target")
+    .help("Target one-norm of solution vector")
+    .action(float_converter);
+    program.add_argument("vec_nonz")
+    .help("Target number of nonzero vector elements to keep after each iteration")
+    .action(int_converter);
+    program.add_argument("--result_dir")
+    .help("Directory in which to save output files")
+    .default_value(std::string("./"));
+    program.add_argument("--load_dir")
+    .help("Directory from which to load checkpoint files from a previous systematic FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load()).");
+    program.add_argument("--max_iter")
+      .help("Maximum number of iterations to run the calculation.")
+      .default_value(std::string("1000000"))
+      .action(int_converter);
+      program.add_argument("max_dets")
+      .help("Maximum number of determinants on a single MPI process.")
+      .action(int_converter);
+      program.add_argument("--initiator")
+        .help("Magnitude of vector element required to make it an initiator.")
+        .default_value(std::string("0"))
+        .action(float_converter);
+    
+    try {
+        program.parse_args(argc, argv);
+    }
+    catch (const std::runtime_error& err) {
+      std::cout << err.what() << std::endl;
+      std::cout << program;
+      exit(0);
+    }
+    
+    const char *params_path = program.get("hf_path").c_str();
+    double target_norm = program.get<float>("target");
+    const char *result_dir = program.get("--result_dir").c_str();
+    
     const char *load_dir = NULL;
-    unsigned int target_nonz = 0;
-    unsigned int max_n_dets = 0;
-    unsigned int init_thresh = 0;
-    unsigned int tmp_norm = 0;
-    unsigned int max_iter = 1000000;
-    struct argparse_option options[] = {
-        OPT_HELP(),
-        OPT_STRING('d', "params_path", &params_path, "Path to the file that contains the parameters defining the Hamiltonian, number of electrons, number of sites, etc."),
-        OPT_INTEGER('t', "target", &tmp_norm, "Target one-norm of solution vector"),
-        OPT_INTEGER('m', "vec_nonz", &target_nonz, "Target number of nonzero vector elements to keep after each iteration"),
-        OPT_STRING('y', "result_dir", &result_dir, "Directory in which to save output files"),
-        OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
-        OPT_INTEGER('i', "initiator", &init_thresh, "Number of walkers on a determinant required to make it an initiator."),
-        OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())."),
-        OPT_INTEGER('I', "max_iter", &max_iter, "Maximum number of iterations to run the calculation."),
-        OPT_END(),
-    };
-    
-    struct argparse argparse;
-    argparse_init(&argparse, options, usage, 0);
-    argparse_describe(&argparse, "\nPerform an FCIQMC calculation.", "");
-    argc = argparse_parse(&argparse, argc, argv);
-    
-    if (params_path == NULL) {
-        fprintf(stderr, "Error: parameter file not specified.\n");
-        return 0;
+    if (auto arg = program.present("--load_dir")) {
+        load_dir = arg.value().c_str();
     }
-    if (target_nonz == 0) {
-        fprintf(stderr, "Error: target number of nonzero vector elements not specified\n");
-        return 0;
-    }
-    if (max_n_dets == 0) {
-        fprintf(stderr, "Error: maximum number of determinants expected on each processor not specified.\n");
-        return 0;
-    }
-    
-    double target_norm = tmp_norm;
+    unsigned int target_nonz = (unsigned int)program.get<unsigned long>("vec_nonz");
+    unsigned int max_n_dets = (unsigned int)program.get<unsigned long>("max_dets");
+    float init_thresh = program.get<float>("--initiator");
+    unsigned int max_iter = (unsigned int)program.get<unsigned long>("--max_iter");
     
     // Parameters
     double shift_damping = 0.05;
@@ -180,7 +182,7 @@ int main(int argc, const char * argv[]) {
         strcpy(file_path, result_dir);
         strcat(file_path, "params.txt");
         FILE *param_f = fopen(file_path, "w");
-        fprintf(param_f, "FRI calculation\nHubbard-Holstein parameters path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nInitiator threshold: %u\nVector nonzero: %u\n", params_path, eps, target_norm, init_thresh, target_nonz);
+        fprintf(param_f, "FRI calculation\nHubbard-Holstein parameters path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nInitiator threshold: %f\nVector nonzero: %u\n", params_path, eps, target_norm, init_thresh, target_nonz);
         if (load_dir) {
             fprintf(param_f, "Restarting calculation from %s\n", load_dir);
         }

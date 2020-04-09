@@ -12,80 +12,98 @@
 #include <FRIES/io_utils.hpp>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/compress_utils.hpp>
-#include <FRIES/Ext_Libs/argparse.h>
+#include <FRIES/Ext_Libs/argparse.hpp>
 #include <FRIES/Hamiltonians/heat_bathPP.hpp>
 #include <FRIES/Hamiltonians/molecule.hpp>
-#define max_iter 10000000
-
-static const char *const usage[] = {
-    "frimulti_mol [options] [[--] args]",
-    "frimulti_mol [options]",
-    NULL,
-};
-
 
 int main(int argc, const char * argv[]) {
-    const char *hf_path = NULL;
-    const char *dist_str = NULL;
-    const char *result_dir = "./";
+    argparse::ArgumentParser program("systematic FRI for molecules");
+    auto int_converter = [](const std::string &value) {return std::stoul(value);};
+    auto float_converter = [](const std::string &value) {return std::stof(value);};
+    program.add_argument("hf_path")
+      .help("Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt");
+    program.add_argument("target")
+      .help("Target one-norm of solution vector")
+      .action(float_converter);
+      program.add_argument("--distribution")
+      .help("Distribution to use to compress the Hamiltonian, either near-uniform (NU) or heat-bath Power-Pitzer (HB)")
+      .default_value(std::string("NU"))
+      .action([](const std::string &value) {
+          static const std::vector<std::string> choices = { "NU", "HB" };
+          if (std::find(choices.begin(), choices.end(), value) != choices.end()) {
+              return value;
+          }
+          std::cout << "Using NU distrbution" << std::endl;
+          return std::string{ "NU" };
+      });
+    program.add_argument("vec_nonz")
+      .help("Target number of nonzero vector elements to keep after each iteration")
+      .action(int_converter);
+    program.add_argument("mat_nonz")
+      .help("Target number of nonzero matrix elements to use in compression operations")
+      .action(int_converter);
+    program.add_argument("max_dets")
+    .help("Maximum number of determinants on a single MPI process.")
+    .action(int_converter);
+    program.add_argument("--result_dir")
+      .help("Directory in which to save output files")
+      .default_value(std::string("./"));
+    program.add_argument("--initiator")
+      .help("Magnitude of vector element required to make it an initiator.")
+      .default_value(std::string("0"))
+      .action(float_converter);
+    program.add_argument("--load_dir")
+      .help("Directory from which to load checkpoint files from a previous systematic FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load()).");
+    program.add_argument("--ini_vec")
+      .help("Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files).");
+    program.add_argument("--trial_vec")
+      .help("Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text files).");
+    program.add_argument("--det_space")
+      .help("Path to a .txt file containing the determinants used to define the deterministic space to use in a semistochastic calculation.");
+    program.add_argument("--max_iter")
+      .help("Maximum number of iterations to run the calculation.")
+      .default_value(std::string("1000000"))
+      .action(int_converter);
+    
+    try {
+        program.parse_args(argc, argv);
+    }
+    catch (const std::runtime_error& err) {
+      std::cout << err.what() << std::endl;
+      std::cout << program;
+      exit(0);
+    }
+    
+    const char *hf_path = program.get("hf_path").c_str();
+    const std::string dist_str = program.get("--distribution");
+    const char *result_dir = program.get("--result_dir").c_str();
+    unsigned int target_nonz = (unsigned int)program.get<unsigned long>("vec_nonz");
+    unsigned int matr_samp = (unsigned int)program.get<unsigned long>("mat_nonz");
+    unsigned int max_n_dets = (unsigned int)program.get<unsigned long>("max_dets");
+    unsigned int max_iter = (unsigned int)program.get<unsigned long>("--max_iter");
+    float init_thresh = program.get<float>("--initiator");
+    double target_norm = program.get<float>("target");
+    
     const char *load_dir = NULL;
-    const char *trial_path = NULL;
+    if (auto arg = program.present("--load_dir")) {
+        load_dir = arg.value().c_str();
+    }
     const char *ini_path = NULL;
-    unsigned int target_nonz = 0;
-    unsigned int matr_samp = 0;
-    unsigned int max_n_dets = 0;
-    unsigned int init_thresh = 0;
-    unsigned int tmp_norm = 0;
-    struct argparse_option options[] = {
-        OPT_HELP(),
-        OPT_STRING('d', "hf_path", &hf_path, "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt"),
-        OPT_INTEGER('t', "target", &tmp_norm, "Target one-norm of solution vector"),
-        OPT_STRING('q', "distribution", &dist_str, "Distribution to use to compress the Hamiltonian, either near-uniform (NU) or heat-bath Power-Pitzer (HB)"),
-        OPT_INTEGER('m', "vec_nonz", &target_nonz, "Target number of nonzero vector elements to keep after each iteration"),
-        OPT_INTEGER('M', "mat_nonz", &matr_samp, "Target number of nonzero matrix elements to keep after each iteration"),
-        OPT_STRING('y', "result_dir", &result_dir, "Directory in which to save output files"),
-        OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
-        OPT_INTEGER('i', "initiator", &init_thresh, "Magnitude of vector element required to make the corresponding determinant an initiator."),
-        OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())."),
-        OPT_STRING('n', "ini_vec", &ini_path, "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)."),
-        OPT_STRING('t', "trial_vec", &trial_path, "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text files)."),
-        OPT_END(),
-    };
+    if (auto arg = program.present("--ini_vec")) {
+        ini_path = arg.value().c_str();
+    }
+    const char *trial_path = NULL;
+    if (auto arg = program.present("--trial_vec")) {
+        trial_path = arg.value().c_str();
+    }
     
-    struct argparse argparse;
-    argparse_init(&argparse, options, usage, 0);
-    argparse_describe(&argparse, "\nPerform an FCIQMC calculation.", "");
-    argc = argparse_parse(&argparse, argc, argv);
-    
-    if (hf_path == NULL) {
-        fprintf(stderr, "Error: HF directory not specified.\n");
-        return 0;
-    }
-    if (target_nonz == 0) {
-        fprintf(stderr, "Error: target number of nonzero vector elements not specified\n");
-        return 0;
-    }
-    if (matr_samp == 0) {
-        fprintf(stderr, "Error: target number of nonzero matrix elements not specified\n");
-        return 0;
-    }
-    if (max_n_dets == 0) {
-        fprintf(stderr, "Error: maximum number of determinants expected on each processor not specified.\n");
-        return 0;
-    }
     h_dist fri_dist;
-    if (strcmp(dist_str, "NU") == 0) {
+    if (dist_str.compare("NU") == 0) {
         fri_dist = near_uni;
     }
-    else if (strcmp(dist_str, "HB") == 0) {
+    else {
         fri_dist = heat_bath;
     }
-    else {
-        fprintf(stderr, "Error: specified distribution for compressing Hamiltonian (%s) is not supported.\n", dist_str);
-        return 0;
-    }
-    
-    double target_norm = tmp_norm;
     
     int n_procs = 1;
     int proc_rank = 0;
@@ -124,7 +142,7 @@ int main(int argc, const char * argv[]) {
     
     // Solution vector
     unsigned int spawn_length = matr_samp * 2 / n_procs / n_procs;
-    DistVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
+    DistVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, NULL, NULL);
     size_t det_size = CEILING(2 * n_orb, 8);
     size_t det_idx;
     
@@ -175,8 +193,8 @@ int main(int argc, const char * argv[]) {
     else {
         n_trial = 1;
     }
-    DistVec<double> trial_vec(n_trial, n_trial, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
-    DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
+    DistVec<double> trial_vec(n_trial, n_trial, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, NULL, NULL);
+    DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, NULL, NULL);
     trial_vec.proc_scrambler_ = proc_scrambler;
     htrial_vec.proc_scrambler_ = proc_scrambler;
     if (trial_path) { // load trial vector from file
@@ -288,7 +306,7 @@ int main(int argc, const char * argv[]) {
         strcpy(file_path, result_dir);
         strcat(file_path, "params.txt");
         FILE *param_f = fopen(file_path, "w");
-        fprintf(param_f, "FRI calculation\nHF path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nInitiator threshold: %u\nMatrix nonzero: %u\nVector nonzero: %u\n", hf_path, eps, target_norm, init_thresh, matr_samp, target_nonz);
+        fprintf(param_f, "FRI calculation\nHF path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nInitiator threshold: %.2f\nMatrix nonzero: %u\nVector nonzero: %u\n", hf_path, eps, target_norm, init_thresh, matr_samp, target_nonz);
         if (load_dir) {
             fprintf(param_f, "Restarting calculation from %s\n", load_dir);
         }
