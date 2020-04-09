@@ -9,7 +9,6 @@ list(APPEND FRIES_FILELIST
         Hamiltonians/molecule.cpp
         io_utils.cpp
         math_utils.c
-        Ext_Libs/argparse.c
         Ext_Libs/csvparser.c)
 
 add_library(fries SHARED ${FRIES_FILELIST})

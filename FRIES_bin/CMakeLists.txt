@@ -11,9 +11,6 @@ target_link_libraries(frimulti_mol PRIVATE fries)
 add_executable(frisys_mol frisys_mol.cpp)
 target_link_libraries(frisys_mol PRIVATE fries)
 
-add_executable(fciqmc_hh fciqmc_hh.cpp)
-target_link_libraries(fciqmc_hh PRIVATE fries)
-
 add_executable(frifull_hh frifull_hh.cpp)
 target_link_libraries(frifull_hh PRIVATE fries)
 
@@ -23,7 +20,6 @@ install(
         fciqmc_fp_mol
         frimulti_mol
         frisys_mol
-        fciqmc_hh
         frifull_hh
     RUNTIME
         DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}
