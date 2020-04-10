@@ -178,13 +178,8 @@ TEST_CASE("Test calculation of overlap with neel state in Hubbard-Holstein", "[n
     bit_str2[2] = 160;
     bit_str2[3] = 10;
     bit_str2[4] = 0;
+    bzero(&bit_str2[5], 5);
     // Returning correct neel state
-    printf("neel[0]: %u\n", bit_str1[0]);
-    printf("neel[1]: %u\n", bit_str1[1]);
-    printf("neel[2]: %u\n", bit_str1[2]);
-    printf("neel[3]: %u\n", bit_str1[3]);
-    printf("neel[4]: %u\n", bit_str1[4]);
-    printf("size: %u\n", det_size);
     REQUIRE(bit_str_equ(bit_str1, bit_str2, det_size));
     
     // Diagonal element for neel state should be zero
