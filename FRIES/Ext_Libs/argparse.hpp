@@ -43,7 +43,7 @@ SOFTWARE.
 #include <type_traits>
 #include <variant>
 #include <vector>
-#include <charconv>
+//#include <charconv>
 
 namespace argparse {
 
@@ -137,8 +137,9 @@ constexpr auto consume_hex_prefix(std::string_view s)
   }
 }
 
+
 template <class T, auto Param>
-inline auto do_from_chars(std::string_view s) -> T {
+inline auto do_from_chars(std::string_view s) -> T;/* {
   T x;
   auto [first, last] = pointer_range(s);
   auto [ptr, ec] = std::from_chars(first, last, x, Param);
@@ -154,6 +155,16 @@ inline auto do_from_chars(std::string_view s) -> T {
   } else {
     return x; // unreachable
   }
+}*/
+
+template<> inline auto do_from_chars<int, 16>(std::string_view s) -> int {
+    const std::string str(s);
+    return std::stoi(str, 0, 16);
+}
+
+template<> inline auto do_from_chars<int, 10>(std::string_view s) -> int {
+    const std::string str(s);
+    return std::stoi(str, 0, 10);
 }
 
 template <class T, auto Param = 0> struct parse_number {
