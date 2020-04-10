@@ -13,7 +13,7 @@ script:
 - cd build
 - cmake .. -DCMAKE_INSTALL_PREFIX=~/local
 - make install
-- ctest
+- ctest  --verbose
 - cd ..
 - mkdir build_examples
 - cd build_examples
