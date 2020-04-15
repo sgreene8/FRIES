@@ -21,12 +21,12 @@
 int main(int argc, const char * argv[]) {
     argparse::ArgumentParser program("systematic FRI for molecules");
     auto int_converter = [](const std::string &value) {return std::stoul(value);};
-    auto float_converter = [](const std::string &value) {return std::stof(value);};
+    auto doub_converter = [](const std::string& value) { return std::stod(value); };
     program.add_argument("hf_path")
       .help("Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt");
     program.add_argument("target")
       .help("Target one-norm of solution vector")
-      .action(float_converter);
+      .action(doub_converter);
     program.add_argument("--distribution")
       .help("Hamiltonian factorization to use, either heat-bath Power-Pitzer (HB) or unnormalized heat-bath Power-Pitzer (HB_unnorm)")
       .default_value(std::string("HB_unnorm"))
@@ -52,8 +52,8 @@ int main(int argc, const char * argv[]) {
       .default_value(std::string("./"));
     program.add_argument("--initiator")
       .help("Magnitude of vector element required to make it an initiator.")
-      .default_value(std::string("0"))
-      .action(float_converter);
+      .default_value(0.0)
+      .action(doub_converter);
     program.add_argument("--load_dir")
       .help("Directory from which to load checkpoint files from a previous systematic FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load()).");
     program.add_argument("--ini_vec")
@@ -64,7 +64,7 @@ int main(int argc, const char * argv[]) {
       .help("Path to a .txt file containing the determinants used to define the deterministic space to use in a semistochastic calculation.");
     program.add_argument("--max_iter")
       .help("Maximum number of iterations to run the calculation.")
-      .default_value(std::string("1000000"))
+      .default_value((unsigned long) 1000000)
       .action(int_converter);
     program.add_argument("--unbias")
       .help("'Unbias' the initiator approximation.")
@@ -81,13 +81,13 @@ int main(int argc, const char * argv[]) {
     }
     
     const char *hf_path = program.get("hf_path").c_str();
-    double target_norm = program.get<float>("target");
+    double target_norm = program.get<double>("target");
     const std::string dist_str = program.get("--distribution");
     unsigned int target_nonz = (unsigned int)program.get<unsigned long>("vec_nonz");
     unsigned int matr_samp = (unsigned int)program.get<unsigned long>("mat_nonz");
     unsigned int max_n_dets = (unsigned int)program.get<unsigned long>("max_dets");
     unsigned int max_iter = (unsigned int)program.get<unsigned long>("--max_iter");
-    float init_thresh = program.get<float>("--initiator");
+    double init_thresh = program.get<double>("--initiator");
     const char *result_dir = program.get("--result_dir").c_str();
     
     const char *load_dir = NULL;
