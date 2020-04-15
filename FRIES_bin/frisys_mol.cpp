@@ -90,21 +90,21 @@ int main(int argc, const char * argv[]) {
     double init_thresh = program.get<double>("--initiator");
     const char *result_dir = program.get("--result_dir").c_str();
     
-    const char *load_dir = NULL;
+    std::string load_dir;
     if (auto arg = program.present("--load_dir")) {
-        load_dir = arg.value().c_str();
+        load_dir = arg.value();
     }
-    const char *ini_path = NULL;
+    std::string ini_path;
     if (auto arg = program.present("--ini_vec")) {
-        ini_path = arg.value().c_str();
+        ini_path = arg.value();
     }
-    const char *trial_path = NULL;
+    std::string trial_path;
     if (auto arg = program.present("--trial_vec")) {
-        trial_path = arg.value().c_str();
+        trial_path = arg.value();
     }
-    const char *determ_path = NULL;
+    std::string determ_path;
     if (auto arg = program.present("--det_space")) {
-        determ_path = arg.value().c_str();
+        determ_path = arg.value();
     }
     
     bool unbias = false;
@@ -186,8 +186,8 @@ int main(int argc, const char * argv[]) {
     double loc_norm, glob_norm;
     double last_norm = 0;
     
-    if (load_dir) {
-        load_proc_hash(load_dir, proc_scrambler);
+    if (load_dir.length()) {
+        load_proc_hash(load_dir.c_str(), proc_scrambler);
     }
     else {
         if (proc_rank == 0) {
@@ -214,8 +214,8 @@ int main(int argc, const char * argv[]) {
     size_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
     Matrix<uint8_t> &load_dets = sol_vec.indices();
     double *load_vals = (double *)sol_vec.values();
-    if (trial_path) { // load trial vector from file
-        n_trial = load_vec_txt(trial_path, load_dets, load_vals, DOUB);
+    if (trial_path.length()) { // load trial vector from file
+        n_trial = load_vec_txt(trial_path.c_str(), load_dets, load_vals, DOUB);
     }
     else {
         n_trial = 1;
@@ -224,7 +224,7 @@ int main(int argc, const char * argv[]) {
     DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, NULL, NULL);
     trial_vec.proc_scrambler_ = proc_scrambler;
     htrial_vec.proc_scrambler_ = proc_scrambler;
-    if (trial_path) { // load trial vector from file
+    if (trial_path.length()) { // load trial vector from file
         for (det_idx = 0; det_idx < n_trial; det_idx++) {
             trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
             htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
@@ -269,17 +269,17 @@ int main(int argc, const char * argv[]) {
     FILE *time_file = NULL;
     
     size_t n_determ = 0; // Number of deterministic determinants on this process
-    if (!load_dir && determ_path) {
-        n_determ = sol_vec.init_dense(determ_path, result_dir);
+    if (!load_dir.length() && determ_path.length()) {
+        n_determ = sol_vec.init_dense(determ_path.c_str(), result_dir);
     }
     
 #pragma mark Initialize solution vector
-    if (load_dir) {
-        n_determ = sol_vec.load(load_dir);
+    if (load_dir.length()) {
+        n_determ = sol_vec.load(load_dir.c_str());
         
         // load energy shift (see https://stackoverflow.com/questions/13790662/c-read-only-last-line-of-a-file-no-loops)
         static const long max_len = 20;
-        sprintf(file_path, "%sS.txt", load_dir);
+        sprintf(file_path, "%sS.txt", load_dir.c_str());
         shift_file = fopen(file_path, "rb");
         fseek(shift_file, -max_len, SEEK_END);
         fread(file_path, max_len, 1, shift_file);
@@ -292,11 +292,11 @@ int main(int argc, const char * argv[]) {
         
         sscanf(last_line, "%lf", &en_shift);
     }
-    else if (ini_path) {
+    else if (ini_path.length()) {
         Matrix<uint8_t> load_dets(max_n_dets, det_size);
         double *load_vals = (double *)sol_vec.values();
         
-        size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, DOUB);
+        size_t n_dets = load_vec_txt(ini_path.c_str(), load_dets, load_vals, DOUB);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
             sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
@@ -312,7 +312,7 @@ int main(int argc, const char * argv[]) {
     sol_vec.perform_add();
     loc_norm = sol_vec.local_norm();
     glob_norm = sum_mpi(loc_norm, proc_rank, n_procs);
-    if (load_dir) {
+    if (load_dir.length()) {
         last_norm = glob_norm;
     }
     
@@ -349,11 +349,11 @@ int main(int argc, const char * argv[]) {
         strcat(file_path, "params.txt");
         FILE *param_f = fopen(file_path, "w");
         fprintf(param_f, "FRI calculation\nHF path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nInitiator threshold: %f\nMatrix nonzero: %u\nVector nonzero: %u\n", hf_path, eps, target_norm, init_thresh, matr_samp, target_nonz);
-        if (load_dir) {
-            fprintf(param_f, "Restarting calculation from %s\n", load_dir);
+        if (load_dir.length()) {
+            fprintf(param_f, "Restarting calculation from %s\n", load_dir.c_str());
         }
-        else if (ini_path) {
-            fprintf(param_f, "Initializing calculation from vector files with prefix %s\n", ini_path);
+        else if (ini_path.length()) {
+            fprintf(param_f, "Initializing calculation from vector files with prefix %s\n", ini_path.c_str());
         }
         else {
             fprintf(param_f, "Initializing calculation from HF unit vector\n");
