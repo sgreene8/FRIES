@@ -18,6 +18,12 @@
 #include <FRIES/Hamiltonians/heat_bathPP.hpp>
 #include <FRIES/Hamiltonians/molecule.hpp>
 
+static const char *const usage[] = {
+    "frisys_mol [options] [[--] args]",
+    "frisys_mol [options]",
+    NULL,
+};
+
 int main(int argc, const char * argv[]) {
     const char *hf_path = NULL;
     const char *dist_str = NULL;
@@ -54,19 +60,42 @@ int main(int argc, const char * argv[]) {
         OPT_END(),
     };
     
-    bool unbias = false;
-    if (program["--unbias"] == true) {
-        unbias = true;
+    struct argparse argparse;
+    argparse_init(&argparse, options, usage, 0);
+    argparse_describe(&argparse, "\nPerform an FCIQMC calculation.", "");
+    argc = argparse_parse(&argparse, argc, argv);
+    
+    if (hf_path == NULL) {
+        fprintf(stderr, "Error: HF directory not specified.\n");
+        return 0;
+    }
+    if (target_nonz == 0) {
+        fprintf(stderr, "Error: target number of nonzero vector elements not specified\n");
+        return 0;
+    }
+    if (matr_samp == 0) {
+        fprintf(stderr, "Error: target number of nonzero matrix elements not specified\n");
+        return 0;
+    }
+    if (max_n_dets == 0) {
+        fprintf(stderr, "Error: maximum number of determinants expected on each processor not specified.\n");
+        return 0;
     }
     
     h_dist qmc_dist;
-    if (dist_str.compare("HB") == 0) {
+    if (!dist_str || strcmp(dist_str, "HB") == 0) {
         qmc_dist = heat_bath;
     }
-    else {
+    else if (strcmp(dist_str, "HB_unnorm") == 0) {
         qmc_dist = unnorm_heat_bath;
     }
+    else {
+        fprintf(stderr, "Error: specified distribution for compressing Hamiltonian (%s) is not supported.\n", dist_str);
+        return 0;
+    }
     int new_hb = qmc_dist == unnorm_heat_bath;
+    
+    double target_norm = tmp_norm;
     
     int n_procs = 1;
     int proc_rank = 0;
@@ -133,8 +162,8 @@ int main(int argc, const char * argv[]) {
     double loc_norm, glob_norm;
     double last_norm = 0;
     
-    if (load_dir.length()) {
-        load_proc_hash(load_dir.c_str(), proc_scrambler);
+    if (load_dir) {
+        load_proc_hash(load_dir, proc_scrambler);
     }
     else {
         if (proc_rank == 0) {
@@ -161,8 +190,8 @@ int main(int argc, const char * argv[]) {
     size_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
     Matrix<uint8_t> &load_dets = sol_vec.indices();
     double *load_vals = (double *)sol_vec.values();
-    if (trial_path.length()) { // load trial vector from file
-        n_trial = load_vec_txt(trial_path.c_str(), load_dets, load_vals, DOUB);
+    if (trial_path) { // load trial vector from file
+        n_trial = load_vec_txt(trial_path, load_dets, load_vals, DOUB);
     }
     else {
         n_trial = 1;
@@ -171,7 +200,7 @@ int main(int argc, const char * argv[]) {
     DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, NULL, NULL);
     trial_vec.proc_scrambler_ = proc_scrambler;
     htrial_vec.proc_scrambler_ = proc_scrambler;
-    if (trial_path.length()) { // load trial vector from file
+    if (trial_path) { // load trial vector from file
         for (det_idx = 0; det_idx < n_trial; det_idx++) {
             trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
             htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
@@ -216,17 +245,17 @@ int main(int argc, const char * argv[]) {
     FILE *time_file = NULL;
     
     size_t n_determ = 0; // Number of deterministic determinants on this process
-    if (!load_dir.length() && determ_path.length()) {
-        n_determ = sol_vec.init_dense(determ_path.c_str(), result_dir);
+    if (!load_dir && determ_path) {
+        n_determ = sol_vec.init_dense(determ_path, result_dir);
     }
     
 #pragma mark Initialize solution vector
-    if (load_dir.length()) {
-        n_determ = sol_vec.load(load_dir.c_str());
+    if (load_dir) {
+        n_determ = sol_vec.load(load_dir);
         
         // load energy shift (see https://stackoverflow.com/questions/13790662/c-read-only-last-line-of-a-file-no-loops)
         static const long max_len = 20;
-        sprintf(file_path, "%sS.txt", load_dir.c_str());
+        sprintf(file_path, "%sS.txt", load_dir);
         shift_file = fopen(file_path, "rb");
         fseek(shift_file, -max_len, SEEK_END);
         fread(file_path, max_len, 1, shift_file);
@@ -239,11 +268,11 @@ int main(int argc, const char * argv[]) {
         
         sscanf(last_line, "%lf", &en_shift);
     }
-    else if (ini_path.length()) {
+    else if (ini_path) {
         Matrix<uint8_t> load_dets(max_n_dets, det_size);
         double *load_vals = (double *)sol_vec.values();
         
-        size_t n_dets = load_vec_txt(ini_path.c_str(), load_dets, load_vals, DOUB);
+        size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, DOUB);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
             sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
@@ -259,7 +288,7 @@ int main(int argc, const char * argv[]) {
     sol_vec.perform_add();
     loc_norm = sol_vec.local_norm();
     glob_norm = sum_mpi(loc_norm, proc_rank, n_procs);
-    if (load_dir.length()) {
+    if (load_dir) {
         last_norm = glob_norm;
     }
     
@@ -296,11 +325,11 @@ int main(int argc, const char * argv[]) {
         strcat(file_path, "params.txt");
         FILE *param_f = fopen(file_path, "w");
         fprintf(param_f, "FRI calculation\nHF path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nInitiator threshold: %f\nMatrix nonzero: %u\nVector nonzero: %u\n", hf_path, eps, target_norm, init_thresh, matr_samp, target_nonz);
-        if (load_dir.length()) {
-            fprintf(param_f, "Restarting calculation from %s\n", load_dir.c_str());
+        if (load_dir) {
+            fprintf(param_f, "Restarting calculation from %s\n", load_dir);
         }
-        else if (ini_path.length()) {
-            fprintf(param_f, "Initializing calculation from vector files with prefix %s\n", ini_path.c_str());
+        else if (ini_path) {
+            fprintf(param_f, "Initializing calculation from vector files with prefix %s\n", ini_path);
         }
         else {
             fprintf(param_f, "Initializing calculation from HF unit vector\n");
