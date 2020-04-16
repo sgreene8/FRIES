@@ -407,7 +407,7 @@ void save_proc_hash(const char *path, unsigned int *proc_hash, size_t n_hash) {
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 #endif
     
-    char buffer[100];
+    char buffer[300];
     if (my_rank == 0) {
         sprintf(buffer, "%shash.dat", path);
         FILE *file_p = fopen(buffer, "wb");
@@ -422,7 +422,7 @@ void save_proc_hash(const char *path, unsigned int *proc_hash, size_t n_hash) {
 
 
 void load_proc_hash(const char *path, unsigned int *proc_hash) {
-    char buffer[100];
+    char buffer[300];
     sprintf(buffer, "%shash.dat", path);
     FILE *file_p = fopen(buffer, "rb");
     if (!file_p) {

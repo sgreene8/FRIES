@@ -59,7 +59,9 @@ int main(int argc, const char * argv[]) {
     unsigned int target_nonz = (unsigned int)program.get<unsigned long>("vec_nonz");
     unsigned int max_n_dets = (unsigned int)program.get<unsigned long>("max_dets");
     unsigned int max_iter = (unsigned int)program.get<unsigned long>("--max_iter");
-    const char *result_dir = program.get("--result_dir").c_str();
+//    const char *result_dir = program.get("--result_dir").c_str();
+    char result_dir[300];
+    strcpy(result_dir, program.get("--result_dir").c_str());
     
     std::string load_dir;
     if (auto arg = program.present("--load_dir")) {
@@ -110,7 +112,7 @@ int main(int argc, const char * argv[]) {
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
     
     // Solution vector
-    unsigned int num_ex = n_elec_unf * n_elec_unf * (n_orb - n_elec_unf) * (n_procs - n_elec_unf);
+    unsigned int num_ex = n_elec_unf * n_elec_unf * (n_orb - n_elec_unf) * (n_orb - n_elec_unf);
     size_t adder_size = max_n_dets / n_procs * num_ex / n_procs / 8;
     DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, NULL, &en_shift);
     size_t det_size = CEILING(2 * n_orb, 8);
@@ -151,7 +153,7 @@ int main(int argc, const char * argv[]) {
     hf_proc = sol_vec.idx_to_proc(hf_det);
     
     uint8_t tmp_orbs[n_elec_unf];
-    uint8_t *orb_indices = (uint8_t *)malloc(sizeof(char) * 4 * num_ex / 4);
+    uint8_t *orb_indices = (uint8_t *)malloc(sizeof(char) * 4 * num_ex);
     
 # pragma mark Set up trial vector
     size_t n_trial;
