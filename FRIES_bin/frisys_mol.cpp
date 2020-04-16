@@ -657,14 +657,14 @@ int main(int argc, const char * argv[]) {
             while (glob_adding) {
                 size_t start_idx = samp_idx;
                 while (samp_idx < comp_len && num_added < adder_size) {
+                    weight_idx = comp_idx[samp_idx][0];
+                    det_idx = det_indices2[weight_idx];
                     double curr_val = sol_vec.value_cache()[det_idx];
                     uint8_t ini_flag = fabs(curr_val) >= init_thresh;
                     if (ini_flag != add_ini) {
                         samp_idx++;
                         continue;
                     }
-                    weight_idx = comp_idx[samp_idx][0];
-                    det_idx = det_indices2[weight_idx];
                     uint8_t *curr_det = sol_vec.indices()[det_idx];
                     uint8_t new_det[det_size];
 //            int determ_flag = det_idx < n_determ;
