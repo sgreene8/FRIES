@@ -39,7 +39,7 @@ int main(int argc, const char * argv[]) {
     float init_thresh = 0;
     unsigned int tmp_norm = 0;
     unsigned int max_iter = 1000000;
-    int unbias;
+    int unbias = 0;
     struct argparse_option options[] = {
         OPT_HELP(),
         OPT_STRING('d', "hf_path", &hf_path, "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt"),
@@ -816,6 +816,14 @@ int main(int argc, const char * argv[]) {
                     local_shift *= sol_vec.get_pacc(det_idx);
                 }
                 sol_vec.diag_cache_mult_(det_idx, 1 - eps * (*diag_el - local_shift));
+            }
+        }
+        
+        if (iterat == 1) {
+            char det_str[2 * det_size + 1];
+            for (size_t det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
+                print_str(sol_vec.indices()[det_idx], det_size, det_str);
+                printf("%s, %lf\n", det_str, sol_vec[det_idx][0]);
             }
         }
         
