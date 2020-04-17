@@ -31,7 +31,6 @@ int main(int argc, const char * argv[]) {
     const char *load_dir = NULL;
     const char *ini_path = NULL;
     const char *trial_path = NULL;
-    const char *sgnv_path = NULL;
     const char *determ_path = NULL;
     unsigned int target_nonz = 0;
     unsigned int matr_samp = 0;
@@ -53,7 +52,6 @@ int main(int argc, const char * argv[]) {
         OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous systematic FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())."),
         OPT_STRING('n', "ini_vec", &ini_path, "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)."),
         OPT_STRING('v', "trial_vec", &trial_path, "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text files)."),
-        OPT_STRING('s', "sign_vec", &sgnv_path, "The vector to use to constrain the sign of the iterates. Can be 'HF' or a prefix for files containing the vector (files must have names <sgnv_path>dets and <sgnv_path>vals and be text files). If not specified, sign is not calculated."),
         OPT_STRING('S', "det_space", &determ_path, "Path to a .txt file containing the determinants used to define the deterministic space to use in a semistochastic calculation."),
         OPT_INTEGER('I', "max_iter", &max_iter, "Maximum number of iterations to run the calculation."),
         OPT_BOOLEAN('u', "unbias", &unbias, "'Unbias' the initiator approximation."),
@@ -235,14 +233,13 @@ int main(int argc, const char * argv[]) {
     size_t n_hf_sing = count_singex(hf_det, tmp_orbs, symm, n_orb, symm_lookup, n_elec_unf);
     double p_doub = (double) n_hf_doub / (n_hf_sing + n_hf_doub);
     
-    char file_path[100];
+    char file_path[300];
     FILE *num_file = NULL;
     FILE *den_file = NULL;
     FILE *shift_file = NULL;
     FILE *norm_file = NULL;
     FILE *nkept_file = NULL;
     FILE *ini_file = NULL;
-    FILE *time_file = NULL;
     
     size_t n_determ = 0; // Number of deterministic determinants on this process
     if (!load_dir && determ_path) {
@@ -315,11 +312,6 @@ int main(int argc, const char * argv[]) {
         strcpy(file_path, result_dir);
         strcat(file_path, "nini.txt");
         ini_file = fopen(file_path, "a");
-        
-        strcpy(file_path, result_dir);
-        strcat(file_path, "time.txt");
-        time_file = fopen(file_path, "a");
-        fprintf(time_file, "%ld\n", time(NULL));
         
         strcpy(file_path, result_dir);
         strcat(file_path, "params.txt");

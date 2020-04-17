@@ -1,6 +1,6 @@
 /*! \file
  *
- * \brief Perform FRI without matrix compression on the Hubbard-Holstein model.
+ * \brief Perform FRI without matrix compression on the Hubbard-Holstein model, using systematic vector compression.
  *
  */
 
@@ -18,8 +18,8 @@
 #include <FRIES/hh_vec.hpp>
 
 static const char *const usage[] = {
-    "frisys_hh [options] [[--] args]",
-    "frisys_hh [options]",
+    "frifull_hh [options] [[--] args]",
+    "frifull_hh [options]",
     NULL,
 };
 

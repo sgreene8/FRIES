@@ -212,7 +212,7 @@ int main(int argc, const char * argv[]) {
     size_t n_hf_sing = count_singex(hf_det, tmp_orbs, symm, n_orb, symm_lookup, n_elec_unf);
     double p_doub = (double) n_hf_doub / (n_hf_sing + n_hf_doub);
     
-    char file_path[100];
+    char file_path[300];
     FILE *num_file = NULL;
     FILE *den_file = NULL;
     FILE *shift_file = NULL;

@@ -36,7 +36,6 @@ int main(int argc, const char * argv[]) {
     const char *load_dir = NULL;
     const char *ini_path = NULL;
     const char *trial_path = NULL;
-    const char *sgnv_path = NULL;
     unsigned int target_walkers = 0;
     unsigned int max_n_dets = 0;
     unsigned int init_thresh = 0;
@@ -52,7 +51,6 @@ int main(int argc, const char * argv[]) {
         OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous fciqmc calculation (in binary format, see documentation for DistVec::save() and DistVec::load())."),
         OPT_STRING('n', "ini_vec", &ini_path, "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)."),
         OPT_STRING('v', "trial_vec", &trial_path, "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text files)."),
-        OPT_STRING('s', "sign_vec", &sgnv_path, "The vector to use to constrain the sign of the iterates. Can be 'HF' or a prefix for files containing the vector (files must have names <sgnv_path>dets and <sgnv_path>vals and be text files). If not specified, sign is not calculated."),
         OPT_INTEGER('I', "max_iter", &max_iter, "Maximum number of iterations to run the calculation."),
         OPT_END(),
     };
@@ -206,46 +204,6 @@ int main(int argc, const char * argv[]) {
         htrial_hashes[det_idx] = sol_vec.idx_to_hash(htrial_vec.indices()[det_idx], tmp_orbs);
     }
     
-    Matrix<uint8_t> sgnv_dets(0, det_size);
-    double *sgnv_vals = NULL;
-    uintmax_t *sgn_hashes = nullptr;
-    unsigned int n_sgnv = 0;
-    if (sgnv_path) {
-        if (strcasecmp(sgnv_path, "HF") == 0) {
-            sgnv_dets.reshape(1, det_size);
-            sgnv_vals = (double *)malloc(sizeof(double));
-            n_sgnv = 1;
-            
-            memcpy(sgnv_dets[0], hf_det, det_size);
-            sgnv_vals[0] = 1;
-        }
-        else {
-            Matrix<uint8_t> &load_dets = sol_vec.indices();
-            double *load_vals = (double *)sol_vec.values();
-            
-            n_sgnv = (unsigned int)load_vec_txt(sgnv_path, load_dets, load_vals, DOUB);
-#ifdef USE_MPI
-            MPI_Bcast(&n_sgnv, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-#endif
-            sgnv_dets.reshape(n_sgnv, det_size);
-            sgnv_vals = (double *)malloc(sizeof(double) * n_sgnv);
-            
-            if (proc_rank == 0) {
-                memcpy(sgnv_dets.data(), load_dets.data(), det_size * n_sgnv);
-                memcpy(sgnv_vals, load_vals, sizeof(double) * n_sgnv);
-            }
-        }
-#ifdef USE_MPI
-        MPI_Bcast(sgnv_dets.data(), n_sgnv * det_size, MPI_UINT8_T, 0, MPI_COMM_WORLD);
-        MPI_Bcast(sgnv_vals, n_sgnv, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-#endif
-        
-        sgn_hashes = (uintmax_t *)malloc(sizeof(uintmax_t) * n_sgnv);
-        for (det_idx = 0; det_idx < n_sgnv; det_idx++) {
-            sgn_hashes[det_idx] = sol_vec.idx_to_hash(sgnv_dets[det_idx], tmp_orbs);
-        }
-    }
-    
     // Count # single/double excitations from HF
     sol_vec.gen_orb_list(hf_det, tmp_orbs);
     size_t n_hf_doub = doub_ex_symm(hf_det, tmp_orbs, n_elec_unf, n_orb, doub_orbs, symm);
@@ -253,15 +211,13 @@ int main(int argc, const char * argv[]) {
     double p_doub = (double) n_hf_doub / (n_hf_sing + n_hf_doub);
     
     size_t walker_idx;
-    char file_path[100];
+    char file_path[300];
     FILE *walk_file = NULL;
     FILE *num_file = NULL;
     FILE *den_file = NULL;
     FILE *shift_file = NULL;
     FILE *nonz_file = NULL;
-    FILE *sign_file = NULL;
     FILE *ini_file = NULL;
-    FILE *time_file = NULL;
     
     // Initialize solution vector
     unsigned int max_vals = 0;
@@ -332,9 +288,6 @@ int main(int argc, const char * argv[]) {
         strcat(file_path, "projden.txt");
         den_file = fopen(file_path, "a");
         strcpy(file_path, result_dir);
-        strcat(file_path, "sign.txt");
-        sign_file = fopen(file_path, "a");
-        strcpy(file_path, result_dir);
         strcat(file_path, "S.txt");
         shift_file = fopen(file_path, "a");
         strcpy(file_path, result_dir);
@@ -346,11 +299,6 @@ int main(int argc, const char * argv[]) {
         strcpy(file_path, result_dir);
         strcat(file_path, "nini.txt");
         ini_file = fopen(file_path, "a");
-        
-        strcpy(file_path, result_dir);
-        strcat(file_path, "time.txt");
-        time_file = fopen(file_path, "a");
-        fprintf(time_file, "%ld\n", time(NULL));
         
         // Describe parameters of this calculation
         strcpy(file_path, result_dir);
@@ -509,24 +457,6 @@ int main(int argc, const char * argv[]) {
             fprintf(ini_file, "%zu\n", n_ini);
         }
         
-        // Calculate sign of iterate
-        if (n_sgnv) {
-            matr_el = sol_vec.dot(sgnv_dets, sgnv_vals, n_sgnv, sgn_hashes);
-#ifdef USE_MPI
-            MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
-#else
-            recv_nums[0] = matr_el;
-#endif
-            if (proc_rank == hf_proc) {
-                matr_el = 0;
-                for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-                    matr_el += recv_nums[proc_idx];
-                }
-                fprintf(sign_file, "%lf\n", matr_el);
-                
-            }
-        }
-        
         // Save vector snapshot to disk
         if ((iterat + 1) % save_interval == 0) {
             sol_vec.save(result_dir);
@@ -536,12 +466,7 @@ int main(int argc, const char * argv[]) {
                 fflush(shift_file);
                 fflush(nonz_file);
                 fflush(walk_file);
-                fflush(sign_file);
             }
-        }
-        if ((iterat + 1) % 1000 == 0 && proc_rank == hf_proc) {
-            fprintf(time_file, "%ld\n", time(NULL));
-            fflush(time_file);
         }
     }
     sol_vec.save(result_dir);
@@ -551,7 +476,6 @@ int main(int argc, const char * argv[]) {
         fclose(shift_file);
         fclose(nonz_file);
         fclose(walk_file);
-        fclose(sign_file);
     }
 #ifdef USE_MPI
     MPI_Finalize();

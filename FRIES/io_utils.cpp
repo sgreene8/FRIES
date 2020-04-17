@@ -196,7 +196,7 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct) {
         return -1;
     }
     
-    char buffer[100];
+    char buffer[300];
     char *str_p = fgets(buffer, sizeof(buffer), file_p);
     int success = strncmp(buffer, "n_elec", 6) == 0;
     if (success) {
@@ -320,7 +320,7 @@ size_t load_vec_txt(const char *prefix, Matrix<uint8_t> &dets, void *vals, dtype
 #endif
     
     if (my_rank == 0) {
-        char buffer[100];
+        char buffer[300];
         sprintf(buffer, "%sdets", prefix);
         size_t n_dets = read_dets(buffer, dets);
         
@@ -407,7 +407,7 @@ void save_proc_hash(const char *path, unsigned int *proc_hash, size_t n_hash) {
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 #endif
     
-    char buffer[100];
+    char buffer[300];
     if (my_rank == 0) {
         sprintf(buffer, "%shash.dat", path);
         FILE *file_p = fopen(buffer, "wb");
@@ -422,7 +422,7 @@ void save_proc_hash(const char *path, unsigned int *proc_hash, size_t n_hash) {
 
 
 void load_proc_hash(const char *path, unsigned int *proc_hash) {
-    char buffer[100];
+    char buffer[300];
     sprintf(buffer, "%shash.dat", path);
     FILE *file_p = fopen(buffer, "rb");
     if (!file_p) {
