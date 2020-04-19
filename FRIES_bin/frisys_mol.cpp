@@ -756,10 +756,10 @@ int main(int argc, const char * argv[]) {
                 sol_vec.perform_add();
                 if (unbias) {
                     for (size_t ini_idx = start_idx; ini_idx < samp_idx; ini_idx++) {
-                        if (orb_indices1[samp_idx][0]) {
+                        if (orb_indices1[ini_idx][0]) {
                             double ini_wt;
-                            bool success = sol_vec.get_add_info(orb_indices1[samp_idx][1], det_indices1[samp_idx], &ini_wt);
-                            sol_vec.add_ini_weight(det_indices2[comp_idx[samp_idx][0]], success, std::fabs(ini_wt));
+                            bool success = sol_vec.get_add_info(orb_indices1[ini_idx][1], det_indices1[ini_idx], &ini_wt);
+                            sol_vec.add_ini_weight(det_indices2[comp_idx[ini_idx][0]], success, std::fabs(ini_wt));
                         }
                     }
                 }
