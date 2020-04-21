@@ -29,9 +29,7 @@ int main(int argc, const char * argv[]) {
     const char *ini_path = NULL;
     const char *trial_path = NULL;
     unsigned int target_nonz = 0;
-    unsigned int matr_samp = 0;
     unsigned int max_n_dets = 0;
-    float init_thresh = 0;
     unsigned int tmp_norm = 0;
     unsigned int max_iter = 1000000;
     struct argparse_option options[] = {
@@ -41,7 +39,6 @@ int main(int argc, const char * argv[]) {
         OPT_INTEGER('m', "vec_nonz", &target_nonz, "Target number of nonzero vector elements to keep after each iteration"),
         OPT_STRING('y', "result_dir", &result_dir, "Directory in which to save output files"),
         OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
-        OPT_FLOAT('i', "initiator", &init_thresh, "Magnitude of vector element required to make the corresponding determinant an initiator."),
         OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous calculation (in binary format, see documentation for DistVec::save() and DistVec::load())."),
         OPT_STRING('n', "ini_vec", &ini_path, "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)."),
         OPT_STRING('v', "trial_vec", &trial_path, "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text files)."),
@@ -60,10 +57,6 @@ int main(int argc, const char * argv[]) {
     }
     if (target_nonz == 0) {
         fprintf(stderr, "Error: target number of nonzero vector elements not specified\n");
-        return 0;
-    }
-    if (matr_samp == 0) {
-        fprintf(stderr, "Error: target number of nonzero matrix elements not specified\n");
         return 0;
     }
     if (max_n_dets == 0) {
@@ -108,7 +101,7 @@ int main(int argc, const char * argv[]) {
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
     
     // Solution vector
-    unsigned int num_ex = n_elec_unf * n_elec_unf * (n_orb - n_elec_unf) * (n_orb - n_elec_unf);
+    unsigned int num_ex = n_elec_unf * n_elec_unf * (n_orb - n_elec_unf / 2) * (n_orb - n_elec_unf / 2);
     size_t adder_size = max_n_dets / n_procs * num_ex / n_procs / 8;
     DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, NULL, &en_shift);
     size_t det_size = CEILING(2 * n_orb, 8);
