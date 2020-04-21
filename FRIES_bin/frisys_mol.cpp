@@ -804,7 +804,7 @@ int main(int argc, const char * argv[]) {
                     *diag_el = diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
                 }
                 double local_shift = en_shift;
-                if (curr_val < init_thresh) {
+                if (fabs(curr_val) < init_thresh) {
                     local_shift *= sol_vec.get_pacc(det_idx);
                 }
                 sol_vec.diag_cache_mult_(det_idx, 1 - eps * (*diag_el - local_shift));
