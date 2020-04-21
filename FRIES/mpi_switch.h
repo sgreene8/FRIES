@@ -6,7 +6,6 @@
 #define mpi_switch_h
 
 /*! \brief Flag indicating whether executable should be compiled with MPI */
-//#define USE_MPI
 #ifdef USE_MPI
 #include "mpi.h"
 #endif
