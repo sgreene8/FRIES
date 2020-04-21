@@ -16,64 +16,62 @@
 #include <FRIES/Ext_Libs/argparse.hpp>
 #include <FRIES/Hamiltonians/molecule.hpp>
 
+static const char *const usage[] = {
+    "frifull_mol [options] [[--] args]",
+    "frifull_mol [options]",
+    NULL,
+};
+
 int main(int argc, const char * argv[]) {
-    argparse::ArgumentParser program("FRI without matrix compression for molecules");
-    auto int_converter = [](const std::string &value) {return std::stoul(value);};
-    auto doub_converter = [](const std::string& value) { return std::stod(value); };
-    program.add_argument("hf_path")
-      .help("Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt");
-    program.add_argument("target")
-      .help("Target one-norm of solution vector")
-      .action(doub_converter);
-    program.add_argument("vec_nonz")
-      .help("Target number of nonzero vector elements to keep after each iteration")
-      .action(int_converter);
-    program.add_argument("max_dets")
-    .help("Maximum number of determinants on a single MPI process.")
-    .action(int_converter);
-    program.add_argument("--result_dir")
-      .help("Directory in which to save output files")
-      .default_value(std::string("./"));
-    program.add_argument("--load_dir")
-      .help("Directory from which to load checkpoint files from a previous systematic FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load()).");
-    program.add_argument("--ini_vec")
-      .help("Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files).");
-    program.add_argument("--trial_vec")
-      .help("Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text files).");
-    program.add_argument("--max_iter")
-      .help("Maximum number of iterations to run the calculation.")
-      .default_value((unsigned long) 1000000)
-      .action(int_converter);
+    const char *hf_path = NULL;
+    const char *dist_str = NULL;
+    const char *result_dir = "./";
+    const char *load_dir = NULL;
+    const char *ini_path = NULL;
+    const char *trial_path = NULL;
+    const char *determ_path = NULL;
+    unsigned int target_nonz = 0;
+    unsigned int matr_samp = 0;
+    unsigned int max_n_dets = 0;
+    float init_thresh = 0;
+    unsigned int tmp_norm = 0;
+    unsigned int max_iter = 1000000;
+    int unbias = 0;
+    struct argparse_option options[] = {
+        OPT_HELP(),
+        OPT_STRING('d', "hf_path", &hf_path, "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt"),
+        OPT_INTEGER('t', "target", &tmp_norm, "Target one-norm of solution vector"),
+        OPT_INTEGER('m', "vec_nonz", &target_nonz, "Target number of nonzero vector elements to keep after each iteration"),
+        OPT_STRING('y', "result_dir", &result_dir, "Directory in which to save output files"),
+        OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
+        OPT_FLOAT('i', "initiator", &init_thresh, "Magnitude of vector element required to make the corresponding determinant an initiator."),
+        OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous calculation (in binary format, see documentation for DistVec::save() and DistVec::load())."),
+        OPT_STRING('n', "ini_vec", &ini_path, "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)."),
+        OPT_STRING('v', "trial_vec", &trial_path, "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text files)."),
+        OPT_INTEGER('I', "max_iter", &max_iter, "Maximum number of iterations to run the calculation."),
+        OPT_END(),
+    };
     
-    try {
-        program.parse_args(argc, argv);
-    }
-    catch (const std::runtime_error& err) {
-      std::cout << err.what() << std::endl;
-      std::cout << program;
-      exit(0);
-    }
+    struct argparse argparse;
+    argparse_init(&argparse, options, usage, 0);
+    argparse_describe(&argparse, "\nFRI without matrix compression for molecules.", "");
+    argc = argparse_parse(&argparse, argc, argv);
     
-    const char *hf_path = program.get("hf_path").c_str();
-    double target_norm = program.get<double>("target");
-    unsigned int target_nonz = (unsigned int)program.get<unsigned long>("vec_nonz");
-    unsigned int max_n_dets = (unsigned int)program.get<unsigned long>("max_dets");
-    unsigned int max_iter = (unsigned int)program.get<unsigned long>("--max_iter");
-//    const char *result_dir = program.get("--result_dir").c_str();
-    char result_dir[300];
-    strcpy(result_dir, program.get("--result_dir").c_str());
-    
-    std::string load_dir;
-    if (auto arg = program.present("--load_dir")) {
-        load_dir = arg.value();
+    if (hf_path == NULL) {
+        fprintf(stderr, "Error: HF directory not specified.\n");
+        return 0;
     }
-    std::string ini_path;
-    if (auto arg = program.present("--ini_vec")) {
-        ini_path = arg.value();
+    if (target_nonz == 0) {
+        fprintf(stderr, "Error: target number of nonzero vector elements not specified\n");
+        return 0;
     }
-    std::string trial_path;
-    if (auto arg = program.present("--trial_vec")) {
-        trial_path = arg.value();
+    if (matr_samp == 0) {
+        fprintf(stderr, "Error: target number of nonzero matrix elements not specified\n");
+        return 0;
+    }
+    if (max_n_dets == 0) {
+        fprintf(stderr, "Error: maximum number of determinants expected on each processor not specified.\n");
+        return 0;
     }
     
     int n_procs = 1;
@@ -370,7 +368,6 @@ int main(int argc, const char * argv[]) {
                 fflush(den_file);
                 fflush(shift_file);
                 fflush(nkept_file);
-                printf("Total additions to nonzero: %" PRIu64 "\n", tot_add);
             }
         }
     }
