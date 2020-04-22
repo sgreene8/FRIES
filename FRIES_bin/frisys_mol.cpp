@@ -142,7 +142,7 @@ int main(int argc, const char * argv[]) {
     else {
         diag_shortcut = NULL;
     }
-    DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, &en_shift);
+    DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, &en_shift, 2);
     size_t det_size = CEILING(2 * n_orb, 8);
     size_t det_idx;
     
@@ -194,8 +194,8 @@ int main(int argc, const char * argv[]) {
     else {
         n_trial = 1;
     }
-    DistVec<double> trial_vec(n_trial, n_trial, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, NULL, NULL);
-    DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, NULL, NULL);
+    DistVec<double> trial_vec(n_trial, n_trial, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
+    DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
     trial_vec.proc_scrambler_ = proc_scrambler;
     htrial_vec.proc_scrambler_ = proc_scrambler;
     if (trial_path) { // load trial vector from file
@@ -636,7 +636,9 @@ int main(int argc, const char * argv[]) {
             fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
         }
         
-        sol_vec.cache_values();
+        double *vals_before_mult = sol_vec.values();
+        sol_vec.set_curr_vec_idx(1);
+        sol_vec.zero_vec();
         if (unbias) {
             sol_vec.zero_ini();
         }
@@ -651,7 +653,7 @@ int main(int argc, const char * argv[]) {
                 while (samp_idx < comp_len && num_added < adder_size) {
                     weight_idx = comp_idx[samp_idx][0];
                     det_idx = det_indices2[weight_idx];
-                    double curr_val = sol_vec.value_cache()[det_idx];
+                    double curr_val = vals_before_mult[det_idx];
                     uint8_t ini_flag = fabs(curr_val) >= init_thresh;
                     if (ini_flag != add_ini) {
                         samp_idx++;
@@ -789,27 +791,29 @@ int main(int argc, const char * argv[]) {
 #pragma mark Perform deterministic subspace multiplication
         for (samp_idx = 0; samp_idx < determ_h_size; samp_idx++) {
             det_idx = determ_from[samp_idx];
-            double mat_vec = sol_vec.value_cache()[det_idx] * determ_matr_el[samp_idx];
+            double mat_vec = vals_before_mult[det_idx] * determ_matr_el[samp_idx];
             sol_vec.add(determ_to[samp_idx], mat_vec, 1);
         }
         sol_vec.perform_add();
         
 #pragma mark Death/cloning step
+        sol_vec.set_curr_vec_idx(0);
         for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
-            double curr_val = sol_vec.value_cache()[det_idx];
-            if (curr_val != 0) {
+            double *curr_val = sol_vec[det_idx];
+            if (*curr_val != 0) {
                 double *diag_el = sol_vec.matr_el_at_pos(det_idx);
                 uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
                 if (std::isnan(*diag_el)) {
                     *diag_el = diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
                 }
                 double local_shift = en_shift;
-                if (fabs(curr_val) < init_thresh) {
+                if (fabs(*curr_val) < init_thresh) {
                     local_shift *= sol_vec.get_pacc(det_idx);
                 }
-                sol_vec.diag_cache_mult_(det_idx, 1 - eps * (*diag_el - local_shift));
+                *curr_val *= 1 - eps * (*diag_el - local_shift);
             }
         }
+        sol_vec.add_vecs(0, 1);
         
 #pragma mark Vector compression step
         unsigned int n_samp = target_nonz;

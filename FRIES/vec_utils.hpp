@@ -150,8 +150,8 @@ private:
 template <class el_type>
 class DistVec {
 private:
-    std::vector<el_type> values_; ///< Array of values of vector elements
-    std::vector<el_type> value_cache_;
+    std::vector<std::vector<el_type> *> values_; ///< Values of vector elements
+    uint8_t curr_vec_idx_; ///< Current vector to consider when adding, accessing elements, etc.
     std::vector<double> ini_success_;
     std::vector<double> ini_fail_;
     double *matr_el_; ///< Array of pre-calculated diagonal matrix elements associated with each vector element
@@ -174,13 +174,21 @@ private:
 protected:
     
     virtual void initialize_at_pos(size_t pos, uint8_t *orbs) {
-        values_[pos] = 0;
+        values_[curr_vec_idx_]->operator[](pos) = 0;
         matr_el_[pos] = NAN;
         memcpy(occ_orbs_[pos], orbs, occ_orbs_.cols());
     }
     
 public:
     unsigned int *proc_scrambler_; ///< Array of random numbers used in the hash function for assigning vector indices to MPI
+    
+    DistVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_bits,
+            unsigned int n_elec, int n_procs) : values_(1), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr) {
+        values_[0] = new std::vector<el_type>(size);
+        matr_el_ = (double *)malloc(sizeof(double) * size);
+        vec_hash_ = setup_ht(CEILING(size, 5), rn_ptr, n_bits);
+        tabl_ = gen_byte_table();
+    }
     
     /*! \brief Constructor for DistVec object
     * \param [in] size         Maximum number of elements to be stored in the vector
@@ -191,7 +199,10 @@ public:
      * \param [in] n_procs Number of MPI processes over which to distribute vector elements
      */
     DistVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_bits,
-            unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr) : values_(size), value_cache_(size), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr) {
+            unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs) : values_(n_vecs), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr) {
+        for (uint8_t vec_idx = 0; vec_idx < n_vecs; vec_idx++) {
+            values_[vec_idx] = new std::vector<el_type>(size);
+        }
         matr_el_ = (double *)malloc(sizeof(double) * size);
         vec_hash_ = setup_ht(CEILING(size, 5), rn_ptr, n_bits);
         tabl_ = gen_byte_table();
@@ -244,7 +255,7 @@ public:
         for (size_t hf_idx = 0; hf_idx < num2; hf_idx++) {
             ht_ptr = read_ht(vec_hash_, idx2[hf_idx], hashes2[hf_idx], 0);
             if (ht_ptr) {
-                numer += vals2[hf_idx] * values_[*ht_ptr];
+                numer += vals2[hf_idx] * values_[curr_vec_idx_]->operator[](*ht_ptr);
             }
         }
         return numer;
@@ -257,9 +268,11 @@ public:
         indices_.reshape(new_max, indices_.cols());
         matr_el_ = (double *)realloc(matr_el_, sizeof(double) * new_max);
         occ_orbs_.reshape(new_max, occ_orbs_.cols());
-        values_.resize(new_max);
+        
+        for (uint8_t vec_idx = 0; vec_idx < values_.size(); vec_idx++) {
+            values_[vec_idx]->resize(new_max);
+        }
         if (diag_calc_) {
-            value_cache_.resize(new_max);
             ini_success_.resize(new_max);
             ini_fail_.resize(new_max);
         }
@@ -377,11 +390,7 @@ public:
     
     /*! \returns The array used to store values in the DistVec object */
     el_type *values() const {
-        return (el_type *)values_.data();
-    }
-    
-    void diag_cache_mult_(size_t index, double matr_el) {
-        values_[index] += value_cache_[index] * matr_el;
+        return (el_type *)values_[curr_vec_idx_]->data();
     }
     
     void zero_ini() {
@@ -423,14 +432,28 @@ public:
         return tabl_;
     }
     
-    void cache_values() {
-        std::fill(value_cache_.begin(), value_cache_.end(), 0);
-        value_cache_.swap(values_);
-        // values is now all zero
+    /*! \brief Exchange two of the vectors stored within this object
+     * \param [in] idx1     Index of the first vector to exchange
+     * \param [in] idx2     Index of the second vector
+     */
+    void swap_vecs(uint8_t idx1, uint8_t idx2) {
+        values_[idx1]->swap(*values_[idx2]);
     }
     
-    const el_type *value_cache() const {
-        return value_cache_.data();
+    /*! \brief Add the vector at \p idx2 to the one at \p idx1
+     */
+    void add_vecs(uint8_t idx1, uint8_t idx2) {
+        for (size_t idx = 0; idx < curr_size_; idx++) {
+            (*values_[idx1])[idx] += (*values_[idx2])[idx];
+        }
+    }
+    
+    void zero_vec() {
+        std::fill(values_[curr_vec_idx_]->begin(), values_[curr_vec_idx_]->end(), 0);
+    }
+    
+    void set_curr_vec_idx(uint8_t new_idx) {
+        curr_vec_idx_ = new_idx;
     }
     
     /*! \brief Add elements destined for this process to the DistVec object
@@ -466,7 +489,7 @@ public:
             }
             if (idx_ptr) {
                 nonini_occ_add += !ini_flag;
-                values_[*idx_ptr] += vals[el_idx];
+                (*values_[curr_vec_idx_])[*idx_ptr] += vals[el_idx];
                 vals[el_idx] = 0;
             }
             if (!ini_flag && diag_calc_) {
@@ -481,7 +504,7 @@ public:
     * \param [in] pos          The position of the corresponding index in the \p indices_ array
      */
     el_type *operator[](size_t pos) {
-        return &values_[pos];
+        return &(*values_[curr_vec_idx_])[pos];
     }
 
     /*! \brief Get a pointer to the list of occupied orbitals corresponding to an
@@ -508,7 +531,7 @@ public:
     double local_norm() {
         double norm = 0;
         for (size_t idx = 0; idx < curr_size_; idx++) {
-            norm += fabs(values_[idx]);
+            norm += fabs(values_[curr_vec_idx_]->operator[](idx));
         }
         return norm;
     }
@@ -595,9 +618,9 @@ public:
         for (size_t det_idx = 0; det_idx < n_dets; det_idx++) {
             int is_nonz = 0;
             double value = 0;
-            if (fabs(values_[det_idx]) > 1e-9 || det_idx < n_dense_) {
+            if (fabs(values_[curr_vec_idx_]->operator[](det_idx)) > 1e-9 || det_idx < n_dense_) {
                 is_nonz = 1;
-                value = values_[det_idx];
+                value = values_[curr_vec_idx_]->operator[](det_idx);
             }
             if (is_nonz) {
                 uint8_t *new_idx = indices_[det_idx];
@@ -606,7 +629,7 @@ public:
                 *idx_ptr = n_nonz_;
                 memmove(indices_[n_nonz_], new_idx, n_bytes);
                 initialize_at_pos(n_nonz_, tmp_orbs);
-                values_[n_nonz_] = value;
+                values_[curr_vec_idx_]->operator[](n_nonz_) = value;
                 n_nonz_++;
             }
         }
@@ -668,7 +691,7 @@ public:
         el_type result = 0;
         el_type element;
         for (size_t det_idx = 0; det_idx < n_dense_; det_idx++) {
-            element = values_[det_idx];
+            element = values_[curr_vec_idx_]->operator[](det_idx);
             result += element >= 0 ? element : -element;
         }
         int n_procs = 1;
@@ -710,16 +733,24 @@ public:
         size_t el_size = sizeof(el_type);
         if (tot_size > max_size_) {
             indices_.reshape(tot_size, n_bytes);
-            values_.resize(tot_size);
-            value_cache_.resize(tot_size);
+            for (uint8_t vec_idx = 0; vec_idx < values_.size(); vec_idx++) {
+                values_[vec_idx]->resize(tot_size);
+            }
             ini_success_.resize(tot_size);
             ini_fail_.resize(tot_size);
         }
         memmove(indices_[disps[my_rank]], indices_.data(), vec_sizes[my_rank] * n_bytes);
-        memmove(&values_.data()[disps[my_rank]], values_.data(), vec_sizes[my_rank] * el_size);
+        for (uint8_t vec_idx = 0; vec_idx < values_.size(); vec_idx++) {
+            std::vector<double> *curr_vec = values_[vec_idx];
+            double *dest = &curr_vec->operator[](disps[my_rank]);
+            double *origin = &curr_vec->operator[](0);
+            memmove(dest, origin, vec_sizes[my_rank] * el_size);
+        }
 #ifdef USE_MPI
         MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, indices_.data(), idx_sizes, idx_disps, MPI_UINT8_T, MPI_COMM_WORLD);
-        mpi_allgathv_inplace(values_.data(), vec_sizes, disps);
+        for (uint8_t vec_idx = 0; vec_idx < n_vecs_; vec_idx++) {
+            mpi_allgathv_inplace(&(*(values_[vec_idx])[0]), vec_sizes, disps);
+        }
 #endif
         curr_size_ = tot_size;
     }

@@ -30,7 +30,7 @@ TEST_CASE("Test diagonal matrix element evaluation", "[molec_diag]") {
     // Rn generator
     mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, (unsigned int) time(NULL));
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
-    DistVec<double> sol_vec(10, 0, rngen_ptr, 2 * n_orb, n_elec_unf, 1, NULL, NULL);
+    DistVec<double> sol_vec(10, 0, rngen_ptr, 2 * n_orb, n_elec_unf, 1);
     
     uint8_t *hf_det = sol_vec.indices()[0];
     gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
