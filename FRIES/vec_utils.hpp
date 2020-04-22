@@ -467,7 +467,6 @@ public:
             if (idx_ptr) {
                 nonini_occ_add += !ini_flag;
                 values_[*idx_ptr] += vals[el_idx];
-                vals[el_idx] = 0;
             }
             if (!ini_flag && diag_calc_) {
                 vals[el_idx] /= (diag_calc_(tmp_occ) - *curr_shift_);

@@ -718,7 +718,7 @@ int main(int argc, const char * argv[]) {
                             doub_orbs[1] = o2_idx;
                             doub_ex_orbs(occ_orbs, new_occ, doub_orbs, n_elec_unf);
                             det_indices1[samp_idx] = sol_vec.add(new_det, new_occ, add_el, ini_flag, (int *)&orb_indices1[samp_idx][1]);
-                            orb_indices1[samp_idx][0] = 1;
+                            orb_indices1[samp_idx][0] = !ini_flag;
                             num_added++;
                         }
                     }
@@ -747,7 +747,7 @@ int main(int argc, const char * argv[]) {
                             sing_orbs[0] = o1_idx;
                             sing_ex_orbs(occ_orbs, new_occ, sing_orbs, n_elec_unf);
                             det_indices1[samp_idx] = sol_vec.add(new_det, new_occ, add_el, ini_flag, (int *)&orb_indices1[samp_idx][1]);
-                            orb_indices1[samp_idx][0] = 1;
+                            orb_indices1[samp_idx][0] = !ini_flag;
                             num_added++;
                         }
                     }
