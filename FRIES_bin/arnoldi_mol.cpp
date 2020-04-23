@@ -11,6 +11,8 @@
 #include <FRIES/Ext_Libs/argparse.h>
 #include <FRIES/Hamiltonians/heat_bathPP.hpp>
 #include <FRIES/Hamiltonians/molecule.hpp>
+#include <FRIES/Hamiltonians/near_uniform.hpp>
+#include <FRIES/Ext_Libs/LAPACK/lapacke.h>
 
 static const char *const usage[] = {
     "arnoldi_mol [options] [[--] args]",
