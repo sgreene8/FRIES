@@ -745,12 +745,12 @@ public:
             double *dest = &curr_vec->operator[](disps[my_rank]);
             double *origin = &curr_vec->operator[](0);
             memmove(dest, origin, vec_sizes[my_rank] * el_size);
+#ifdef USE_MPI
+            mpi_allgathv_inplace(origin, vec_sizes, disps);
+#endif
         }
 #ifdef USE_MPI
         MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, indices_.data(), idx_sizes, idx_disps, MPI_UINT8_T, MPI_COMM_WORLD);
-        for (uint8_t vec_idx = 0; vec_idx < values_.size(); vec_idx++) {
-            mpi_allgathv_inplace(&(*(values_[vec_idx])[0]), vec_sizes, disps);
-        }
 #endif
         curr_size_ = tot_size;
     }
