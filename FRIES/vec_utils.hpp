@@ -738,7 +738,11 @@ public:
     
     double get_pacc(size_t idx) {
         if (diag_calc_) {
-            return ini_success_[idx] / (ini_success_[idx] + ini_fail_[idx]);
+            double denom = ini_success_[idx] + ini_fail_[idx];
+            if (denom != 0) {
+                return ini_success_[idx] / denom;
+            }
+            return 1;
         }
         else {
             return 1;
