@@ -466,7 +466,7 @@ int main(int argc, const char * argv[]) {
             if (orb_indices1[samp_idx][0] == 0) { // double excitation
                 ndiv_vec[samp_idx] = 0;
                 double tot_weight = calc_o1_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs, new_hb);
-                if (qmc_dist == unnorm_heat_bath) {
+                if (new_hb) {
                     comp_vec2[samp_idx] *= tot_weight;
                 }
             }
@@ -563,7 +563,7 @@ int main(int argc, const char * argv[]) {
                 int o2_spin = occ_tmp[o2u1_orb] / n_orb;
                 double o1_orb = occ_tmp[o1_idx];
                 double tot_weight = calc_u1_probs(hb_probs, subwt_mem[samp_idx], o1_orb, occ_tmp, n_elec_unf, new_hb && (o1_spin == o2_spin));
-                if (qmc_dist == unnorm_heat_bath) {
+                if (new_hb) {
                     comp_vec2[samp_idx] *= tot_weight;
                 }
             }
@@ -618,7 +618,7 @@ int main(int argc, const char * argv[]) {
                     else {
                         tot_weight = calc_u2_probs_half(hb_probs, subwt_mem[samp_idx], o1_orb, o2_orb, u1_orb, curr_det, symm_lookup, symm, &sub_sizes[samp_idx]);
                     }
-                    if (qmc_dist == unnorm_heat_bath || tot_weight == 0) {
+                    if (new_hb || tot_weight == 0) {
                         comp_vec1[samp_idx] *= tot_weight;
                     }
                 }
@@ -675,7 +675,7 @@ int main(int argc, const char * argv[]) {
                         uint8_t u2_symm = symm[doub_orbs[0] % n_orb] ^ symm[doub_orbs[1] % n_orb] ^ symm[doub_orbs[2] % n_orb];
                         doub_orbs[3] = symm_lookup[u2_symm][comp_idx[samp_idx][1] + 1] + n_orb * (doub_orbs[1] / n_orb);
                         if (read_bit(curr_det, doub_orbs[3])) { // chosen orbital is occupied; unsuccessful spawn
-                            if (qmc_dist == unnorm_heat_bath) {
+                            if (new_hb) {
                                 fprintf(stderr, "Error: occupied orbital chosen as second virtual in unnormalized heat-bath\n");
                             }
                             comp_vec2[samp_idx] = 0;
@@ -703,7 +703,7 @@ int main(int argc, const char * argv[]) {
                         }
                         double unsigned_mat = doub_matr_el_nosgn(doub_orbs, tot_orb, *eris, n_frz);
                         double tot_weight;
-                        if (qmc_dist == unnorm_heat_bath) {
+                        if (new_hb) {
                             tot_weight = calc_unnorm_wt(hb_probs, doub_orbs);
                         }
                         else {

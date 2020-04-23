@@ -494,6 +494,10 @@ public:
     el_type *operator[](size_t pos) {
         return &values_(curr_vec_idx_, pos);
     }
+    
+    el_type *operator()(size_t vec_idx, size_t pos) {
+        return &values_(vec_idx, pos);
+    }
 
     /*! \brief Get a pointer to the list of occupied orbitals corresponding to an
      * existing determinant index in the vector
