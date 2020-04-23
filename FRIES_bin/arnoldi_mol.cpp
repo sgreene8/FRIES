@@ -118,7 +118,7 @@ int main(int argc, const char * argv[]) {
     // Solution vector
     unsigned int spawn_length = matr_samp * 4 / n_procs;
     size_t adder_size = spawn_length > 1000000 ? 1000000 : spawn_length;
-    DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, NULL, NULL);
+    DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, NULL, NULL, n_trial);
     size_t det_size = CEILING(2 * n_orb, 8);
     size_t det_idx;
     
@@ -177,8 +177,8 @@ int main(int argc, const char * argv[]) {
 #ifdef USE_MPI
             MPI_Bcast(&n_trial_dets, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 #endif
-            trial_vecs[trial_idx] = new DistVec<double>(n_trial_dets, n_trial_dets, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, NULL, NULL);
-            htrial_vecs[trial_idx] = new DistVec<double>(n_trial_dets * n_ex / n_procs, n_trial_dets * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, NULL, NULL);
+            trial_vecs[trial_idx] = new DistVec<double>(n_trial_dets, n_trial_dets, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
+            htrial_vecs[trial_idx] = new DistVec<double>(n_trial_dets * n_ex / n_procs, n_trial_dets * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
             trial_vecs[trial_idx]->proc_scrambler_ = proc_scrambler;
             htrial_vecs[trial_idx]->proc_scrambler_ = proc_scrambler;
             
@@ -189,8 +189,8 @@ int main(int argc, const char * argv[]) {
         }
     }
     else {
-        trial_vecs[0] = new DistVec<double>(1, 1, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, NULL, NULL);
-        htrial_vecs[0] = new DistVec<double>(n_ex / n_procs, n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, NULL, NULL);
+        trial_vecs[0] = new DistVec<double>(1, 1, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
+        htrial_vecs[0] = new DistVec<double>(n_ex / n_procs, n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
         trial_vecs[0]->proc_scrambler_ = proc_scrambler;
         htrial_vecs[0]->proc_scrambler_ = proc_scrambler;
         trial_vecs[0]->add(hf_det, 1, 1);
@@ -225,12 +225,8 @@ int main(int argc, const char * argv[]) {
     double p_doub = (double) n_hf_doub / (n_hf_sing + n_hf_doub);
     
     char file_path[300];
-    FILE *num_file = NULL;
-    FILE *den_file = NULL;
+    FILE *en_file = NULL;
     FILE *shift_file = NULL;
-    FILE *norm_file = NULL;
-    FILE *nkept_file = NULL;
-    FILE *ini_file = NULL;
     
     
 #ifdef USE_MPI
