@@ -737,7 +737,7 @@ public:
         for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
             memmove(&values_(vec_idx, disps[my_rank]), values_[vec_idx], vec_sizes[my_rank] * el_size);
 #ifdef USE_MPI
-            mpi_allgathv_inplace(origin, vec_sizes, disps);
+            mpi_allgathv_inplace(values[vec_idx], vec_sizes, disps);
 #endif
         }
 #ifdef USE_MPI
