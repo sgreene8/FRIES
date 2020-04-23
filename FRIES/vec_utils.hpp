@@ -748,7 +748,7 @@ public:
         }
 #ifdef USE_MPI
         MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, indices_.data(), idx_sizes, idx_disps, MPI_UINT8_T, MPI_COMM_WORLD);
-        for (uint8_t vec_idx = 0; vec_idx < n_vecs_; vec_idx++) {
+        for (uint8_t vec_idx = 0; vec_idx < values_.size(); vec_idx++) {
             mpi_allgathv_inplace(&(*(values_[vec_idx])[0]), vec_sizes, disps);
         }
 #endif
