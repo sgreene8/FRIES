@@ -67,7 +67,7 @@ int main(int argc, const char * argv[]) {
     
     int n_procs = 1;
     int proc_rank = 0;
-    unsigned int proc_idx, hf_proc;
+    unsigned int hf_proc;
 #ifdef USE_MPI
     MPI_Init(NULL, NULL);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
@@ -102,8 +102,12 @@ int main(int argc, const char * argv[]) {
     
     // Solution vector
     unsigned int num_ex = n_elec_unf * n_elec_unf * (n_orb - n_elec_unf / 2) * (n_orb - n_elec_unf / 2);
-    size_t adder_size = max_n_dets / n_procs * num_ex / n_procs / 8;
-    DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
+    unsigned int spawn_len = max_n_dets / n_procs * num_ex / n_procs / 4;
+    size_t adder_size = spawn_len > 1000000 ? 1000000 : spawn_len;
+    std::function<double(const uint8_t *)> diag_shortcut = [tot_orb, eris, h_core, n_frz, n_elec, hf_en](const uint8_t *occ_orbs) {
+        return diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
+    };
+    DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2);
     size_t det_size = CEILING(2 * n_orb, 8);
     size_t det_idx;
     
@@ -156,7 +160,7 @@ int main(int argc, const char * argv[]) {
         n_trial = 1;
     }
     DistVec<double> trial_vec(n_trial, n_trial, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
-    DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
+    DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2);
     trial_vec.proc_scrambler_ = proc_scrambler;
     htrial_vec.proc_scrambler_ = proc_scrambler;
     if (trial_path) { // load trial vector from file
@@ -181,7 +185,11 @@ int main(int argc, const char * argv[]) {
     }
     
     // Calculate H * trial vector, and accumulate results on each processor
-    h_op(htrial_vec, symm, tot_orb, *eris, *h_core, orb_indices, n_frz, n_elec_unf, 0, 1, hf_en);
+    h_op_offdiag(htrial_vec, symm, tot_orb, *eris, *h_core, orb_indices, n_frz, n_elec_unf, 1, 1);
+    htrial_vec.set_curr_vec_idx(0);
+    h_op_diag(htrial_vec, tot_orb, *eris, *h_core, n_frz, n_elec_unf, 0, 0, 1);
+    htrial_vec.add_vecs(0, 1);
+
     htrial_vec.collect_procs();
     uintmax_t *htrial_hashes = (uintmax_t *)malloc(sizeof(uintmax_t) * htrial_vec.curr_size());
     for (det_idx = 0; det_idx < htrial_vec.curr_size(); det_idx++) {
@@ -274,8 +282,6 @@ int main(int argc, const char * argv[]) {
     }
     
     double last_one_norm = 0;
-    double recv_nums[n_procs];
-    double recv_dens[n_procs];
     
     // Parameters for systematic sampling
     double rn_sys = 0;
@@ -288,7 +294,10 @@ int main(int argc, const char * argv[]) {
     std::vector<bool> keep_exact(max_n_dets, false);
     
     for (unsigned int iterat = 0; iterat < max_iter; iterat++) {
-        h_op(sol_vec, symm, tot_orb, *eris, *h_core, orb_indices, n_frz, n_elec_unf, (1 + eps * en_shift), -eps, hf_en);
+        h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, orb_indices, n_frz, n_elec_unf, 1, -eps);
+        sol_vec.set_curr_vec_idx(0);
+        h_op_diag(sol_vec, tot_orb, *eris, *h_core, n_frz, n_elec_unf, 0, 1 + eps * en_shift, -eps);
+        sol_vec.add_vecs(0, 1);
         
         size_t new_max_dets = sol_vec.max_size();
         if (new_max_dets > max_n_dets) {
@@ -317,21 +326,9 @@ int main(int argc, const char * argv[]) {
         }
         double numer = sol_vec.dot(htrial_vec.indices(), htrial_vec.values(), htrial_vec.curr_size(), htrial_hashes);
         double denom = sol_vec.dot(trial_vec.indices(), trial_vec.values(), trial_vec.curr_size(), trial_hashes);
-#ifdef USE_MPI
-        MPI_Gather(&numer, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
-        MPI_Gather(&denom, 1, MPI_DOUBLE, recv_dens, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
-#else
-        recv_nums[0] = numer;
-        recv_dens[0] = denom;
-#endif
+        numer = sum_mpi(numer, proc_rank, n_procs);
+        denom = sum_mpi(denom, proc_rank, n_procs);
         if (proc_rank == hf_proc) {
-            numer = 0;
-            denom = 0;
-            for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-                numer += recv_nums[proc_idx];
-                denom += recv_dens[proc_idx];
-            }
-            
             fprintf(num_file, "%lf\n", numer);
             fprintf(den_file, "%lf\n", denom);
             printf("%6u, en est: %.9lf, shift: %lf, norm: %lf\n", iterat, numer / denom, en_shift, glob_norm);

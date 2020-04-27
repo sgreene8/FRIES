@@ -100,6 +100,10 @@ public:
      */
     size_t add(uint8_t *idx, el_type val, int proc_idx, uint8_t ini_flag);
     
+    size_t size() const {
+        return send_vals_.cols();
+    }
+    
     bool get_add_result(size_t row, size_t col, double *weight) const {
         *weight = send_vals_(row, col);
         Matrix<bool>::RowReference success((uint8_t *) send_idx_[row]);
@@ -268,7 +272,7 @@ public:
         occ_orbs_.reshape(new_max, occ_orbs_.cols());
         
         values_.enlarge_cols(new_max, (int) curr_size_);
-        if (diag_calc_) {
+        if (curr_shift_) {
             ini_success_.resize(new_max);
             ini_fail_.resize(new_max);
         }
@@ -389,6 +393,10 @@ public:
         return (el_type *) values_[curr_vec_idx_];
     }
     
+    uint8_t num_vecs() const {
+        return values_.rows();
+    }
+    
     void zero_ini() {
         std::fill(ini_success_.begin(), ini_success_.end(), 0);
         std::fill(ini_fail_.begin(), ini_fail_.end(), 0);
@@ -401,6 +409,10 @@ public:
     /*! \returns The current number of elements in use in the \p indices_ and \p values arrays */
     size_t curr_size() const {
         return curr_size_;
+    }
+    
+    size_t adder_size() const {
+        return adder_.size();
     }
     
     /*! \return The maximum number of elements the vector can store*/
@@ -441,7 +453,12 @@ public:
     }
     
     void set_curr_vec_idx(uint8_t new_idx) {
-        curr_vec_idx_ = new_idx;
+        if (new_idx < values_.rows()) {
+            curr_vec_idx_ = new_idx;
+        }
+        else {
+            fprintf(stderr, "Error: argument to set_curr_vec_idx is out of bounds.\n");
+        }
     }
     
     /*! \brief Add elements destined for this process to the DistVec object
@@ -480,7 +497,7 @@ public:
                 values_(curr_vec_idx_, *idx_ptr) += vals[el_idx];
                 vals[el_idx] = 0;
             }
-            if (!ini_flag && diag_calc_) {
+            if (!ini_flag && curr_shift_) {
                 vals[el_idx] /= (diag_calc_(tmp_occ) - *curr_shift_);
             }
             successes[el_idx] = (bool) idx_ptr;
@@ -512,8 +529,11 @@ public:
      
     * \param [in] pos          The position of the corresponding index in the \p indices_ array
      */
-    double *matr_el_at_pos(size_t pos) {
-        return &matr_el_[pos];
+    double matr_el_at_pos(size_t pos) {
+        if (std::isnan(matr_el_[pos])) {
+            matr_el_[pos] = diag_calc_(occ_orbs_[pos]);
+        }
+        return matr_el_[pos];
     }
 
     /*! \brief Calculate the sum of the magnitudes of the vector elements on each MPI process
@@ -764,7 +784,7 @@ public:
     }
     
     double get_pacc(size_t idx) {
-        if (diag_calc_) {
+        if ((ini_success_[idx] + ini_fail_[idx]) != 0) {
             return ini_success_[idx] / (ini_success_[idx] + ini_fail_[idx]);
         }
         else {

@@ -104,7 +104,8 @@ size_t sing_ex_symm(uint8_t *det, uint8_t *occ_orbs, unsigned int num_elec,
                     unsigned int num_orb, uint8_t res_arr[][2], uint8_t *symm);
 
 
-/*! \brief Calculate the matrix-vector product (a * I + b * H)v deterministicaly, where I is the identity matrix and a and b are scalars
+/*! \brief Deterministically multiply a vector by the off-diagonal elements of the Hamiltonian matrix times a constant factor
+ * This method multiplies a sub-vector within the inputted DistVec object, as determined by its \p curr_vec_idx instance variable
  *
  * \param [in,out] vec      upon return, contains the vector obtained by multiplying by H
  * \param [in] symm         irrep of each of the orbitals in the HF basis
@@ -116,14 +117,33 @@ size_t sing_ex_symm(uint8_t *det, uint8_t *occ_orbs, unsigned int num_elec,
  *                      (row dimension must be at least max number of excitations from one determinant)
  * \param [in] n_frozen     Number of core electrons frozen in the calculation
  * \param [in] n_elec       Number of unfrozen electrons in the system
- * \param [in] id_fac     The multiple of the identity a in the above formula
- * \param [in] h_fac    The multiple of the Hamiltonian b in the above formula
- * \param [in] hf_en    The Hartree-Fock energy to be subtracted off from diagonal elements of the Hamiltonian
+ * \param [in] dest_idx     The index of the sub-vector in \p vec to store the result in
+ * \param [in] h_fac        The constant factor used in the multiplication
  */
-void h_op(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
-          const FourDArr &eris, const Matrix<double> &h_core,
-          uint8_t *orbs_scratch, unsigned int n_frozen,
-          unsigned int n_elec, double id_fac, double h_fac, double hf_en);
+void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
+                  const FourDArr &eris, const Matrix<double> &h_core,
+                  uint8_t *orbs_scratch, unsigned int n_frozen,
+                  unsigned int n_elec, uint8_t dest_idx, double h_fac);
+
+
+/*! \brief Deterministically multiply a vector by the diagonal portion of (a * I + b * H), where
+ * H is the Hamiltonian and I is the identity
+ * This method multiplies a sub-vector within the inputted DistVec object, as determined by its \p curr_vec_idx instance variable
+ *
+ * \param [in,out] vec      upon return, contains the vector obtained by multiplying by H
+ * \param [in] n_orbs       Number of HF spatial orbitals (including frozen)
+ *                          in the basis
+ * \param [in] eris         4-D array of 2-electron integrals in spatial basis
+ * \param [in] h_core       2-D array of 1-electron integrals in spatial basis
+ * \param [in] n_frozen     Number of core electrons frozen in the calculation
+ * \param [in] n_elec       Number of unfrozen electrons in the system
+ * \param [in] dest_idx     The index of the sub-vector in \p vec to store the result in
+ * \param [in] id_fac       The constant pre-factor for the identity matrix
+ * \param [in] h_fac        The constant pre-factor for the Hamiltonian matrix
+ */
+void h_op_diag(DistVec<double> &vec, unsigned int n_orbs,
+               const FourDArr &eris, const Matrix<double> &h_core,
+               unsigned int n_frozen, unsigned int n_elec, uint8_t dest_idx, double id_fac, double h_fac);
 
 
 /*! \brief Calculate the HF column of the FCI Hamiltonian

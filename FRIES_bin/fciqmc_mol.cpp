@@ -122,7 +122,10 @@ int main(int argc, const char * argv[]) {
     
     // Solution vector
     unsigned int spawn_length = target_walkers / n_procs / n_procs * 2;
-    DistVec<int> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
+    std::function<double(const uint8_t *)> diag_shortcut = [tot_orb, eris, h_core, n_frz, n_elec, hf_en](const uint8_t *occ_orbs) {
+        return diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
+    };
+    DistVec<int> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 1);
     size_t det_size = CEILING(2 * n_orb, 8);
     size_t det_idx;
     
@@ -174,7 +177,7 @@ int main(int argc, const char * argv[]) {
         n_trial = 1;
     }
     DistVec<double> trial_vec(n_trial, n_trial, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
-    DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
+    DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2);
     trial_vec.proc_scrambler_ = proc_scrambler;
     htrial_vec.proc_scrambler_ = proc_scrambler;
     if (trial_path) { // load trial vector from file
@@ -197,7 +200,10 @@ int main(int argc, const char * argv[]) {
     }
     
     // Calculate H * trial vector, and accumulate results on each processor
-    h_op(htrial_vec, symm, tot_orb, *eris, *h_core, spawn_orbs, n_frz, n_elec_unf, 0, 1, hf_en);
+    h_op_offdiag(htrial_vec, symm, tot_orb, *eris, *h_core, spawn_orbs, n_frz, n_elec_unf, 1, 1);
+    htrial_vec.set_curr_vec_idx(0);
+    h_op_diag(htrial_vec, tot_orb, *eris, *h_core, n_frz, n_elec_unf, 0, 0, 1);
+    htrial_vec.add_vecs(0, 1);
     htrial_vec.collect_procs();
     uintmax_t *htrial_hashes = (uintmax_t *)malloc(sizeof(uintmax_t) * htrial_vec.curr_size());
     for (det_idx = 0; det_idx < htrial_vec.curr_size(); det_idx++) {
@@ -408,11 +414,8 @@ int main(int argc, const char * argv[]) {
             }
             
             // Death/cloning step
-            double *diag_el = sol_vec.matr_el_at_pos(det_idx);
-            if (std::isnan(*diag_el)) {
-                *diag_el = diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
-            }
-            matr_el = (1 - eps * (*diag_el - en_shift)) * walk_sign;
+            double diag_el = sol_vec.matr_el_at_pos(det_idx);
+            matr_el = (1 - eps * (diag_el - en_shift)) * walk_sign;
             new_val = round_binomially(matr_el, n_walk, rngen_ptr);
             if (new_val == 0 && sol_vec.indices()[det_idx] != hf_det) {
                 sol_vec.del_at_pos(det_idx);
