@@ -364,7 +364,6 @@ int main(int argc, const char * argv[]) {
             
             ini_flag = weight > init_thresh;
             n_ini += ini_flag;
-            ini_flag <<= 2 * n_orb;
             
             // spawning step
             uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
