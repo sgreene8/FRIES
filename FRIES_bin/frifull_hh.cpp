@@ -283,7 +283,7 @@ int main(int argc, const char * argv[]) {
             sol_vec.perform_add();
         }
         sol_vec.set_curr_vec_idx(0);
-        for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
+        for (det_idx = 0; det_idx < vec_size; det_idx++) {
             double *curr_el = sol_vec[det_idx];
             // Death/cloning step
             if (*curr_el != 0) {

@@ -634,6 +634,7 @@ int main(int argc, const char * argv[]) {
         double *vals_before_mult = sol_vec.values();
         sol_vec.set_curr_vec_idx(1);
         sol_vec.zero_vec();
+        size_t vec_size = sol_vec.curr_size();
         if (unbias) {
             sol_vec.zero_ini();
         }
@@ -782,7 +783,7 @@ int main(int argc, const char * argv[]) {
         
 #pragma mark Death/cloning step
         sol_vec.set_curr_vec_idx(0);
-        for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
+        for (det_idx = 0; det_idx < vec_size; det_idx++) {
             double *curr_val = sol_vec[det_idx];
             if (*curr_val != 0) {
                 double diag_el = sol_vec.matr_el_at_pos(det_idx);
