@@ -640,6 +640,7 @@ int main(int argc, const char * argv[]) {
         if (unbias) {
             sol_vec.zero_ini();
         }
+        size_t vec_size = sol_vec.curr_size();
         
         // The first time around, add only elements that came from noninitiators
         for (int add_ini = 0; add_ini < 2; add_ini++) {
@@ -795,7 +796,7 @@ int main(int argc, const char * argv[]) {
         sol_vec.perform_add();
         
 #pragma mark Death/cloning step
-        for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
+        for (det_idx = 0; det_idx < vec_size; det_idx++) {
             double curr_val = sol_vec.value_cache()[det_idx];
             if (curr_val != 0) {
                 double *diag_el = sol_vec.matr_el_at_pos(det_idx);

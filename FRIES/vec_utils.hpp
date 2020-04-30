@@ -175,6 +175,7 @@ protected:
     
     virtual void initialize_at_pos(size_t pos, uint8_t *orbs) {
         values_[pos] = 0;
+        value_cache_[pos] = 0;
         matr_el_[pos] = NAN;
         memcpy(occ_orbs_[pos], orbs, occ_orbs_.cols());
     }
@@ -258,8 +259,8 @@ public:
         matr_el_ = (double *)realloc(matr_el_, sizeof(double) * new_max);
         occ_orbs_.reshape(new_max, occ_orbs_.cols());
         values_.resize(new_max);
+        value_cache_.resize(new_max);
         if (diag_calc_) {
-            value_cache_.resize(new_max);
             ini_success_.resize(new_max);
             ini_fail_.resize(new_max);
         }
