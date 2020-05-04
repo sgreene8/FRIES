@@ -158,11 +158,9 @@ private:
     uint8_t curr_vec_idx_; ///< Current vector to consider when adding, accessing elements, etc.
     std::vector<double> ini_success_;
     std::vector<double> ini_fail_;
-    double *matr_el_; ///< Array of pre-calculated diagonal matrix elements associated with each vector element
     size_t n_dense_; ///< The first \p n_dense elements in the DistVec object will always be stored, even if their corresponding values are 0
     stack_entry *vec_stack_; ///< Pointer to top of stack for managing available positions in the indices array
     int n_nonz_; ///< Current number of nonzero elements in vector, including all in the dense subspace
-    std::function<double(const uint8_t *)> diag_calc_;
     double *curr_shift_;
 protected:
     Matrix<uint8_t> indices_; ///< Array of indices of vector elements
@@ -173,6 +171,8 @@ protected:
     byte_table *tabl_; ///< Pointer to struct used to decompose determinant indices into lists of occupied orbitals
     hash_table *vec_hash_; ///< Hash table for quickly finding indices in \p indices_
     uint64_t nonini_occ_add; ///< Number of times an addition from a noninitiator determinant to an occupied determinant occurred
+    double *matr_el_; ///< Array of pre-calculated diagonal matrix elements associated with each vector element
+    std::function<double(const uint8_t *)> diag_calc_;
 private:
     Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
 protected:

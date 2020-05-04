@@ -266,6 +266,13 @@ public:
         find_neighbors_1D(det, neighb_[pos]);
         decode_phonons(det, phonon_nums_[pos]);
     }
+    
+    double matr_el_at_pos(size_t pos) {
+        if (std::isnan(DistVec<el_type>::matr_el_[pos])) {
+            DistVec<el_type>::matr_el_[pos] = DistVec<el_type>::diag_calc_(DistVec<el_type>::indices_[pos]);
+        }
+        return DistVec<el_type>::matr_el_[pos];
+    }
 };
 
 #endif /* hh_vec_h */
