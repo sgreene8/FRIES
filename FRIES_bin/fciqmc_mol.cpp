@@ -202,7 +202,7 @@ int main(int argc, const char * argv[]) {
     // Calculate H * trial vector, and accumulate results on each processor
     h_op_offdiag(htrial_vec, symm, tot_orb, *eris, *h_core, spawn_orbs, n_frz, n_elec_unf, 1, 1);
     htrial_vec.set_curr_vec_idx(0);
-    h_op_diag(htrial_vec, tot_orb, *eris, *h_core, n_frz, n_elec_unf, 0, 0, 1);
+    h_op_diag(htrial_vec, 0, 0, 1);
     htrial_vec.add_vecs(0, 1);
     htrial_vec.collect_procs();
     uintmax_t *htrial_hashes = (uintmax_t *)malloc(sizeof(uintmax_t) * htrial_vec.curr_size());

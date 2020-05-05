@@ -131,19 +131,11 @@ void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
  * This method multiplies a sub-vector within the inputted DistVec object, as determined by its \p curr_vec_idx instance variable
  *
  * \param [in,out] vec      upon return, contains the vector obtained by multiplying by H
- * \param [in] n_orbs       Number of HF spatial orbitals (including frozen)
- *                          in the basis
- * \param [in] eris         4-D array of 2-electron integrals in spatial basis
- * \param [in] h_core       2-D array of 1-electron integrals in spatial basis
- * \param [in] n_frozen     Number of core electrons frozen in the calculation
- * \param [in] n_elec       Number of unfrozen electrons in the system
  * \param [in] dest_idx     The index of the sub-vector in \p vec to store the result in
  * \param [in] id_fac       The constant pre-factor for the identity matrix
  * \param [in] h_fac        The constant pre-factor for the Hamiltonian matrix
  */
-void h_op_diag(DistVec<double> &vec, unsigned int n_orbs,
-               const FourDArr &eris, const Matrix<double> &h_core,
-               unsigned int n_frozen, unsigned int n_elec, uint8_t dest_idx, double id_fac, double h_fac);
+void h_op_diag(DistVec<double> &vec, uint8_t dest_idx, double id_fac, double h_fac);
 
 
 /*! \brief Calculate the HF column of the FCI Hamiltonian

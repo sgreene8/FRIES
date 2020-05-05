@@ -153,9 +153,7 @@ size_t sing_ex_symm(uint8_t *det, uint8_t *occ_orbs, unsigned int num_elec,
     return idx;
 }
 
-void h_op_diag(DistVec<double> &vec, unsigned int n_orbs,
-               const FourDArr &eris, const Matrix<double> &h_core,
-               unsigned int n_frozen, unsigned int n_elec, uint8_t dest_idx, double id_fac, double h_fac) {
+void h_op_diag(DistVec<double> &vec, uint8_t dest_idx, double id_fac, double h_fac) {
     double *vals_before_mult = vec.values();
     vec.set_curr_vec_idx(dest_idx);
     for (size_t det_idx = 0; det_idx < vec.curr_size(); det_idx++) {

@@ -187,7 +187,7 @@ int main(int argc, const char * argv[]) {
     // Calculate H * trial vector, and accumulate results on each processor
     h_op_offdiag(htrial_vec, symm, tot_orb, *eris, *h_core, orb_indices, n_frz, n_elec_unf, 1, 1);
     htrial_vec.set_curr_vec_idx(0);
-    h_op_diag(htrial_vec, tot_orb, *eris, *h_core, n_frz, n_elec_unf, 0, 0, 1);
+    h_op_diag(htrial_vec, 0, 0, 1);
     htrial_vec.add_vecs(0, 1);
 
     htrial_vec.collect_procs();
@@ -196,7 +196,7 @@ int main(int argc, const char * argv[]) {
         htrial_hashes[det_idx] = sol_vec.idx_to_hash(htrial_vec.indices()[det_idx], tmp_orbs);
     }
     
-    char file_path[100];
+    char file_path[300];
     FILE *num_file = NULL;
     FILE *den_file = NULL;
     FILE *shift_file = NULL;
@@ -296,7 +296,7 @@ int main(int argc, const char * argv[]) {
     for (unsigned int iterat = 0; iterat < max_iter; iterat++) {
         h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, orb_indices, n_frz, n_elec_unf, 1, -eps);
         sol_vec.set_curr_vec_idx(0);
-        h_op_diag(sol_vec, tot_orb, *eris, *h_core, n_frz, n_elec_unf, 0, 1 + eps * en_shift, -eps);
+        h_op_diag(sol_vec, 0, 1 + eps * en_shift, -eps);
         sol_vec.add_vecs(0, 1);
         
         size_t new_max_dets = sol_vec.max_size();
