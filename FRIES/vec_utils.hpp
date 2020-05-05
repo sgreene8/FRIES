@@ -448,6 +448,14 @@ public:
         }
     }
     
+    /*! \brief Copy the vector at \p src to the one at \p dst
+     */
+    void copy_vec(uint8_t src, uint8_t dst) {
+        for (size_t el_idx = 0; el_idx < curr_size_; el_idx++) {
+            values_(dst, el_idx) = values_(src, el_idx);
+        }
+    }
+    
     void zero_vec() {
         std::fill(values_[curr_vec_idx_], values_[curr_vec_idx_ + 1], 0);
     }

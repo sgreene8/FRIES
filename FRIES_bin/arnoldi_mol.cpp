@@ -31,6 +31,8 @@ int main(int argc, const char * argv[]) {
     unsigned int matr_samp = 0;
     unsigned int max_n_dets = 0;
     unsigned int max_iter = 1000000;
+    unsigned int n_krylov = 100;
+    unsigned int arnoldi_interval = 50;
     struct argparse_option options[] = {
         OPT_HELP(),
         OPT_STRING('d', "hf_path", &hf_path, "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt"),
@@ -77,7 +79,7 @@ int main(int argc, const char * argv[]) {
     
     int n_procs = 1;
     int proc_rank = 0;
-    unsigned int proc_idx, hf_proc;
+    unsigned int hf_proc;
 #ifdef USE_MPI
     MPI_Init(NULL, NULL);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
@@ -85,8 +87,9 @@ int main(int argc, const char * argv[]) {
 #endif
     
     // Parameters
-    unsigned int save_interval = 100;
-    int new_hb = 1;
+    double shift_damping = 0.05;
+    unsigned int shift_interval = 10;
+//    int new_hb = 1;
     
     // Read in data files
     hf_input in_data;
@@ -111,7 +114,10 @@ int main(int argc, const char * argv[]) {
     // Solution vector
     unsigned int spawn_length = matr_samp * 4 / n_procs;
     size_t adder_size = spawn_length > 1000000 ? 1000000 : spawn_length;
-    DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, NULL, NULL, n_trial + 1);
+    std::function<double(const uint8_t *)> diag_shortcut = [tot_orb, eris, h_core, n_frz, n_elec, hf_en](const uint8_t *occ_orbs) {
+        return diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
+    };
+    DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 3);
     size_t det_size = CEILING(2 * n_orb, 8);
     size_t det_idx;
     
@@ -167,7 +173,7 @@ int main(int argc, const char * argv[]) {
         MPI_Bcast(&n_trial_dets, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 #endif
         trial_vecs.emplace_back(n_trial_dets, n_trial_dets, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
-        htrial_vecs.emplace_back(n_trial_dets * n_ex / n_procs, n_trial_dets * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
+        htrial_vecs.emplace_back(n_trial_dets * n_ex / n_procs, n_trial_dets * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, (double *)NULL, 2);
         trial_vecs[trial_idx].proc_scrambler_ = proc_scrambler;
         htrial_vecs[trial_idx].proc_scrambler_ = proc_scrambler;
         
@@ -189,7 +195,9 @@ int main(int argc, const char * argv[]) {
         
         DistVec<double> &curr_htrial = htrial_vecs[trial_idx];
         curr_htrial.perform_add();
-        h_op(curr_htrial, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, 0, 1, hf_en);
+        h_op_offdiag(curr_htrial, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, 1, 1);
+        curr_htrial.set_curr_vec_idx(0);
+        h_op_diag(curr_htrial, 0, 0, 1);
         curr_htrial.collect_procs();
         htrial_hashes[trial_idx] = (uintmax_t *)malloc(sizeof(uintmax_t) * curr_htrial.curr_size());
         for (det_idx = 0; det_idx < curr_htrial.curr_size(); det_idx++) {
@@ -198,14 +206,17 @@ int main(int argc, const char * argv[]) {
     }
     
     // Count # single/double excitations from HF
-    sol_vec.gen_orb_list(hf_det, tmp_orbs);
-    size_t n_hf_doub = doub_ex_symm(hf_det, tmp_orbs, n_elec_unf, n_orb, orb_indices1, symm);
-    size_t n_hf_sing = count_singex(hf_det, tmp_orbs, symm, n_orb, symm_lookup, n_elec_unf);
-    double p_doub = (double) n_hf_doub / (n_hf_sing + n_hf_doub);
+//    sol_vec.gen_orb_list(hf_det, tmp_orbs);
+//    size_t n_hf_doub = doub_ex_symm(hf_det, tmp_orbs, n_elec_unf, n_orb, orb_indices1, symm);
+//    size_t n_hf_sing = count_singex(hf_det, tmp_orbs, symm, n_orb, symm_lookup, n_elec_unf);
+//    double p_doub = (double) n_hf_doub / (n_hf_sing + n_hf_doub);
     
     char file_path[300];
     FILE *bmat_file = NULL;
     FILE *dmat_file = NULL;
+    FILE *num_file = NULL;
+    FILE *den_file = NULL;
+    FILE *shift_file = NULL;
     
 #pragma mark Initialize solution vector
     if (ini_path) {
@@ -226,6 +237,7 @@ int main(int argc, const char * argv[]) {
         }
     }
     sol_vec.perform_add();
+    sol_vec.copy_vec(0, 2);
     loc_norm = sol_vec.local_norm();
     glob_norm = sum_mpi(loc_norm, proc_rank, n_procs);
     
@@ -241,6 +253,19 @@ int main(int argc, const char * argv[]) {
         strcpy(file_path, result_dir);
         strcat(file_path, "d_matrix.txt");
         dmat_file = fopen(file_path, "a");
+        
+        strcpy(file_path, result_dir);
+        strcat(file_path, "projnum.txt");
+        num_file = fopen(file_path, "a");
+        
+        strcpy(file_path, result_dir);
+        strcat(file_path, "projden.txt");
+        den_file = fopen(file_path, "a");
+        
+        strcpy(file_path, result_dir);
+        strcat(file_path, "S.txt");
+        shift_file = fopen(file_path, "a");
+        
         strcpy(file_path, result_dir);
         strcat(file_path, "params.txt");
         FILE *param_f = fopen(file_path, "w");
@@ -256,26 +281,29 @@ int main(int argc, const char * argv[]) {
     
     size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2) ? n_elec_unf : n_orb - n_elec_unf / 2;
     Matrix<double> subwt_mem(spawn_length, n_states);
-    uint16_t *sub_sizes = (uint16_t *)malloc(sizeof(uint16_t) * spawn_length);
-    unsigned int *ndiv_vec = (unsigned int *)malloc(sizeof(unsigned int) * spawn_length);
-    double *comp_vec1 = (double *)malloc(sizeof(double) * spawn_length);
-    double *comp_vec2 = (double *)malloc(sizeof(double) * spawn_length);
-    size_t (*comp_idx)[2] = (size_t (*)[2])malloc(sizeof(size_t) * 2 * spawn_length);
-    size_t comp_len;
-    size_t *det_indices1 = (size_t *)malloc(sizeof(size_t) * 2 * spawn_length);
-    size_t *det_indices2 = &det_indices1[spawn_length];
-    uint8_t (*orb_indices2)[4] = (uint8_t (*)[4])malloc(sizeof(uint8_t) * 4 * spawn_length);
-    unsigned int unocc_symm_cts[n_irreps][2];
+//    uint16_t *sub_sizes = (uint16_t *)malloc(sizeof(uint16_t) * spawn_length);
+//    unsigned int *ndiv_vec = (unsigned int *)malloc(sizeof(unsigned int) * spawn_length);
+//    double *comp_vec1 = (double *)malloc(sizeof(double) * spawn_length);
+//    double *comp_vec2 = (double *)malloc(sizeof(double) * spawn_length);
+//    size_t (*comp_idx)[2] = (size_t (*)[2])malloc(sizeof(size_t) * 2 * spawn_length);
+//    size_t comp_len;
+//    size_t *det_indices1 = (size_t *)malloc(sizeof(size_t) * 2 * spawn_length);
+//    size_t *det_indices2 = &det_indices1[spawn_length];
+//    uint8_t (*orb_indices2)[4] = (uint8_t (*)[4])malloc(sizeof(uint8_t) * 4 * spawn_length);
+//    unsigned int unocc_symm_cts[n_irreps][2];
     Matrix<bool> keep_idx(spawn_length, n_states);
-    double *wt_remain = (double *)calloc(spawn_length, sizeof(double));
-    size_t samp_idx, weight_idx;
+//    double *wt_remain = (double *)calloc(spawn_length, sizeof(double));
+//    size_t samp_idx, weight_idx;
     
-    hb_info *hb_probs = set_up(tot_orb, n_orb, *eris);
+//    hb_info *hb_probs = set_up(tot_orb, n_orb, *eris);
+    
+    double last_one_norm = 0;
+    double target_norm = 0;
     
     // Parameters for systematic sampling
     double rn_sys = 0;
-    double weight;
-    int glob_n_nonz; // Number of nonzero elements in whole vector (across all processors)
+//    double weight;
+//    int glob_n_nonz; // Number of nonzero elements in whole vector (across all processors)
     double loc_norms[n_procs];
     max_n_dets = (unsigned int)sol_vec.max_size();
     size_t *srt_arr = (size_t *)malloc(sizeof(size_t) * max_n_dets);
@@ -284,37 +312,116 @@ int main(int argc, const char * argv[]) {
     }
     std::vector<bool> keep_exact(max_n_dets, false);
     
-    double overlap[n_trial];
-    
-    for (unsigned int iteration = 0; iteration < max_iter; iteration++) {
-        for (uint8_t krylov_idx = 0; krylov_idx < n_trial - 1; krylov_idx++) {
-#pragma mark Calculate dot products for Krylov subspace
-            for (uint8_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
+    for (uint32_t iteration = 0; iteration < max_iter; iteration++) {
+        // Initialize the solution vector
+        double en_shift = 0;
+        sol_vec.copy_vec(2, 0);
+        
+        for (uint16_t krylov_idx = 0; krylov_idx < n_krylov; krylov_idx++) {
+#pragma mark Krylov dot products and orthogonalization
+            for (uint16_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
                 DistVec<double> &curr_trial = trial_vecs[trial_idx];
                 double d_prod = sol_vec.dot(curr_trial.indices(), curr_trial.values(), curr_trial.curr_size(), trial_hashes[krylov_idx]);
-                overlap[trial_idx] = sum_mpi(d_prod, proc_rank, n_procs);
+                d_prod = sum_mpi(d_prod, proc_rank, n_procs);
+                
+                if (trial_idx == krylov_idx) {
+                    if (proc_rank == hf_proc) {
+                        fprintf(dmat_file, "%lf,", d_prod);
+                    }
+                }
+                else {
+                    double *trial_vals = curr_trial.values();
+                    for (size_t det_idx = 0; det_idx < curr_trial.curr_size(); det_idx++) {
+                        sol_vec.add(curr_trial.indices()[det_idx], -d_prod * trial_vals[det_idx], 1);
+                    }
+                }
             }
             
-            double loc_norm = sol_vec.local_norm();
-            double glob_norm = sum_mpi(loc_norm, proc_rank, n_procs);
+            sol_vec.copy_vec(0, 1);
+            sol_vec.set_curr_vec_idx(1);
+            sol_vec.perform_add();
+            for (uint16_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
+                DistVec<double> &curr_htrial = htrial_vecs[trial_idx];
+                double d_prod = sol_vec.dot(curr_htrial.indices(), curr_htrial.values(), curr_htrial.curr_size(), htrial_hashes[krylov_idx]);
+                d_prod = sum_mpi(d_prod, proc_rank, n_procs);
+                if (proc_rank == hf_proc) {
+                    fprintf(bmat_file, "%lf,", d_prod);
+                }
+            }
+            sol_vec.set_curr_vec_idx(0);
             
-            
-            size_t new_max_dets = sol_vec.max_size();
-            if (new_max_dets > max_n_dets) {
-                keep_exact.resize(new_max_dets, false);
-                srt_arr = (size_t *)realloc(srt_arr, sizeof(size_t) * new_max_dets);
-                for (; max_n_dets < new_max_dets; max_n_dets++) {
-                    srt_arr[max_n_dets] = max_n_dets;
+# pragma mark Power iteration
+            for (uint32_t power_it = 0; power_it < arnoldi_interval && krylov_idx < (n_krylov - 1); power_it++) {
+                h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, 1, -eps);
+                sol_vec.set_curr_vec_idx(0);
+                h_op_diag(sol_vec, 0, 1 + eps * en_shift, -eps);
+                sol_vec.add_vecs(0, 1);
+                
+                size_t new_max_dets = sol_vec.max_size();
+                if (new_max_dets > max_n_dets) {
+                    keep_exact.resize(new_max_dets, false);
+                    srt_arr = (size_t *)realloc(srt_arr, sizeof(size_t) * new_max_dets);
+                    for (; max_n_dets < new_max_dets; max_n_dets++) {
+                        srt_arr[max_n_dets] = max_n_dets;
+                    }
+                }
+#pragma mark Vector compression step
+                unsigned int n_samp = target_nonz;
+                loc_norms[proc_rank] = find_preserve(sol_vec.values(), srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
+                glob_norm += sol_vec.dense_norm();
+                
+                // Adjust shift
+                if ((iteration + 1) % shift_interval == 0) {
+                    adjust_shift(&en_shift, glob_norm, &last_one_norm, target_norm, shift_damping / shift_interval / eps);
+                    if (proc_rank == hf_proc) {
+                        fprintf(shift_file, "%lf\n", en_shift);
+                    }
+                }
+                DistVec<double> &curr_htrial = htrial_vecs[0];
+                double numer = sol_vec.dot(curr_htrial.indices(), curr_htrial.values(), curr_htrial.curr_size(), htrial_hashes[0]);
+                DistVec<double> &curr_trial = trial_vecs[0];
+                double denom = sol_vec.dot(curr_trial.indices(), curr_trial.values(), curr_trial.curr_size(), trial_hashes[0]);
+                numer = sum_mpi(numer, proc_rank, n_procs);
+                denom = sum_mpi(denom, proc_rank, n_procs);
+                if (proc_rank == hf_proc) {
+                    fprintf(num_file, "%lf\n", numer);
+                    fprintf(den_file, "%lf\n", denom);
+                    printf("%6u, en est: %.9lf, shift: %lf, norm: %lf\n", power_it, numer / denom, en_shift, glob_norm);
+                }
+
+                if (proc_rank == 0) {
+                    rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
+                }
+#ifdef USE_MPI
+                MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+#endif
+                sys_comp(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
+                for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
+                    if (keep_exact[det_idx]) {
+                        sol_vec.del_at_pos(det_idx);
+                        keep_exact[det_idx] = 0;
+                    }
                 }
             }
         }
-//        LAPACKE_dgeev(LAPACK_ROW_MAJOR, 'N', 'N', n_trial, krylov_mat.data(), n_trial, energies_r, energies_i, NULL, n_trial, NULL, n_trial);
-        
+        if (proc_rank == hf_proc) {
+            fprintf(dmat_file, "\n");
+            fprintf(bmat_file, "\n");
+            fflush(num_file);
+            fflush(den_file);
+            fflush(shift_file);
+            fflush(dmat_file);
+            fflush(bmat_file);
+        }
+        //        LAPACKE_dgeev(LAPACK_ROW_MAJOR, 'N', 'N', n_trial, krylov_mat.data(), n_trial, energies_r, energies_i, NULL, n_trial, NULL, n_trial);
     }
     
     if (proc_rank == hf_proc) {
         fclose(bmat_file);
         fclose(dmat_file);
+        fclose(num_file);
+        fclose(den_file);
+        fclose(shift_file);
     }
 #ifdef USE_MPI
     MPI_Finalize();
