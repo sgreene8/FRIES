@@ -162,6 +162,7 @@ private:
     stack_entry *vec_stack_; ///< Pointer to top of stack for managing available positions in the indices array
     int n_nonz_; ///< Current number of nonzero elements in vector, including all in the dense subspace
     double *curr_shift_;
+    Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
 protected:
     Matrix<uint8_t> indices_; ///< Array of indices of vector elements
     size_t max_size_; ///< Maximum number of vector elements that can be stored
@@ -173,9 +174,6 @@ protected:
     uint64_t nonini_occ_add; ///< Number of times an addition from a noninitiator determinant to an occupied determinant occurred
     double *matr_el_; ///< Array of pre-calculated diagonal matrix elements associated with each vector element
     std::function<double(const uint8_t *)> diag_calc_;
-private:
-    Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
-protected:
     
     virtual void initialize_at_pos(size_t pos, uint8_t *orbs) {
         for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
