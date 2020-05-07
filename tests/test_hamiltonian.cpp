@@ -263,7 +263,7 @@ TEST_CASE("Test generation of excitations in the Hubbard model", "[hub_excite]")
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
     
     // Solution vector
-    HubHolVec<int> sol_vec(1, 0, rngen_ptr, n_sites, 0, n_elec, 1);
+    HubHolVec<int> sol_vec(1, 0, rngen_ptr, n_sites, 0, n_elec, 1, NULL, 1);
     
     Matrix<uint8_t> &neighb = sol_vec.neighb();
     sol_vec.find_neighbors_1D(det, neighb[0]);
@@ -282,7 +282,7 @@ TEST_CASE("Test generation of excitations in the Hubbard model", "[hub_excite]")
     
     REQUIRE(det[0] == 0b1001);
     
-    HubHolVec<int>sol_vec2(1, 0, rngen_ptr, n_sites, 1, n_elec, 1);
+    HubHolVec<int>sol_vec2(1, 0, rngen_ptr, n_sites, 1, n_elec, 1, NULL, 0);
     sol_vec2.find_neighbors_1D(det, neighb[0]);
     
     REQUIRE(neighb[0][0] == 1);
@@ -310,7 +310,7 @@ TEST_CASE("Test identification of empty neighboring orbitals in a Hubbard determ
     // Solution vector
     mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, (unsigned int) time(NULL));
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
-    HubHolVec<int> sol_vec(1, 0, rngen_ptr, n_sites, 0, n_elec, 1);
+    HubHolVec<int> sol_vec(1, 0, rngen_ptr, n_sites, 0, n_elec, 1, NULL, 1);
     
     uint8_t *neighb = sol_vec.neighb()[0];
     sol_vec.find_neighbors_1D(det, neighb);
@@ -340,7 +340,7 @@ TEST_CASE("Test counting of singly/doubly occupied sites in a Hubbard-Holstein b
     // Solution vector
     mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, (unsigned int) time(NULL));
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
-    HubHolVec<int> sol_vec(1, 0, rngen_ptr, n_sites, 0, n_elec, 1);
+    HubHolVec<int> sol_vec(1, 0, rngen_ptr, n_sites, 0, n_elec, 1, NULL, 1);
     
     uint8_t occ[n_elec];
     sol_vec.gen_orb_list(det, occ);
@@ -360,7 +360,7 @@ TEST_CASE("Test generation of phonon excitations/de-excitations in the Holstein 
     
     mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, (unsigned int) time(NULL));
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
-    HubHolVec<double> sol_vec(1, 0, rngen_ptr, n_sites, ph_bits, n_elec, 1);
+    HubHolVec<double> sol_vec(1, 0, rngen_ptr, n_sites, ph_bits, n_elec, 1, NULL, 1);
     
     uint8_t orig_det[det_size];
     orig_det[0] = 0b00101110;
