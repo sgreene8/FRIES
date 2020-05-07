@@ -153,50 +153,91 @@ size_t sing_ex_symm(uint8_t *det, uint8_t *occ_orbs, unsigned int num_elec,
     return idx;
 }
 
+void h_op_diag(DistVec<double> &vec, uint8_t dest_idx, double id_fac, double h_fac) {
+    double *vals_before_mult = vec.values();
+    vec.set_curr_vec_idx(dest_idx);
+    for (size_t det_idx = 0; det_idx < vec.curr_size(); det_idx++) {
+        double curr_val = vals_before_mult[det_idx];
+        if (curr_val != 0) {
+            double diag_el = vec.matr_el_at_pos(det_idx);
+            double *target_val = vec[det_idx];
+            *target_val = curr_val * (id_fac + h_fac * diag_el);
+        }
+    }
+}
 
-void h_op(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
-          const FourDArr &eris, const Matrix<double> &h_core,
-          uint8_t *orbs_scratch, unsigned int n_frozen,
-          unsigned int n_elec, double id_fac, double h_fac, double hf_en) {
-    size_t det_idx, ex_idx;
+void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
+                  const FourDArr &eris, const Matrix<double> &h_core,
+                  uint8_t *orbs_scratch, unsigned int n_frozen,
+                  unsigned int n_elec, uint8_t dest_idx, double h_fac) {
+    int n_procs = 1;
+    int proc_rank = 0;
+#ifdef USE_MPI
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+#endif
+    size_t ex_idx;
     unsigned int unf_orbs = n_orbs - n_frozen / 2;
+    size_t n_ex = (unf_orbs - n_elec / 2) * (unf_orbs - n_elec / 2) * n_elec * n_elec;
     uint8_t n_bytes = CEILING(vec.n_bits(), 8);
     uint8_t new_det[n_bytes];
-    for (det_idx = 0; det_idx < vec.curr_size(); det_idx++) {
-        double *curr_el = vec[det_idx];
-        uint8_t *curr_det = vec.indices()[det_idx];
-        if (*curr_el == 0) {
-            continue;
-        }
-        
-        uint8_t *occ_orbs = vec.orbs_at_pos(det_idx);
-        uint8_t (*sing_ex_orbs)[2] = (uint8_t (*)[2])orbs_scratch;
-        size_t n_sing = sing_ex_symm(curr_det, occ_orbs, n_elec, unf_orbs, sing_ex_orbs, symm);
-        for (ex_idx = 0; ex_idx < n_sing; ex_idx++) {
-            double matr_el = sing_matr_el_nosgn(sing_ex_orbs[ex_idx], occ_orbs, n_orbs, eris, h_core, n_frozen, n_elec);
-            memcpy(new_det, curr_det, n_bytes);
-            matr_el *= sing_det_parity(new_det, sing_ex_orbs[ex_idx]);
-            matr_el *= *curr_el * h_fac;
-            vec.add(new_det, matr_el, 1);
-        }
-        
-        uint8_t (*doub_ex_orbs)[4] = (uint8_t (*)[4])orbs_scratch;
-        size_t n_doub = doub_ex_symm(curr_det, occ_orbs, n_elec, unf_orbs, doub_ex_orbs, symm);
-        for (ex_idx = 0; ex_idx < n_doub; ex_idx++) {
-            double matr_el = doub_matr_el_nosgn(doub_ex_orbs[ex_idx], n_orbs, eris, n_frozen);
-            memcpy(new_det, curr_det, n_bytes);
-            matr_el *= doub_det_parity(new_det, doub_ex_orbs[ex_idx]);
-            matr_el *= *curr_el * h_fac;
-            vec.add(new_det, matr_el, 1);
-        }
-
-        double *diag_el = vec.matr_el_at_pos(det_idx);
-        if (std::isnan(*diag_el)) {
-            *diag_el = diag_matrel(occ_orbs, n_orbs, eris, h_core, n_frozen, n_elec + n_frozen) - hf_en;
-        }
-        *curr_el *= (id_fac + h_fac * (*diag_el));
+    uint8_t (*sing_ex_orbs)[2] = (uint8_t (*)[2])orbs_scratch;
+    uint8_t (*doub_ex_orbs)[4] = (uint8_t (*)[4])orbs_scratch;
+    
+    if (vec.num_vecs() <= dest_idx) {
+        fprintf(stderr, "Error: DistVec argument to h_op must allow for the storage of at least 2 simultaneous vectors\n");
+        return;
     }
-    vec.perform_add();
+    
+    double *vals_before_mult = vec.values();
+    size_t vec_size = vec.curr_size();
+    size_t adder_size = vec.adder_size() - n_ex;
+    if (adder_size < n_ex) {
+        adder_size = n_ex;
+    }
+    vec.set_curr_vec_idx(dest_idx);
+    vec.zero_vec();
+    
+    size_t det_idx = 0;
+    int num_added = 1;
+    while (num_added > 0) {
+        num_added = 0;
+        while (det_idx < vec_size && num_added < adder_size) {
+            double curr_el = vals_before_mult[det_idx];
+            uint8_t *curr_det = vec.indices()[det_idx];
+            if (curr_el == 0) {
+                det_idx++;
+                continue;
+            }
+            
+            uint8_t *occ_orbs = vec.orbs_at_pos(det_idx);
+            size_t n_sing = sing_ex_symm(curr_det, occ_orbs, n_elec, unf_orbs, sing_ex_orbs, symm);
+            for (ex_idx = 0; ex_idx < n_sing; ex_idx++) {
+                double matr_el = sing_matr_el_nosgn(sing_ex_orbs[ex_idx], occ_orbs, n_orbs, eris, h_core, n_frozen, n_elec);
+                memcpy(new_det, curr_det, n_bytes);
+                matr_el *= sing_det_parity(new_det, sing_ex_orbs[ex_idx]);
+                matr_el *= curr_el * h_fac;
+                vec.add(new_det, matr_el, 1);
+            }
+            num_added += n_sing;
+            
+            size_t n_doub = doub_ex_symm(curr_det, occ_orbs, n_elec, unf_orbs, doub_ex_orbs, symm);
+            for (ex_idx = 0; ex_idx < n_doub; ex_idx++) {
+                double matr_el = doub_matr_el_nosgn(doub_ex_orbs[ex_idx], n_orbs, eris, n_frozen);
+                memcpy(new_det, curr_det, n_bytes);
+                matr_el *= doub_det_parity(new_det, doub_ex_orbs[ex_idx]);
+                matr_el *= curr_el * h_fac;
+                vec.add(new_det, matr_el, 1);
+            }
+            if (n_doub > n_ex) {
+                fprintf(stderr, "Error: out of bounds in h_op_offdiag\n");
+            }
+            num_added += n_doub;
+            det_idx++;
+        }
+        num_added = sum_mpi(num_added, proc_rank, n_procs);
+        vec.perform_add();
+    }
 }
 
 

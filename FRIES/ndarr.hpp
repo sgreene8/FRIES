@@ -74,6 +74,24 @@ public:
         }
     }
     
+    /*! \brief Increase number of columns in the matrix
+     * Data are copied such that the first n elements in each row remain the same before and after this operation
+     * \param [in] new_col      Desired number of columns in the enlarged matrix
+     * \param [in] n_keep       Number of elements to preserve in all rows of the matrix
+     */
+    void enlarge_cols(size_t new_col, int n_keep) {
+        if (new_col > cols_) {
+            size_t old_cols = cols_;
+            reshape(rows_, new_col);
+            
+            size_t row_idx;
+            for (row_idx = rows_; row_idx > 0; row_idx--) {
+                auto begin = data_.begin();
+                std::copy_backward(begin + (row_idx - 1) * old_cols, begin + (row_idx - 1) * old_cols + n_keep, begin + (row_idx - 1) * new_col + n_keep);
+            }
+        }
+    }
+    
     
     /*! \brief Change the dimensions without moving any of the data
      * \param [in] new_rows     Desired number of rows in the reshaped matrix

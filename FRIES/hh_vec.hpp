@@ -25,7 +25,7 @@ public:
      * \param [in] n_procs Number of MPI processes over which to distribute vector elements
      */
     HubHolVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_sites, uint8_t max_ph,
-              unsigned int n_elec, int n_procs): DistVec<el_type>(size, add_size, rn_ptr, n_sites * 2 + n_sites * max_ph, n_elec, n_procs, NULL, NULL), neighb_(size, 2 * (n_elec + 1)), n_sites_(n_sites), ph_bits_(max_ph), phonon_nums_(size, n_sites_) {
+              unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, uint8_t n_vecs): DistVec<el_type>(size, add_size, rn_ptr, n_sites * 2 + n_sites * max_ph, n_elec, n_procs, diag_fxn, NULL, n_vecs), neighb_(size, 2 * (n_elec + 1)), n_sites_(n_sites), ph_bits_(max_ph), phonon_nums_(size, n_sites_) {
         
     }
     
@@ -265,6 +265,13 @@ public:
         uint8_t *det = DistVec<el_type>::indices_[pos];
         find_neighbors_1D(det, neighb_[pos]);
         decode_phonons(det, phonon_nums_[pos]);
+    }
+    
+    double matr_el_at_pos(size_t pos) {
+        if (std::isnan(DistVec<el_type>::matr_el_[pos])) {
+            DistVec<el_type>::matr_el_[pos] = DistVec<el_type>::diag_calc_(DistVec<el_type>::indices_[pos]);
+        }
+        return DistVec<el_type>::matr_el_[pos];
     }
 };
 

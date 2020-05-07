@@ -128,7 +128,11 @@ int main(int argc, const char * argv[]) {
     // Solution vector
     unsigned int spawn_length = n_elec * 4 * max_n_dets / n_procs;
     uint8_t ph_bits = 3;
-    HubHolVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, hub_len, ph_bits, n_elec, n_procs);
+    byte_table *bt = gen_byte_table();
+    std::function<double(const uint8_t *)> diag_shortcut = [hub_len, bt](const uint8_t *det) {
+        return hub_diag((uint8_t *)det, hub_len, bt);
+    };
+    HubHolVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, hub_len, ph_bits, n_elec, n_procs, diag_shortcut, 2);
     size_t det_size = CEILING(2 * n_orb + ph_bits * n_orb, 8);
     sol_vec.proc_scrambler_ = proc_scrambler;
     
@@ -209,62 +213,86 @@ int main(int argc, const char * argv[]) {
     unsigned int iterat;
     Matrix<uint8_t> &neighb_orbs = sol_vec.neighb();
     for (iterat = 0; iterat < max_iter; iterat++) {
-        for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
-            double *curr_el = sol_vec[det_idx];
-            uint8_t *curr_det = sol_vec.indices()[det_idx];
-            ini_flag = fabs(*curr_el) > init_thresh;
-            
-            size_t n_success = hub_all(n_elec, neighb_orbs[det_idx], spawn_orbs);
-            
-            for (size_t ex_idx = 0; ex_idx < n_success; ex_idx++) {
-                memcpy(new_det, curr_det, det_size);
-                zero_bit(new_det, spawn_orbs[ex_idx][0]);
-                set_bit(new_det, spawn_orbs[ex_idx][1]);
-                sol_vec.add(new_det, eps * hub_t * (*curr_el), ini_flag);
-            }
-            
-            uint8_t *curr_occ = sol_vec.orbs_at_pos(det_idx);
-            uint8_t *curr_phonons = sol_vec.phonons_at_pos(det_idx);
-            for (size_t elec_idx = 0; elec_idx < n_elec / 2; elec_idx++) {
-                uint8_t site = curr_occ[elec_idx];
-                uint8_t phonon_num = curr_phonons[site];
-                int doubly_occ = read_bit(curr_det, site + hub_len);
-                if (phonon_num > 0) {
-                    sol_vec.det_from_ph(curr_det, new_det, site, -1);
-                    sol_vec.add(new_det, -eps * elec_ph * sqrt(phonon_num) * (doubly_occ + 1) * (*curr_el), ini_flag);
+        det_idx = 0;
+        int num_added = 1;
+        size_t vec_size = sol_vec.curr_size();
+        size_t adder_size = sol_vec.adder_size() - n_elec * 4;
+        
+        double *vals_before_mult = sol_vec.values();
+        sol_vec.set_curr_vec_idx(1);
+        sol_vec.zero_vec();
+        
+        while (num_added > 0) {
+            num_added = 0;
+            while (det_idx < vec_size && num_added < adder_size) {
+                double curr_el = vals_before_mult[det_idx];
+                if (curr_el == 0) {
+                    det_idx++;
+                    continue;
                 }
-                if (phonon_num + 1 < (1 << ph_bits)) {
-                    sol_vec.det_from_ph(curr_det, new_det, site, +1);
-                    sol_vec.add(new_det, -eps * elec_ph * sqrt(phonon_num + 1) * (doubly_occ + 1) * (*curr_el), ini_flag);
+                uint8_t *curr_det = sol_vec.indices()[det_idx];
+                ini_flag = fabs(curr_el) > init_thresh;
+                
+                size_t n_success = hub_all(n_elec, neighb_orbs[det_idx], spawn_orbs);
+                
+                for (size_t ex_idx = 0; ex_idx < n_success; ex_idx++) {
+                    memcpy(new_det, curr_det, det_size);
+                    zero_bit(new_det, spawn_orbs[ex_idx][0]);
+                    set_bit(new_det, spawn_orbs[ex_idx][1]);
+                    sol_vec.add(new_det, eps * hub_t * curr_el, ini_flag);
                 }
-            }
-            for (size_t elec_idx = n_elec / 2; elec_idx < n_elec; elec_idx++) {
-                uint8_t site = curr_occ[elec_idx] - n_orb;
-                int doubly_occ = read_bit(curr_det, site);
-                if (!doubly_occ) {
+                num_added += n_success;
+                
+                uint8_t *curr_occ = sol_vec.orbs_at_pos(det_idx);
+                uint8_t *curr_phonons = sol_vec.phonons_at_pos(det_idx);
+                for (size_t elec_idx = 0; elec_idx < n_elec / 2; elec_idx++) {
+                    uint8_t site = curr_occ[elec_idx];
                     uint8_t phonon_num = curr_phonons[site];
+                    int doubly_occ = read_bit(curr_det, site + hub_len);
                     if (phonon_num > 0) {
                         sol_vec.det_from_ph(curr_det, new_det, site, -1);
-                        sol_vec.add(new_det, -eps * elec_ph * sqrt(phonon_num) * (*curr_el), ini_flag);
+                        sol_vec.add(new_det, -eps * elec_ph * sqrt(phonon_num) * (doubly_occ + 1) * curr_el, ini_flag);
+                        num_added++;
                     }
                     if (phonon_num + 1 < (1 << ph_bits)) {
                         sol_vec.det_from_ph(curr_det, new_det, site, +1);
-                        sol_vec.add(new_det, -eps * elec_ph * sqrt(phonon_num + 1) * (*curr_el), ini_flag);
+                        sol_vec.add(new_det, -eps * elec_ph * sqrt(phonon_num + 1) * (doubly_occ + 1) * curr_el, ini_flag);
+                        num_added++;
                     }
                 }
+                for (size_t elec_idx = n_elec / 2; elec_idx < n_elec; elec_idx++) {
+                    uint8_t site = curr_occ[elec_idx] - n_orb;
+                    int doubly_occ = read_bit(curr_det, site);
+                    if (!doubly_occ) {
+                        uint8_t phonon_num = curr_phonons[site];
+                        if (phonon_num > 0) {
+                            sol_vec.det_from_ph(curr_det, new_det, site, -1);
+                            sol_vec.add(new_det, -eps * elec_ph * sqrt(phonon_num) * curr_el, ini_flag);
+                            num_added++;
+                        }
+                        if (phonon_num + 1 < (1 << ph_bits)) {
+                            sol_vec.det_from_ph(curr_det, new_det, site, +1);
+                            sol_vec.add(new_det, -eps * elec_ph * sqrt(phonon_num + 1) * curr_el, ini_flag);
+                            num_added++;
+                        }
+                    }
+                }
+                det_idx++;
             }
-
+            num_added = sum_mpi(num_added, proc_rank, n_procs);
+            sol_vec.perform_add();
+        }
+        sol_vec.set_curr_vec_idx(0);
+        for (det_idx = 0; det_idx < vec_size; det_idx++) {
+            double *curr_el = sol_vec[det_idx];
             // Death/cloning step
             if (*curr_el != 0) {
-                double *diag_el = sol_vec.matr_el_at_pos(det_idx);
-                if (std::isnan(*diag_el)) {
-                    *diag_el = hub_diag(curr_det, hub_len, sol_vec.tabl());
-                }
+                double diag_el = sol_vec.matr_el_at_pos(det_idx);
                 double phonon_diag = sol_vec.total_ph(det_idx) * ph_freq;
-                *curr_el *= 1 - eps * (*diag_el * hub_u + phonon_diag - hf_en - en_shift);
+                *curr_el *= 1 - eps * (diag_el * hub_u + phonon_diag - hf_en - en_shift);
             }
         }
-        sol_vec.perform_add();
+        sol_vec.add_vecs(0, 1);
         
         size_t new_max_dets = sol_vec.max_size();
         if (new_max_dets > max_n_dets) {
@@ -296,9 +324,9 @@ int main(int argc, const char * argv[]) {
         recv_nums[0] = matr_el;
 #endif
         if (proc_rank == ref_proc) {
-            double *diag_el = sol_vec.matr_el_at_pos(0);
+            double diag_el = sol_vec.matr_el_at_pos(0);
             double ref_element = *(sol_vec[0]);
-            matr_el = (*diag_el * hub_u - hf_en) * ref_element;
+            matr_el = (diag_el * hub_u - hf_en) * ref_element;
             for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
                 matr_el += recv_nums[proc_idx] * -hub_t;
             }
