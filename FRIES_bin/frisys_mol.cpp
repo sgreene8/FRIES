@@ -638,7 +638,6 @@ int main(int argc, const char * argv[]) {
         if (unbias) {
             sol_vec.zero_ini();
         }
-        size_t vec_size = sol_vec.curr_size();
         
         // The first time around, add only elements that came from noninitiators
         for (int add_ini = 0; add_ini < 2; add_ini++) {
