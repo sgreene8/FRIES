@@ -31,7 +31,6 @@ int main(int argc, const char * argv[]) {
     unsigned int matr_samp = 0;
     unsigned int max_n_dets = 0;
     unsigned int max_iter = 1000000;
-    unsigned int n_krylov = 100;
     unsigned int arnoldi_interval = 50;
     struct argparse_option options[] = {
         OPT_HELP(),
@@ -41,7 +40,7 @@ int main(int argc, const char * argv[]) {
         OPT_STRING('y', "result_dir", &result_dir, "Directory in which to save output files"),
         OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
         OPT_STRING('n', "ini_vec", &ini_path, "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)."),
-        OPT_STRING('v', "trial_vecs", &trial_path, "Prefix for files containing the vectors with which to calculate the energy (files must have names <trial_vec>dets<xx> and <trial_vec>vals<xx>, where xx is a 2-digit number ranging from 0 to (n_trial - 1), and be text files)."),
+        OPT_STRING('v', "trial_vecs", &trial_path, "Prefix for files containing the vectors with which to calculate the energy (files must have names <trial_vecs>dets<xx> and <trial_vecs>vals<xx>, where xx is a 2-digit number ranging from 0 to (n_trial - 1), and be text files)."),
         OPT_INTEGER('k', "num_trial", &n_trial, "Number of trial vectors to use to calculate dot products with the iterates."),
         OPT_INTEGER('I', "max_iter", &max_iter, "Maximum number of iterations to run the calculation."),
         OPT_END(),
@@ -315,7 +314,7 @@ int main(int argc, const char * argv[]) {
         double en_shift = 0;
         sol_vec.copy_vec(2, 0);
         
-        for (uint16_t krylov_idx = 0; krylov_idx < n_krylov; krylov_idx++) {
+        for (uint16_t krylov_idx = 0; krylov_idx < n_trial; krylov_idx++) {
 #pragma mark Krylov dot products and orthogonalization
             for (uint16_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
                 DistVec<double> *curr_trial = trial_vecs[trial_idx];
@@ -349,7 +348,7 @@ int main(int argc, const char * argv[]) {
             sol_vec.set_curr_vec_idx(0);
             
 # pragma mark Power iteration
-            for (uint32_t power_it = 0; power_it < arnoldi_interval && krylov_idx < (n_krylov - 1); power_it++) {
+            for (uint32_t power_it = 0; power_it < arnoldi_interval && krylov_idx < (n_trial - 1); power_it++) {
                 h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, 1, -eps);
                 sol_vec.set_curr_vec_idx(0);
                 h_op_diag(sol_vec, 0, 1 + eps * en_shift, -eps);
