@@ -113,38 +113,37 @@ TEST_CASE("Test evaluation of Hubbard matrix elements", "[hubbard]") {
     unsigned int n_sites = 10;
     size_t n_bytes = CEILING(2 * n_sites, 8);
     uint8_t det[n_bytes];
-    byte_table *tabl = gen_byte_table();
     
     // 1010000101 0011000011
     det[0] = 0b11000011;
     det[1] = 0b00010100;
     det[2] = 0b1010;
-    REQUIRE(hub_diag(det, n_sites, tabl) == 2);
+    REQUIRE(hub_diag(det, n_sites) == 2);
     
     n_sites = 8;
     // 10001111 11000111
     det[0] = 0b11000111;
     det[1] = 0b10001111;
-    REQUIRE(hub_diag(det, n_sites, tabl) == 4);
+    REQUIRE(hub_diag(det, n_sites) == 4);
     
     n_sites = 3;
     // 101 011
     det[0] = 0b11101011;
-    REQUIRE(hub_diag(det, n_sites, tabl) == 1);
+    REQUIRE(hub_diag(det, n_sites) == 1);
     
     n_sites = 4;
     det[0] = 0b00100010;
-    REQUIRE(hub_diag(det, n_sites, tabl) == 1);
+    REQUIRE(hub_diag(det, n_sites) == 1);
     
     n_sites = 5;
     det[0] = 0b1000010;
     det[1] = 0;
-    REQUIRE(hub_diag(det, n_sites, tabl) == 1);
+    REQUIRE(hub_diag(det, n_sites) == 1);
     
     n_sites = 5;
     det[0] = 255;
     det[1] = 255;
-    REQUIRE(hub_diag(det, n_sites, tabl) == n_sites);
+    REQUIRE(hub_diag(det, n_sites) == n_sites);
 }
 
 
@@ -164,9 +163,8 @@ TEST_CASE("Test calculation of overlap with neel state in Hubbard-Holstein", "[n
     // Returning correct neel state
     REQUIRE(bit_str_equ(bit_str1, bit_str2, det_size));
     
-    byte_table *tabl = gen_byte_table();
     // Diagonal element for neel state should be zero
-    REQUIRE(hub_diag(bit_str1, n_sites, tabl) == 0);
+    REQUIRE(hub_diag(bit_str1, n_sites) == 0);
     
     n_sites = 20;
     n_elec = 8;
@@ -183,7 +181,7 @@ TEST_CASE("Test calculation of overlap with neel state in Hubbard-Holstein", "[n
     REQUIRE(bit_str_equ(bit_str1, bit_str2, det_size));
     
     // Diagonal element for neel state should be zero
-    REQUIRE(hub_diag(bit_str1, n_sites, tabl) == 0);
+    REQUIRE(hub_diag(bit_str1, n_sites) == 0);
     
     n_sites = 10;
     n_elec = 10;
@@ -200,11 +198,11 @@ TEST_CASE("Test calculation of overlap with neel state in Hubbard-Holstein", "[n
     REQUIRE(bit_str_equ(bit_str1, bit_str2, det_size));
     
     // Diagonal element for neel state should be zero
-    REQUIRE(hub_diag(bit_str1, n_sites, tabl) == 0);
+    REQUIRE(hub_diag(bit_str1, n_sites) == 0);
     
     // correctly ignore bits after 2 * n_sites
     bit_str2[2] = 0b11111010;
-    REQUIRE(hub_diag(bit_str2, n_sites, tabl) == 0);
+    REQUIRE(hub_diag(bit_str2, n_sites) == 0);
     bit_str2[2] = 0b1010;
     
     zero_bit(bit_str2, 15);
@@ -222,7 +220,7 @@ TEST_CASE("Test calculation of overlap with neel state in Hubbard-Holstein", "[n
     
     int vals[] = {2, 3};
     // Correctly identify excitation across left byte boundary
-    REQUIRE(calc_ref_ovlp(dets, vals, phonons, 2, bit_str1, occ1, tabl, n_elec, n_sites, 0) == 2);
+    REQUIRE(calc_ref_ovlp(dets, vals, phonons, 2, bit_str1, occ1, n_elec, n_sites, 0) == 2);
     
     zero_bit(dets[0], 16);
     set_bit(dets[0], 15);
@@ -230,7 +228,7 @@ TEST_CASE("Test calculation of overlap with neel state in Hubbard-Holstein", "[n
     zero_bit(dets[0], 8);
     
     // Correctly identify excitation across right byte boundary
-    REQUIRE(calc_ref_ovlp(dets, vals, phonons, 2, bit_str1, occ1, tabl, n_elec, n_sites, 0) == 2);
+    REQUIRE(calc_ref_ovlp(dets, vals, phonons, 2, bit_str1, occ1, n_elec, n_sites, 0) == 2);
     
     // Correctly identify a phonon excitation
     set_bit(dets[0], 8);
@@ -238,13 +236,13 @@ TEST_CASE("Test calculation of overlap with neel state in Hubbard-Holstein", "[n
     REQUIRE(bit_str_equ(bit_str1, dets[0], det_size));
     set_bit(dets[0], 2 * n_sites);
     phonons(0, 0) = 1;
-    REQUIRE(calc_ref_ovlp(dets, vals, phonons, 2, bit_str1, occ1, tabl, n_elec, n_sites, 10) == -20);
+    REQUIRE(calc_ref_ovlp(dets, vals, phonons, 2, bit_str1, occ1, n_elec, n_sites, 10) == -20);
     
     // Correctly ignore wrong phonon excitations
     phonons(0, 0) = 2;
     zero_bit(dets[0], 2 * n_sites);
     set_bit(dets[0], 2 * n_sites + 1);
-    REQUIRE(calc_ref_ovlp(dets, vals, phonons, 2, bit_str1, occ1, tabl, n_elec, n_sites, 10) == 0);
+    REQUIRE(calc_ref_ovlp(dets, vals, phonons, 2, bit_str1, occ1, n_elec, n_sites, 10) == 0);
 }
 
 
