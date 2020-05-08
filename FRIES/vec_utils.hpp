@@ -805,7 +805,7 @@ void Adder<el_type>::perform_add() {
     size_t el_size = sizeof(el_type);
 #ifdef USE_MPI
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-    MPI_Alltoall(send_cts_, 1, MPI_INT, recv_cts_, 1, MPI_INT, MPI_COMM_WORLD);
+    MPI_Alltoall(send_cts_.data(), 1, MPI_INT, recv_cts_.data(), 1, MPI_INT, MPI_COMM_WORLD);
     
     int send_idx_cts[n_procs];
     int recv_idx_cts[n_procs];
@@ -814,8 +814,8 @@ void Adder<el_type>::perform_add() {
         recv_idx_cts[proc_idx] = recv_cts_[proc_idx] * n_bytes_;
     }
     
-    MPI_Alltoallv(send_idx_.data(), send_idx_cts, idx_disp_, MPI_UINT8_T, recv_idx_.data(), recv_idx_cts, idx_disp_, MPI_UINT8_T, MPI_COMM_WORLD);
-    mpi_atoav(send_vals_.data(), send_cts_, val_disp_, recv_vals_.data(), recv_cts_);
+    MPI_Alltoallv(send_idx_.data(), send_idx_cts, idx_disp_.data(), MPI_UINT8_T, recv_idx_.data(), recv_idx_cts, idx_disp_.data(), MPI_UINT8_T, MPI_COMM_WORLD);
+    mpi_atoav(send_vals_.data(), send_cts_.data(), val_disp_.data(), recv_vals_.data(), recv_cts_.data());
 #else
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         int cpy_size = send_cts_[proc_idx];
@@ -829,12 +829,12 @@ void Adder<el_type>::perform_add() {
         parent_vec_->add_elements(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx], Matrix<bool>::RowReference(recv_idx_[proc_idx]));
     }
 #ifdef USE_MPI
-    mpi_atoav(recv_vals_.data(), recv_cts_, val_disp_, send_vals_.data(), send_cts_);
+    mpi_atoav(recv_vals_.data(), recv_cts_.data(), val_disp_.data(), send_vals_.data(), send_cts_.data());
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         recv_idx_cts[proc_idx] = CEILING(recv_cts_[proc_idx], 8);
         send_idx_cts[proc_idx] = CEILING(send_cts_[proc_idx], 8);
     }
-    MPI_Alltoallv(recv_idx_.data(), recv_idx_cts, idx_disp_, MPI_UINT8_T, send_idx_.data(), send_idx_cts, idx_disp_, MPI_UINT8_T, MPI_COMM_WORLD);
+    MPI_Alltoallv(recv_idx_.data(), recv_idx_cts, idx_disp_.data(), MPI_UINT8_T, send_idx_.data(), send_idx_cts, idx_disp_.data(), MPI_UINT8_T, MPI_COMM_WORLD);
 #else
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         memcpy(send_vals_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx] * el_size);
