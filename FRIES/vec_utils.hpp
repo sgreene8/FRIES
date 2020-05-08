@@ -18,6 +18,7 @@
 #include <FRIES/ndarr.hpp>
 #include <FRIES/compress_utils.hpp>
 #include <vector>
+#include <stack>
 #include <functional>
 
 using namespace std;
@@ -148,7 +149,7 @@ private:
     std::vector<double> ini_success_;
     std::vector<double> ini_fail_;
     size_t n_dense_; ///< The first \p n_dense elements in the DistVec object will always be stored, even if their corresponding values are 0
-    stack_entry *vec_stack_; ///< Pointer to top of stack for managing available positions in the indices array
+    std::stack<size_t> vec_stack_; ///< Pointer to top of stack for managing available positions in the indices array
     int n_nonz_; ///< Current number of nonzero elements in vector, including all in the dense subspace
     double *curr_shift_;
     Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
@@ -175,7 +176,7 @@ public:
     unsigned int *proc_scrambler_; ///< Array of random numbers used in the hash function for assigning vector indices to MPI
     
     DistVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_bits,
-            unsigned int n_elec, int n_procs) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr), matr_el_(size) {
+            unsigned int n_elec, int n_procs) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr), matr_el_(size) {
         vec_hash_ = setup_ht(CEILING(size, 5), rn_ptr, n_bits);
     }
     
@@ -188,7 +189,7 @@ public:
      * \param [in] n_procs Number of MPI processes over which to distribute vector elements
      */
     DistVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_bits,
-            unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr), matr_el_(size) {
+            unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr), matr_el_(size) {
         vec_hash_ = setup_ht(CEILING(size, 5), rn_ptr, n_bits);
     }
     
@@ -332,13 +333,11 @@ public:
     
     /*! \brief Get the index of an unused intermediate index in the \p indices_ array, or -1 if none exists */
     ssize_t pop_stack() {
-        stack_entry *head = vec_stack_;
-        if (!head) {
+        if (vec_stack_.empty()) {
             return -1;
         }
-        ssize_t ret_idx = head->idx;
-        vec_stack_ = head->next;
-        free(head);
+        ssize_t ret_idx = vec_stack_.top();
+        vec_stack_.pop();
         return ret_idx;
     }
     
@@ -346,10 +345,7 @@ public:
      * \param [in] idx The index of the available element of the \p indices array
      */
     void push_stack(size_t idx) {
-        stack_entry *new_entry = (stack_entry*) malloc(sizeof(stack_entry));
-        new_entry->idx = idx;
-        new_entry->next = vec_stack_;
-        vec_stack_ = new_entry;
+        vec_stack_.push(idx);
     }
 
     /*! \brief Delete an element from the vector
