@@ -65,23 +65,12 @@ public:
      * \param [in] n_procs  The number of processes
      * \param [in] vec         The vector to which elements will be added
      */
-    Adder(size_t size, int n_procs, uint8_t n_bits, DistVec<el_type> *vec) : n_bytes_(CEILING(n_bits + 1, 8)), send_idx_(n_procs, size * CEILING(n_bits + 1, 8)), send_vals_(n_procs, size), recv_idx_(n_procs, size * CEILING(n_bits + 1, 8)), recv_vals_(n_procs, size), parent_vec_(vec) {
-        send_cts_ = (int *)malloc(sizeof(int) * n_procs); // 1 allocation
-        recv_cts_ = (int *) malloc(sizeof(int) * n_procs);
-        idx_disp_ = (int *) malloc(sizeof(int) * n_procs);
-        val_disp_ = (int *) malloc(sizeof(int) * n_procs);
+    Adder(size_t size, int n_procs, uint8_t n_bits, DistVec<el_type> *vec) : n_bytes_(CEILING(n_bits + 1, 8)), send_idx_(n_procs, size * CEILING(n_bits + 1, 8)), send_vals_(n_procs, size), recv_idx_(n_procs, size * CEILING(n_bits + 1, 8)), recv_vals_(n_procs, size), parent_vec_(vec), send_cts_(n_procs), recv_cts_(n_procs), idx_disp_(n_procs), val_disp_(n_procs) {
         for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
             val_disp_[proc_idx] = proc_idx * (int)size;
             idx_disp_[proc_idx] = proc_idx * (int)size * n_bytes_;
             send_cts_[proc_idx] = 0;
         }
-    }
-    
-    ~Adder() {
-        free(send_cts_);
-        free(recv_cts_);
-        free(idx_disp_);
-        free(val_disp_);
     }
     
     Adder(const Adder &a) = delete;
@@ -114,10 +103,10 @@ private:
     Matrix<el_type> send_vals_; ///< Send buffer for element values
     Matrix<uint8_t> recv_idx_; ///< Receive buffer for element indices
     Matrix<el_type> recv_vals_; ///< Receive buffer for element values
-    int *send_cts_; ///< Number of elements in the send buffer for each process
-    int *recv_cts_; ///< Number of elements in the receive buffer for each process
-    int *idx_disp_; ///< Displacements for MPI send/receive operations for indices
-    int *val_disp_; ///< Displacements for MPI send/receive operations for values
+    std::vector<int> send_cts_; ///< Number of elements in the send buffer for each process
+    std::vector<int> recv_cts_; ///< Number of elements in the receive buffer for each process
+    std::vector<int> idx_disp_; ///< Displacements for MPI send/receive operations for indices
+    std::vector<int> val_disp_; ///< Displacements for MPI send/receive operations for values
     DistVec<el_type> *parent_vec_; ///<The DistVec object to which elements are added
     uint8_t n_bytes_; ///< Number of bytes used to encode each index in the send and receive buffers
     
@@ -135,7 +124,7 @@ private:
         }
         
         send_idx_.enlarge_cols(new_idx_cols, idx_counts);
-        send_vals_.enlarge_cols(new_val_cols, send_cts_);
+        send_vals_.enlarge_cols(new_val_cols, send_cts_.data());
         recv_idx_.reshape(n_proc, new_idx_cols);
         recv_vals_.reshape(n_proc, new_val_cols);
         
@@ -171,7 +160,7 @@ protected:
     uint8_t n_bits_; ///< Number of bits used to encode each index of the vector
     hash_table *vec_hash_; ///< Hash table for quickly finding indices in \p indices_
     uint64_t nonini_occ_add; ///< Number of times an addition from a noninitiator determinant to an occupied determinant occurred
-    double *matr_el_; ///< Array of pre-calculated diagonal matrix elements associated with each vector element
+    std::vector<double> matr_el_; ///< Array of pre-calculated diagonal matrix elements associated with each vector element
     std::function<double(const uint8_t *)> diag_calc_;
     
     virtual void initialize_at_pos(size_t pos, uint8_t *orbs) {
@@ -186,8 +175,7 @@ public:
     unsigned int *proc_scrambler_; ///< Array of random numbers used in the hash function for assigning vector indices to MPI
     
     DistVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_bits,
-            unsigned int n_elec, int n_procs) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr) {
-        matr_el_ = (double *)malloc(sizeof(double) * size);
+            unsigned int n_elec, int n_procs) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr), matr_el_(size) {
         vec_hash_ = setup_ht(CEILING(size, 5), rn_ptr, n_bits);
     }
     
@@ -200,14 +188,12 @@ public:
      * \param [in] n_procs Number of MPI processes over which to distribute vector elements
      */
     DistVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_bits,
-            unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr) {
-        matr_el_ = (double *)malloc(sizeof(double) * size);
+            unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr), matr_el_(size) {
         vec_hash_ = setup_ht(CEILING(size, 5), rn_ptr, n_bits);
     }
     
     ~DistVec() {
         free(vec_hash_);
-        free(matr_el_);
     }
     
     uint8_t n_bits() {
@@ -260,7 +246,7 @@ public:
         printf("Increasing storage capacity in vector\n");
         size_t new_max = max_size_ * 2;
         indices_.reshape(new_max, indices_.cols());
-        matr_el_ = (double *)realloc(matr_el_, sizeof(double) * new_max);
+        matr_el_.resize(new_max);
         occ_orbs_.reshape(new_max, occ_orbs_.cols());
         
         values_.enlarge_cols(new_max, (int) curr_size_);
