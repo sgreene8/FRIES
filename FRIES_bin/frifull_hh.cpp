@@ -128,9 +128,8 @@ int main(int argc, const char * argv[]) {
     // Solution vector
     unsigned int spawn_length = n_elec * 4 * max_n_dets / n_procs;
     uint8_t ph_bits = 3;
-    byte_table *bt = gen_byte_table();
-    std::function<double(const uint8_t *)> diag_shortcut = [hub_len, bt](const uint8_t *det) {
-        return hub_diag((uint8_t *)det, hub_len, bt);
+    std::function<double(const uint8_t *)> diag_shortcut = [hub_len](const uint8_t *det) {
+        return hub_diag((uint8_t *)det, hub_len);
     };
     HubHolVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, hub_len, ph_bits, n_elec, n_procs, diag_shortcut, 2);
     size_t det_size = CEILING(2 * n_orb + ph_bits * n_orb, 8);
@@ -317,7 +316,7 @@ int main(int argc, const char * argv[]) {
         }
         
         // Calculate energy estimate
-        matr_el = calc_ref_ovlp(sol_vec.indices(), sol_vec.values(), sol_vec.phonon_nums(), sol_vec.curr_size(), neel_det, neel_occ, sol_vec.tabl(), n_elec, hub_len, elec_ph / hub_t);
+        matr_el = calc_ref_ovlp(sol_vec.indices(), sol_vec.values(), sol_vec.phonon_nums(), sol_vec.curr_size(), neel_det, neel_occ, n_elec, hub_len, elec_ph / hub_t);
 #ifdef USE_MPI
         MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, ref_proc, MPI_COMM_WORLD);
 #else

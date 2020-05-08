@@ -169,7 +169,6 @@ protected:
     size_t curr_size_; ///< Current number of vector elements stored, including intermediate zeroes
     Matrix<uint8_t> occ_orbs_; ///< Matrix containing lists of occupied orbitals for each determniant index
     uint8_t n_bits_; ///< Number of bits used to encode each index of the vector
-    byte_table *tabl_; ///< Pointer to struct used to decompose determinant indices into lists of occupied orbitals
     hash_table *vec_hash_; ///< Hash table for quickly finding indices in \p indices_
     uint64_t nonini_occ_add; ///< Number of times an addition from a noninitiator determinant to an occupied determinant occurred
     double *matr_el_; ///< Array of pre-calculated diagonal matrix elements associated with each vector element
@@ -190,7 +189,6 @@ public:
             unsigned int n_elec, int n_procs) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr) {
         matr_el_ = (double *)malloc(sizeof(double) * size);
         vec_hash_ = setup_ht(CEILING(size, 5), rn_ptr, n_bits);
-        tabl_ = gen_byte_table();
     }
     
     /*! \brief Constructor for DistVec object
@@ -205,14 +203,10 @@ public:
             unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), vec_stack_(NULL), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr) {
         matr_el_ = (double *)malloc(sizeof(double) * size);
         vec_hash_ = setup_ht(CEILING(size, 5), rn_ptr, n_bits);
-        tabl_ = gen_byte_table();
     }
     
     ~DistVec() {
         free(vec_hash_);
-        free(tabl_->nums);
-        free(tabl_->pos);
-        free(tabl_);
         free(matr_el_);
     }
     
@@ -233,7 +227,7 @@ public:
      * \return number of 1 bits in the bit string
      */
     virtual uint8_t gen_orb_list(uint8_t *det, uint8_t *occ_orbs) {
-        return find_bits(det, occ_orbs, indices_.cols(), tabl_);
+        return find_bits(det, occ_orbs, indices_.cols());
     }
 
     /*! \brief Calculate dot product
@@ -431,11 +425,6 @@ public:
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
 #endif
         return sum_mpi(nonini_occ_add, my_rank, n_procs);
-    }
-    
-    /*! \returns A pointer to the byte_table struct used to perform bit manipulations for this vector */
-    byte_table *tabl() const {
-        return tabl_;
     }
     
     /*! \brief Add the vector at \p idx2 to the one at \p idx1

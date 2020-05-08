@@ -39,25 +39,14 @@ public:
      * \return number of 1 bits in the bit string
      */
     uint8_t gen_orb_list(uint8_t *det, uint8_t *occ_orbs) {
-        unsigned int byte_idx, elec_idx;
-        uint8_t n_elec, det_byte, bit_idx;
-        elec_idx = 0;
-        uint8_t tot_elec = 0;
         uint8_t max_byte = CEILING(n_sites_ * 2, 8);
-        byte_table *table = DistVec<el_type>::tabl_;
-        for (byte_idx = 0; byte_idx < max_byte; byte_idx++) {
-            det_byte = det[byte_idx];
-            if ((n_sites_ * 2 % 8) > 0 && (byte_idx == max_byte - 1)) {
-                det_byte &= (1 << (n_sites_ * 2 % 8)) - 1;
-            }
-            n_elec = table->nums[det_byte];
-            for (bit_idx = 0; bit_idx < n_elec; bit_idx++) {
-                occ_orbs[elec_idx + bit_idx] = (8 * byte_idx + table->pos[det_byte][bit_idx]);
-            }
-            elec_idx = elec_idx + n_elec;
-            tot_elec += n_elec;
+        uint8_t last_byte = det[max_byte - 1];
+        uint8_t remainder = (2 * n_sites_) % 8;
+        if (remainder) {
+            det[max_byte - 1] = last_byte & ((1 << remainder) - 1);
         }
-        
+        uint8_t tot_elec = find_bits(det, occ_orbs, max_byte);
+        det[max_byte - 1] = last_byte;
         return tot_elec;
     }
     
@@ -171,7 +160,7 @@ public:
             neib_bits[n_bytes - 1] &= (1 << ((2 * n_sites_ - 1) % 8)) - 1;
         }
         
-        neighbors[0] = find_bits(neib_bits, &neighbors[1], n_bytes, DistVec<el_type>::tabl_);
+        neighbors[0] = find_bits(neib_bits, &neighbors[1], n_bytes);
         
         mask = ~det[0] << 1;
         neib_bits[0] = det[0] & mask;
@@ -185,7 +174,7 @@ public:
             neib_bits[n_bytes - 1] &= (1 << ((2 * n_sites_) % 8)) - 1;
         }
         
-        neighbors[n_elec + 1] = find_bits(neib_bits, &neighbors[n_elec + 1 + 1], n_bytes, DistVec<el_type>::tabl_);
+        neighbors[n_elec + 1] = find_bits(neib_bits, &neighbors[n_elec + 1 + 1], n_bytes);
     }
     
     

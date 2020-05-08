@@ -93,7 +93,7 @@ size_t hub_all(unsigned int n_elec, uint8_t *neighbors,
 }
 
 
-unsigned int hub_diag(uint8_t *det, unsigned int n_sites, byte_table *table) {
+unsigned int hub_diag(uint8_t *det, unsigned int n_sites) {
     unsigned int n_overlap = 0;
     size_t byte_idx;
     
@@ -104,11 +104,11 @@ unsigned int hub_diag(uint8_t *det, unsigned int n_sites, byte_table *table) {
     for (byte_idx = 0; byte_idx < n_sites / 8; byte_idx++) {
         later_byte = det[n_sites / 8 + byte_idx] >> n_sites % 8;
         mask = later_byte & det[byte_idx];
-        n_overlap += table->nums[mask];
+        n_overlap += byte_nums[mask];
 
         later_byte = det[n_sites / 8 + byte_idx + 1] << (8 - (n_sites % 8));
         mask = later_byte & det[byte_idx];
-        n_overlap += table->nums[mask];
+        n_overlap += byte_nums[mask];
     }
     if (n_sites % 8) {
         later_byte = det[n_sites / 8 + byte_idx];
@@ -117,7 +117,7 @@ unsigned int hub_diag(uint8_t *det, unsigned int n_sites, byte_table *table) {
         }
         later_byte >>= n_sites % 8;
         mask = later_byte & det[byte_idx];
-        n_overlap += table->nums[mask];
+        n_overlap += byte_nums[mask];
     }
     
     if ((n_sites / 8 + byte_idx + 1) < CEILING(2 * n_sites, 8)) {
@@ -125,7 +125,7 @@ unsigned int hub_diag(uint8_t *det, unsigned int n_sites, byte_table *table) {
         later_byte &= (1 << (2 * n_sites % 8)) - 1;
         later_byte <<= (8 - (n_sites % 8));
         mask = later_byte & det[byte_idx];
-        n_overlap += table->nums[mask];
+        n_overlap += byte_nums[mask];
     }
     return n_overlap;
 }
