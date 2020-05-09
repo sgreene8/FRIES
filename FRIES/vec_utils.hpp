@@ -472,6 +472,15 @@ public:
             if (idx_ptr) {
                 nonini_occ_add += !ini_flag;
                 values_(curr_vec_idx_, *idx_ptr) += vals[el_idx];
+                if (values_(curr_vec_idx_, *idx_ptr) == 0) {
+                    double sum_vals = 0;
+                    for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
+                        sum_vals += values_(curr_vec_idx_, *idx_ptr);
+                    }
+                    if (sum_vals == 0) {
+                        del_at_pos(*idx_ptr);
+                    }
+                }
                 vals[el_idx] = 0;
             }
             if (!ini_flag && curr_shift_) {
