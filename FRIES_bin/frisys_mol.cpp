@@ -38,7 +38,7 @@ int main(int argc, const char * argv[]) {
     float init_thresh = 0;
     unsigned int tmp_norm = 0;
     unsigned int max_iter = 1000000;
-    int unbias = 0;
+    float pt_weight = 0;
     struct argparse_option options[] = {
         OPT_HELP(),
         OPT_STRING('d', "hf_path", &hf_path, "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt"),
@@ -54,7 +54,7 @@ int main(int argc, const char * argv[]) {
         OPT_STRING('v', "trial_vec", &trial_path, "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text files)."),
         OPT_STRING('S', "det_space", &determ_path, "Path to a .txt file containing the determinants used to define the deterministic space to use in a semistochastic calculation."),
         OPT_INTEGER('I', "max_iter", &max_iter, "Maximum number of iterations to run the calculation."),
-        OPT_BOOLEAN('u', "unbias", &unbias, "'Unbias' the initiator approximation."),
+        OPT_FLOAT('u', "unbias", &pt_weight, "The prefactor for adding corrections to the initiator bias."),
         OPT_END(),
     };
     
@@ -635,7 +635,7 @@ int main(int argc, const char * argv[]) {
         sol_vec.set_curr_vec_idx(1);
         sol_vec.zero_vec();
         size_t vec_size = sol_vec.curr_size();
-        if (unbias) {
+        if (pt_weight > 0) {
             sol_vec.zero_ini();
         }
         
@@ -752,7 +752,7 @@ int main(int argc, const char * argv[]) {
                     samp_idx++;
                 }
                 sol_vec.perform_add();
-                if (unbias) {
+                if (pt_weight) {
                     for (size_t ini_idx = start_idx; ini_idx < samp_idx; ini_idx++) {
                         if (orb_indices1[ini_idx][0]) {
                             double ini_wt;
@@ -787,11 +787,11 @@ int main(int argc, const char * argv[]) {
             double *curr_val = sol_vec[det_idx];
             if (*curr_val != 0) {
                 double diag_el = sol_vec.matr_el_at_pos(det_idx);
-                double local_shift = en_shift;
-                if (fabs(*curr_val) < init_thresh) {
-                    local_shift *= sol_vec.get_pacc(det_idx);
+                double pt_corr = 0;
+                if (glob_norm >= target_norm) {
+                    pt_corr = pt_weight * (1 - sol_vec.get_pacc(det_idx));
                 }
-                *curr_val *= 1 - eps * (diag_el - local_shift);
+                *curr_val *= 1 - eps * (diag_el - en_shift + pt_corr);
             }
         }
         sol_vec.add_vecs(0, 1);
