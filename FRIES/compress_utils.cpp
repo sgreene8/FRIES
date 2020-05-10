@@ -327,7 +327,7 @@ void sys_obs(double *vec_vals, size_t vec_len, double *loc_norms, unsigned int n
         mag_before += loc_norms[proc_idx];
     }
     
-    size_t left_rn_idx = mag_before / (glob_norm / n_samp / num_rns);
+    double left_rn_idx = mag_before / (glob_norm / n_samp / num_rns);
     
     for (size_t el_idx = 0; el_idx < vec_len; el_idx++) {
         double el_obs = obs(el_idx);
@@ -339,8 +339,15 @@ void sys_obs(double *vec_vals, size_t vec_len, double *loc_norms, unsigned int n
         }
         else {
             mag_before += tmp_val;
-            size_t right_rn_idx = mag_before / (glob_norm / n_samp / num_rns);
-            for (size_t rn_idx = left_rn_idx; rn_idx <= right_rn_idx; rn_idx++) {
+            double right_rn_idx = mag_before / (glob_norm / n_samp / num_rns);
+            size_t rn_idx = left_rn_idx;
+            if (fabs(rn_idx - left_rn_idx) != 0) {
+                rn_idx++;
+            }
+            if (fabs(right_rn_idx - n_samp * num_rns) < 1e-8) { // correct for floating-point error
+                right_rn_idx = n_samp * num_rns - 0.5;
+            }
+            for (; rn_idx < right_rn_idx; rn_idx++) {
                 obs_vals[rn_idx % num_rns] += el_obs * glob_norm / n_samp * glob_norm / n_samp;
             }
             left_rn_idx = right_rn_idx;
