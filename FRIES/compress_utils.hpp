@@ -16,6 +16,7 @@
 #include <FRIES/det_store.h>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/ndarr.hpp>
+#include <functional>
 
 /*! \brief Round a non-integral number binomially.
  *
@@ -73,6 +74,27 @@ double find_preserve(double *values, size_t *srt_idx, std::vector<bool> &keep_id
  */
 void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
               unsigned int n_samp, std::vector<bool> &keep_exact, double rand_num);
+
+
+/*! \brief Calculate the value of some diagonal observable that would be obtained if different values were used for
+ *  the uniformly sampled random number inputted to systematic resampling
+ *
+ *  \param [in] vec_vals Elements in the vector (can be negative) to be compressed (length \p vec_len)
+ * \param [in] vec_len  Number of elements in the vector
+ * \param [in] loc_norms Sum of magnitudes of elements on each MPI process not preserved exactly
+ * \param [in] n_samp   Number of samples in systematic resampling
+ * \param [in] keep_exact Array indicating elements to be preserved exactly
+ *                      in compression
+ * \param [in] obs      Function that takes the index of an element in \p vec_vals and returns the value
+ *          of the observable from that index
+ * \param [out] obs_vals    The value of the observable for each of the possible random numbers that
+ *              can be used in systematic compression
+ * \param [in] num_rns      The number of random numbers to test, in the inverval [0, 1), and therefore
+*                      the length of \p obs_vals
+ */
+void sys_obs(double *vec_vals, size_t vec_len, double *loc_norms, unsigned int n_samp,
+             std::vector<bool> &keep_exact, std::function<double(size_t)> obs,
+             double *obs_vals, size_t num_rns);
 
 
 /*! \brief Sum a variable across all MPI processes

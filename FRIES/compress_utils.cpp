@@ -279,9 +279,8 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
     }
     
     loc_norms[proc_rank] = 0;
-    double tmp_val;
     for (size_t det_idx = 0; det_idx < vec_len; det_idx++) {
-        tmp_val = vec_vals[det_idx];
+        double tmp_val = vec_vals[det_idx];
         if (keep_exact[det_idx]) {
             loc_norms[proc_rank] += fabs(tmp_val);
             keep_exact[det_idx] = 0;
@@ -302,6 +301,51 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
 #ifdef USE_MPI
     MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
 #endif
+}
+
+
+void sys_obs(double *vec_vals, size_t vec_len, double *loc_norms, unsigned int n_samp,
+             std::vector<bool> &keep_exact, std::function<double(size_t)> obs,
+             double *obs_vals, size_t num_rns) {
+    int n_procs = 1;
+    int proc_rank = 0;
+#ifdef USE_MPI
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+#endif
+    double glob_norm = 0;
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        glob_norm += loc_norms[proc_idx];
+    }
+    
+    for (size_t rn_idx = 0; rn_idx < num_rns; rn_idx++) {
+        obs_vals[rn_idx] = 0;
+    }
+    
+    double mag_before = 0;
+    for (int proc_idx = 0; proc_idx < proc_rank; proc_idx++) {
+        mag_before += loc_norms[proc_idx];
+    }
+    
+    size_t left_rn_idx = mag_before / (glob_norm / n_samp / num_rns);
+    
+    for (size_t el_idx = 0; el_idx < vec_len; el_idx++) {
+        double el_obs = obs(el_idx);
+        double tmp_val = fabs(vec_vals[el_idx]);
+        if (keep_exact[el_idx]) {
+            for (size_t rn_idx = 0; rn_idx < num_rns; rn_idx++) {
+                obs_vals[rn_idx] += el_obs * tmp_val * tmp_val;
+            }
+        }
+        else {
+            mag_before += tmp_val;
+            size_t right_rn_idx = mag_before / (glob_norm / n_samp / num_rns);
+            for (size_t rn_idx = left_rn_idx; rn_idx <= right_rn_idx; rn_idx++) {
+                obs_vals[rn_idx % num_rns] += el_obs * glob_norm / n_samp * glob_norm / n_samp;
+            }
+            left_rn_idx = right_rn_idx;
+        }
+    }
 }
 
 
