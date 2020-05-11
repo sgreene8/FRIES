@@ -195,6 +195,7 @@ int main(int argc, const char * argv[]) {
         h_op_offdiag(*curr_htrial, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, 1, 1);
         curr_htrial->set_curr_vec_idx(0);
         h_op_diag(*curr_htrial, 0, 0, 1);
+        curr_htrial->add_vecs(0, 1);
         curr_htrial->collect_procs();
         htrial_hashes[trial_idx] = (uintmax_t *)malloc(sizeof(uintmax_t) * curr_htrial->curr_size());
         for (det_idx = 0; det_idx < curr_htrial->curr_size(); det_idx++) {
