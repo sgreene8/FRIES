@@ -319,7 +319,7 @@ int main(int argc, const char * argv[]) {
 #pragma mark Krylov dot products and orthogonalization
             for (uint16_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
                 DistVec<double> *curr_trial = trial_vecs[trial_idx];
-                double d_prod = sol_vec.dot(curr_trial->indices(), curr_trial->values(), curr_trial->curr_size(), trial_hashes[krylov_idx]);
+                double d_prod = sol_vec.dot(curr_trial->indices(), curr_trial->values(), curr_trial->curr_size(), trial_hashes[trial_idx]);
                 d_prod = sum_mpi(d_prod, proc_rank, n_procs);
                 
                 if (trial_idx == krylov_idx) {
@@ -340,7 +340,7 @@ int main(int argc, const char * argv[]) {
             sol_vec.perform_add();
             for (uint16_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
                 DistVec<double> *curr_htrial = htrial_vecs[trial_idx];
-                double d_prod = sol_vec.dot(curr_htrial->indices(), curr_htrial->values(), curr_htrial->curr_size(), htrial_hashes[krylov_idx]);
+                double d_prod = sol_vec.dot(curr_htrial->indices(), curr_htrial->values(), curr_htrial->curr_size(), htrial_hashes[trial_idx]);
                 d_prod = sum_mpi(d_prod, proc_rank, n_procs);
                 if (proc_rank == hf_proc) {
                     fprintf(bmat_file, "%lf,", d_prod);
