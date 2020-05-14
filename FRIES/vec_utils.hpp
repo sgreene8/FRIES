@@ -11,7 +11,7 @@
 
 #include <cstdio>
 #include <cstring>
-#include <FRIES/det_store.h>
+#include <FRIES/det_hash.hpp>
 #include <FRIES/Hamiltonians/hub_holstein.hpp>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/mpi_switch.h>
@@ -159,7 +159,7 @@ protected:
     size_t curr_size_; ///< Current number of vector elements stored, including intermediate zeroes
     Matrix<uint8_t> occ_orbs_; ///< Matrix containing lists of occupied orbitals for each determniant index
     uint8_t n_bits_; ///< Number of bits used to encode each index of the vector
-    hash_table *vec_hash_; ///< Hash table for quickly finding indices in \p indices_
+    HashTable<ssize_t> vec_hash_; ///< Hash table for quickly finding indices in \p indices_
     uint64_t nonini_occ_add; ///< Number of times an addition from a noninitiator determinant to an occupied determinant occurred
     std::vector<double> matr_el_; ///< Array of pre-calculated diagonal matrix elements associated with each vector element
     std::function<double(const uint8_t *)> diag_calc_;
@@ -176,9 +176,7 @@ public:
     unsigned int *proc_scrambler_; ///< Array of random numbers used in the hash function for assigning vector indices to MPI
     
     DistVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_bits,
-            unsigned int n_elec, int n_procs) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr), matr_el_(size) {
-        vec_hash_ = setup_ht(CEILING(size, 5), rn_ptr, n_bits);
-    }
+            unsigned int n_elec, int n_procs) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr), matr_el_(size), vec_hash_(CEILING(size, 5), rn_ptr, n_bits) { }
     
     /*! \brief Constructor for DistVec object
     * \param [in] size         Maximum number of elements to be stored in the vector
@@ -189,13 +187,7 @@ public:
      * \param [in] n_procs Number of MPI processes over which to distribute vector elements
      */
     DistVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_bits,
-            unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr), matr_el_(size) {
-        vec_hash_ = setup_ht(CEILING(size, 5), rn_ptr, n_bits);
-    }
-    
-    ~DistVec() {
-        free(vec_hash_);
-    }
+            unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr), matr_el_(size), vec_hash_(CEILING(size, 5), rn_ptr, n_bits) { }
     
     uint8_t n_bits() {
         return n_bits_;
@@ -267,7 +259,7 @@ public:
         unsigned int n_elec = (unsigned int)occ_orbs_.cols();
         uint8_t orbs[n_elec];
         gen_orb_list(idx, orbs);
-        uintmax_t hash_val = hash_fxn(orbs, n_elec, NULL, 0, proc_scrambler_);
+        uintmax_t hash_val = vec_hash_.hash_fxn(orbs, n_elec, NULL, 0);
         int n_procs = 1;
 #ifdef USE_MPI
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
@@ -277,7 +269,7 @@ public:
     
     virtual int idx_to_proc(uint8_t *idx, uint8_t *orbs) {
         unsigned int n_elec = (unsigned int)occ_orbs_.cols();
-        uintmax_t hash_val = hash_fxn(orbs, n_elec, NULL, 0, proc_scrambler_);
+        uintmax_t hash_val = vec_hash_.hash_fxn(orbs, n_elec, NULL, 0);
         int n_procs = 1;
 #ifdef USE_MPI
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
@@ -300,7 +292,7 @@ public:
             print_str(idx, n_bytes, det_txt);
             fprintf(stderr, "Error: determinant %s created with an incorrect number of electrons.\n", det_txt);
         }
-        return hash_fxn(orbs, n_elec, NULL, 0, vec_hash_->scrambler);
+        return vec_hash_.hash_fxn(orbs, n_elec, NULL, 0);
     }
 
     /*! \brief Add an element to the DistVec object
@@ -358,7 +350,7 @@ public:
         uint8_t *idx = indices_[pos];
         uintmax_t hash_val = idx_to_hash(idx, occ_orbs_[pos]);
         push_stack(pos);
-        del_ht(vec_hash_, idx, hash_val);
+        vec_hash_.del_entry(idx, hash_val);
         n_nonz_--;
     }
     
@@ -455,7 +447,7 @@ public:
                 zero_bit(new_idx, n_bits_);
             }
             uintmax_t hash_val = idx_to_hash(new_idx, tmp_occ);
-            ssize_t *idx_ptr = read_ht(vec_hash_, new_idx, hash_val, ini_flag);
+            ssize_t *idx_ptr = vec_hash_.read(new_idx, hash_val, ini_flag);
             if (idx_ptr && *idx_ptr == -1) {
                 *idx_ptr = pop_stack();
                 if (*idx_ptr == -1) {
@@ -627,7 +619,7 @@ public:
             if (is_nonz) {
                 uint8_t *new_idx = indices_[det_idx];
                 uintmax_t hash_val = idx_to_hash(new_idx, tmp_orbs);
-                ssize_t *idx_ptr = read_ht(vec_hash_, new_idx, hash_val, 1);
+                ssize_t *idx_ptr = vec_hash_.read(new_idx, hash_val, true);
                 *idx_ptr = n_nonz_;
                 memmove(indices_[n_nonz_], new_idx, n_bytes);
                 initialize_at_pos(n_nonz_, tmp_orbs);

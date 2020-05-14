@@ -62,7 +62,7 @@ public:
         gen_orb_list(idx, orbs);
         uint8_t phonons[n_sites_];
         decode_phonons(idx, phonons);
-        unsigned long long hash_val = hash_fxn(orbs, n_elec, phonons, n_sites_, DistVec<el_type>::proc_scrambler_);
+        unsigned long long hash_val = DistVec<el_type>::vec_hash_.hash_fxn(orbs, n_elec, phonons, n_sites_);
         int n_procs = 1;
 #ifdef USE_MPI
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
@@ -87,7 +87,7 @@ public:
         }
         uint8_t phonons[n_sites_];
         decode_phonons(idx, phonons);
-        return hash_fxn(orbs, n_elec, phonons, n_sites_, DistVec<el_type>::vec_hash_->scrambler);
+        return DistVec<el_type>::vec_hash_.hash_fxn(orbs, n_elec, phonons, n_sites_);
     }
     
     /*! \brief Double the maximum number of elements that can be stored */
