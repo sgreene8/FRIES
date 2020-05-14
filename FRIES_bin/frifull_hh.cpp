@@ -127,6 +127,9 @@ int main(int argc, const char * argv[]) {
     
     // Solution vector
     unsigned int spawn_length = n_elec * 4 * max_n_dets / n_procs;
+    if (spawn_length > 200000) {
+        spawn_length = 200000;
+    }
     uint8_t ph_bits = 3;
     std::function<double(const uint8_t *)> diag_shortcut = [hub_len](const uint8_t *det) {
         return hub_diag((uint8_t *)det, hub_len);
