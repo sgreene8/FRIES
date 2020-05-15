@@ -126,7 +126,6 @@ int main(int argc, const char * argv[]) {
     std::function<double(const uint8_t *)> diag_shortcut = [tot_orb, eris, h_core, n_frz, n_elec, hf_en](const uint8_t *occ_orbs) {
         return diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
     };
-    DistVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 1);
     size_t det_size = CEILING(2 * n_orb, 8);
     size_t det_idx;
     
@@ -134,26 +133,26 @@ int main(int argc, const char * argv[]) {
     gen_symm_lookup(symm, symm_lookup);
     unsigned int unocc_symm_cts[n_irreps][2];
     
-    // Initialize hash function for processors and vector
-    unsigned int proc_scrambler[2 * n_orb];
+    // Initialize hash function for processors and vector=
+    std::vector<uint32_t> proc_scrambler(2 * n_orb);
     double loc_norm, glob_norm;
     double last_norm = 0;
     
     if (load_dir) {
-        load_proc_hash(load_dir, proc_scrambler);
+        load_proc_hash(load_dir, proc_scrambler.data());
     }
     else {
         if (proc_rank == 0) {
             for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
                 proc_scrambler[det_idx] = genrand_mt(rngen_ptr);
             }
-            save_proc_hash(result_dir, proc_scrambler, 2 * n_orb);
+            save_proc_hash(result_dir, proc_scrambler.data(), 2 * n_orb);
         }
 #ifdef USE_MPI
-        MPI_Bcast(proc_scrambler, 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+        MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 #endif
     }
-    sol_vec.proc_scrambler_ = proc_scrambler;
+    DistVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 1, proc_scrambler);
     
     uint8_t hf_det[det_size];
     gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
@@ -177,10 +176,8 @@ int main(int argc, const char * argv[]) {
     else {
         n_trial = 1;
     }
-    DistVec<double> trial_vec(n_trial, n_trial, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
-    DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2);
-    trial_vec.proc_scrambler_ = proc_scrambler;
-    htrial_vec.proc_scrambler_ = proc_scrambler;
+    DistVec<double> trial_vec(n_trial, n_trial, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, proc_scrambler);
+    DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2, proc_scrambler);
     if (trial_path) { // load trial vector from file
         for (det_idx = 0; det_idx < n_trial; det_idx++) {
             trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);

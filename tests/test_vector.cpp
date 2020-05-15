@@ -284,7 +284,8 @@ TEST_CASE("Test encoding and decoding of Holstein basis states", "[phonon_bits]"
     
     mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, (unsigned int) time(NULL));
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
-    HubHolVec<int> sol_vec(1, 0, rngen_ptr, n_sites, ph_bits, 0, 1, NULL, 1);
+    std::vector<uint32_t> tmp;
+    HubHolVec<int> sol_vec(1, 0, rngen_ptr, n_sites, ph_bits, 0, 1, NULL, 1, tmp);
     
     sol_vec.decode_phonons(det1, ph_nums2);
     
@@ -306,7 +307,7 @@ TEST_CASE("Test encoding and decoding of Holstein basis states", "[phonon_bits]"
     
     det1[0] = 0b1001;
     det1[1] = 1;
-    HubHolVec<int> sol_vec2(1, 0, rngen_ptr, n_sites, ph_bits, 2, 1, NULL, 1);
+    HubHolVec<int> sol_vec2(1, 0, rngen_ptr, n_sites, ph_bits, 2, 1, NULL, 1, tmp);
     sol_vec2.det_from_ph(det1, excite_det, 1, -1);
     
     REQUIRE(excite_det[0] == 0b10001001);

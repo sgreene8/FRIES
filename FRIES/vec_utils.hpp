@@ -74,9 +74,9 @@ public:
         }
     }
     
-    Adder(const Adder &a) = delete;
+//    Adder(const Adder &a) = delete;
     
-    Adder& operator= (const Adder &a) = delete;
+//    Adder& operator= (const Adder &a) = delete;
     
     /*! \brief Remove the elements from the internal buffers and send them to the DistVec objects on their corresponding MPI processes
      */
@@ -153,6 +153,7 @@ private:
     int n_nonz_; ///< Current number of nonzero elements in vector, including all in the dense subspace
     double *curr_shift_;
     Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
+    std::vector<uint32_t> proc_scrambler_; ///< Array of random numbers used in the hash function for assigning vector indices to MPI
 protected:
     Matrix<uint8_t> indices_; ///< Array of indices of vector elements
     size_t max_size_; ///< Maximum number of vector elements that can be stored
@@ -173,10 +174,9 @@ protected:
     }
     
 public:
-    unsigned int *proc_scrambler_; ///< Array of random numbers used in the hash function for assigning vector indices to MPI
     
     DistVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_bits,
-            unsigned int n_elec, int n_procs) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr), matr_el_(size), vec_hash_(CEILING(size, 5), rn_ptr, n_bits) { }
+            unsigned int n_elec, int n_procs, std::vector<uint32_t> rns) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr), matr_el_(size), vec_hash_(CEILING(size, 5), rn_ptr, n_bits), proc_scrambler_(rns) { }
     
     /*! \brief Constructor for DistVec object
     * \param [in] size         Maximum number of elements to be stored in the vector
@@ -187,15 +187,18 @@ public:
      * \param [in] n_procs Number of MPI processes over which to distribute vector elements
      */
     DistVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_bits,
-            unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr), matr_el_(size), vec_hash_(CEILING(size, 5), rn_ptr, n_bits) { }
+            unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs, std::vector<uint32_t> rns) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr), matr_el_(size), vec_hash_(CEILING(size, 5), rn_ptr, n_bits), proc_scrambler_(rns) { }
     
     uint8_t n_bits() {
         return n_bits_;
     }
     
-    DistVec(const DistVec &d) = delete;
+//    DistVec(const DistVec &d) = default;
     
-    DistVec& operator= (const DistVec& d) = delete;
+//    DistVec& operator= (const DistVec& d) = delete;
+    
+//    DistVec(DistVec &&d) = default;
+//    DistVec& operator= (DistVec&& d) = default;
 
     /*! \brief Generate list of occupied orbitals from bit-string representation of
      *  a determinant
@@ -226,7 +229,7 @@ public:
         ssize_t *ht_ptr;
         double numer = 0;
         for (size_t hf_idx = 0; hf_idx < num2; hf_idx++) {
-            ht_ptr = read_ht(vec_hash_, idx2[hf_idx], hashes2[hf_idx], 0);
+            ht_ptr = vec_hash_.read(idx2[hf_idx], hashes2[hf_idx], false);
             if (ht_ptr) {
                 numer += vals2[hf_idx] * values_(curr_vec_idx_, *ht_ptr);
             }

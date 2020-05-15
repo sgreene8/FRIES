@@ -4,9 +4,10 @@
 #ifndef det_hash_hpp
 #define det_hash_hpp
 
-#include <stack>
 #include <vector>
 #include <FRIES/det_store.h>
+#include <forward_list>
+#include <iostream>
 
 
 /*! \brief Hash table used to to index Slater determinant indices in the
@@ -23,12 +24,18 @@ class HashTable {
     struct hash_entry {
         uint8_t *det; ///< key for the hash table in bit-string form
         el_type val; ///< index in main determinant array, or -1 if uninitialized
-        struct hash_entry *next; ///< pointer to next entry in linked list
+        
+        hash_entry(uint8_t size) : val(-1) {
+            det = (uint8_t *)malloc(sizeof(uint8_t) * size);
+        }
+        
+        ~hash_entry() {
+            free(det);
+        }
     };
     
-    std::stack<hash_entry *> recycler_; ///< Stack containing hash_entry structs for reuse
-    std::vector<hash_entry *> buckets_; ///< Vector of pointers to linked list of hash_entry structs at each positiion
-    std::vector<unsigned int> scrambler_; ///< array of random integers to use for hashing
+    std::vector<std::forward_list<hash_entry>> buckets_; ///< Vector of pointers to linked list of hash_entry structs at each positiion
+    std::vector<uint32_t> scrambler_; ///< array of random integers to use for hashing
     uint8_t idx_size_; ///< Number of bytes used to encode each bit string index in the hash table
 public:
 
@@ -40,7 +47,11 @@ public:
      * \param [in] rn_len       Number of random integers to use in the hash
      *                          function (must be >= # of spin orbitals in basis)
      */
-    HashTable(size_t table_size, mt_struct *rn_gen, unsigned int rn_len) : buckets_(table_size, nullptr), scrambler_(rn_len), idx_size_(CEILING(rn_len, 8)) {};
+    HashTable(size_t table_size, mt_struct *rn_gen, unsigned int rn_len) : buckets_(table_size), scrambler_(rn_len), idx_size_(CEILING(rn_len, 8)) {
+        for (unsigned int idx = 0; idx < rn_len; idx++) {
+            scrambler_[idx] = genrand_mt(rn_gen);
+        }
+    }
     
 
     /*! \brief Read value from hash table
@@ -55,42 +66,30 @@ public:
      */
     el_type *read(uint8_t *det, uintmax_t hash_val, bool create){
         size_t table_idx = hash_val % buckets_.size();
-        // address of location storing address of next entry
-        hash_entry **prev_ptr = &(buckets_[table_idx]);
-        // address of next entry
-        hash_entry *next_ptr = *prev_ptr;
+        std::forward_list<hash_entry> &list = buckets_[table_idx];
+        
         unsigned int collisions = 0;
-        while (next_ptr) {
-            if (bit_str_equ(det, next_ptr->det, idx_size_)) {
-                break;
+        el_type *ret_ptr = nullptr;
+        if (!list.empty()) {
+            for (hash_entry &entry : list) {
+                if (bit_str_equ(det, entry.det, idx_size_)) {
+                    ret_ptr = &entry.val;
+                    break;
+                }
+                collisions++;
             }
-            collisions++;
-            prev_ptr = &(next_ptr->next);
-            next_ptr = *prev_ptr;
         }
+        
         if (collisions > 20) {
             fprintf(stderr, "There is a line in the hash table with >20 hash collisions.\n");
         }
-        if (next_ptr) {
-            return &(next_ptr->val);
+        if (!ret_ptr && create) {
+            list.emplace_front(idx_size_);
+            hash_entry &entry = list.front();
+            memcpy(entry.det, det, idx_size_);
+            ret_ptr = &entry.val;
         }
-        else if (create) {
-            if (!recycler_.empty()) {
-                next_ptr = recycler_.top();
-                recycler_.pop();
-            }
-            else {
-                next_ptr = (hash_entry *) malloc(sizeof(hash_entry));
-                next_ptr->det = (uint8_t *) malloc(idx_size_);
-            }
-            *prev_ptr = next_ptr;
-            memcpy(next_ptr->det, det, idx_size_);
-            next_ptr->next = NULL;
-            next_ptr->val = -1;
-            return &(next_ptr->val);
-        }
-        else
-            return NULL;
+        return ret_ptr;
     }
     
 
@@ -103,21 +102,12 @@ public:
      */
     void del_entry(uint8_t *det, uintmax_t hash_val) {
         size_t table_idx = hash_val % buckets_.size();
-        // address of location storing address of next entry
-        hash_entry **prev_ptr = &(buckets_[table_idx]);
-        // address of next entry
-        hash_entry *next_ptr = *prev_ptr;
-        while (next_ptr) {
-            if (bit_str_equ(next_ptr->det, det, idx_size_)) {
-                break;
-            }
-            prev_ptr = &(next_ptr->next);
-            next_ptr = *prev_ptr;
-        }
-        if (next_ptr) {
-            *prev_ptr = next_ptr->next;
-            recycler_.push(next_ptr);
-        }
+        std::forward_list<hash_entry> &list = buckets_[table_idx];
+        uint8_t local_size = idx_size_;
+        std::function<bool(const hash_entry&)> pred = [det, local_size](const hash_entry& value) {
+            return bit_str_equ(value.det, det, local_size);
+        };
+        list.remove_if(pred);
     }
     
 

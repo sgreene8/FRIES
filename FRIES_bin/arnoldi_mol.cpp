@@ -116,7 +116,6 @@ int main(int argc, const char * argv[]) {
     std::function<double(const uint8_t *)> diag_shortcut = [tot_orb, eris, h_core, n_frz, n_elec, hf_en](const uint8_t *occ_orbs) {
         return diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
     };
-    DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 3);
     size_t det_size = CEILING(2 * n_orb, 8);
     size_t det_idx;
     
@@ -130,19 +129,19 @@ int main(int argc, const char * argv[]) {
     }
     
     // Initialize hash function for processors and vector
-    unsigned int proc_scrambler[2 * n_orb];
+    std::vector<uint32_t> proc_scrambler(2 * n_orb);
     double loc_norm, glob_norm;
     
     if (proc_rank == 0) {
         for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
             proc_scrambler[det_idx] = genrand_mt(rngen_ptr);
         }
-        save_proc_hash(result_dir, proc_scrambler, 2 * n_orb);
+        save_proc_hash(result_dir, proc_scrambler.data(), 2 * n_orb);
     }
 #ifdef USE_MPI
-    MPI_Bcast(proc_scrambler, 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+    MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 #endif
-    sol_vec.proc_scrambler_ = proc_scrambler;
+    DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 3, proc_scrambler);
     
     uint8_t hf_det[det_size];
     gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
@@ -152,8 +151,10 @@ int main(int argc, const char * argv[]) {
     uint8_t (*orb_indices1)[4] = (uint8_t (*)[4])malloc(sizeof(char) * 4 * spawn_length);
     
 # pragma mark Set up trial vectors
-    std::vector<DistVec<double> *> trial_vecs(n_trial);
-    std::vector<DistVec<double> *> htrial_vecs(n_trial);
+    std::vector<DistVec<double>> trial_vecs;
+//    trial_vecs.reserve(n_trial);
+    std::vector<DistVec<double>> htrial_vecs;
+//    htrial_vecs.reserve(n_trial);
     size_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
     
     unsigned int n_trial_dets = 0;
@@ -169,37 +170,35 @@ int main(int argc, const char * argv[]) {
 #ifdef USE_MPI
         MPI_Bcast(&n_trial_dets, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 #endif
-        trial_vecs[trial_idx] = new DistVec<double>(n_trial_dets, n_trial_dets, rngen_ptr, n_orb * 2, n_elec_unf, n_procs);
-        htrial_vecs[trial_idx] = new DistVec<double>(n_trial_dets * n_ex / n_procs, n_trial_dets * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, (double *)NULL, 2);
-        trial_vecs[trial_idx]->proc_scrambler_ = proc_scrambler;
-        htrial_vecs[trial_idx]->proc_scrambler_ = proc_scrambler;
+        trial_vecs.emplace_back(n_trial_dets, n_trial_dets, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, proc_scrambler);
+        htrial_vecs.emplace_back(n_trial_dets * n_ex / n_procs, n_trial_dets * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, (double *)NULL, 2, proc_scrambler);
         
         for (det_idx = 0; det_idx < n_trial_dets; det_idx++) {
-            trial_vecs[trial_idx]->add(load_dets[det_idx], load_vals[det_idx], 1);
-            htrial_vecs[trial_idx]->add(load_dets[det_idx], load_vals[det_idx], 1);
+            trial_vecs[trial_idx].add(load_dets[det_idx], load_vals[det_idx], 1);
+            htrial_vecs[trial_idx].add(load_dets[det_idx], load_vals[det_idx], 1);
         }
     }
     uintmax_t **trial_hashes = (uintmax_t **)malloc(sizeof(uintmax_t *) * n_trial);
     uintmax_t **htrial_hashes = (uintmax_t **)malloc(sizeof(uintmax_t *) * n_trial);
     for (unsigned int trial_idx = 0; trial_idx < n_trial; trial_idx++) {
-        DistVec<double> *curr_trial = trial_vecs[trial_idx];
-        curr_trial->perform_add();
-        curr_trial->collect_procs();
-        trial_hashes[trial_idx] = (uintmax_t *)malloc(sizeof(uintmax_t) * curr_trial->curr_size());
-        for (det_idx = 0; det_idx < curr_trial->curr_size(); det_idx++) {
-            trial_hashes[trial_idx][det_idx] = sol_vec.idx_to_hash(curr_trial->indices()[det_idx], tmp_orbs);
+        DistVec<double>& curr_trial = trial_vecs[trial_idx];
+        curr_trial.perform_add();
+        curr_trial.collect_procs();
+        trial_hashes[trial_idx] = (uintmax_t *)malloc(sizeof(uintmax_t) * curr_trial.curr_size());
+        for (det_idx = 0; det_idx < curr_trial.curr_size(); det_idx++) {
+            trial_hashes[trial_idx][det_idx] = sol_vec.idx_to_hash(curr_trial.indices()[det_idx], tmp_orbs);
         }
         
-        DistVec<double> *curr_htrial = htrial_vecs[trial_idx];
-        curr_htrial->perform_add();
-        h_op_offdiag(*curr_htrial, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, 1, 1);
-        curr_htrial->set_curr_vec_idx(0);
-        h_op_diag(*curr_htrial, 0, 0, 1);
-        curr_htrial->add_vecs(0, 1);
-        curr_htrial->collect_procs();
-        htrial_hashes[trial_idx] = (uintmax_t *)malloc(sizeof(uintmax_t) * curr_htrial->curr_size());
-        for (det_idx = 0; det_idx < curr_htrial->curr_size(); det_idx++) {
-            htrial_hashes[trial_idx][det_idx] = sol_vec.idx_to_hash(curr_htrial->indices()[det_idx], tmp_orbs);
+        DistVec<double>& curr_htrial = htrial_vecs[trial_idx];
+        curr_htrial.perform_add();
+        h_op_offdiag(curr_htrial, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, 1, 1);
+        curr_htrial.set_curr_vec_idx(0);
+        h_op_diag(curr_htrial, 0, 0, 1);
+        curr_htrial.add_vecs(0, 1);
+        curr_htrial.collect_procs();
+        htrial_hashes[trial_idx] = (uintmax_t *)malloc(sizeof(uintmax_t) * curr_htrial.curr_size());
+        for (det_idx = 0; det_idx < curr_htrial.curr_size(); det_idx++) {
+            htrial_hashes[trial_idx][det_idx] = sol_vec.idx_to_hash(curr_htrial.indices()[det_idx], tmp_orbs);
         }
     }
     
@@ -318,8 +317,8 @@ int main(int argc, const char * argv[]) {
         for (uint16_t krylov_idx = 0; krylov_idx < n_trial; krylov_idx++) {
 #pragma mark Krylov dot products and orthogonalization
             for (uint16_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
-                DistVec<double> *curr_trial = trial_vecs[trial_idx];
-                double d_prod = sol_vec.dot(curr_trial->indices(), curr_trial->values(), curr_trial->curr_size(), trial_hashes[trial_idx]);
+                DistVec<double>& curr_trial = trial_vecs[trial_idx];
+                double d_prod = sol_vec.dot(curr_trial.indices(), curr_trial.values(), curr_trial.curr_size(), trial_hashes[trial_idx]);
                 d_prod = sum_mpi(d_prod, proc_rank, n_procs);
                 
                 if (trial_idx == krylov_idx) {
@@ -328,9 +327,9 @@ int main(int argc, const char * argv[]) {
                     }
                 }
                 else {
-                    double *trial_vals = curr_trial->values();
-                    for (size_t det_idx = 0; det_idx < curr_trial->curr_size(); det_idx++) {
-                        sol_vec.add(curr_trial->indices()[det_idx], -d_prod * trial_vals[det_idx], 1);
+                    double *trial_vals = curr_trial.values();
+                    for (size_t det_idx = 0; det_idx < curr_trial.curr_size(); det_idx++) {
+                        sol_vec.add(curr_trial.indices()[det_idx], -d_prod * trial_vals[det_idx], 1);
                     }
                 }
             }
@@ -339,8 +338,8 @@ int main(int argc, const char * argv[]) {
             sol_vec.set_curr_vec_idx(1);
             sol_vec.perform_add();
             for (uint16_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
-                DistVec<double> *curr_htrial = htrial_vecs[trial_idx];
-                double d_prod = sol_vec.dot(curr_htrial->indices(), curr_htrial->values(), curr_htrial->curr_size(), htrial_hashes[trial_idx]);
+                DistVec<double>& curr_htrial = htrial_vecs[trial_idx];
+                double d_prod = sol_vec.dot(curr_htrial.indices(), curr_htrial.values(), curr_htrial.curr_size(), htrial_hashes[trial_idx]);
                 d_prod = sum_mpi(d_prod, proc_rank, n_procs);
                 if (proc_rank == hf_proc) {
                     fprintf(bmat_file, "%lf,", d_prod);
@@ -375,10 +374,10 @@ int main(int argc, const char * argv[]) {
                         fprintf(shift_file, "%lf\n", en_shift);
                     }
                 }
-                DistVec<double> *curr_htrial = htrial_vecs[0];
-                double numer = sol_vec.dot(curr_htrial->indices(), curr_htrial->values(), curr_htrial->curr_size(), htrial_hashes[0]);
-                DistVec<double> *curr_trial = trial_vecs[0];
-                double denom = sol_vec.dot(curr_trial->indices(), curr_trial->values(), curr_trial->curr_size(), trial_hashes[0]);
+                DistVec<double>& curr_htrial = htrial_vecs[0];
+                double numer = sol_vec.dot(curr_htrial.indices(), curr_htrial.values(), curr_htrial.curr_size(), htrial_hashes[0]);
+                DistVec<double>& curr_trial = trial_vecs[0];
+                double denom = sol_vec.dot(curr_trial.indices(), curr_trial.values(), curr_trial.curr_size(), trial_hashes[0]);
                 numer = sum_mpi(numer, proc_rank, n_procs);
                 denom = sum_mpi(denom, proc_rank, n_procs);
                 if (proc_rank == hf_proc) {

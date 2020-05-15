@@ -25,7 +25,7 @@ public:
      * \param [in] n_procs Number of MPI processes over which to distribute vector elements
      */
     HubHolVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_sites, uint8_t max_ph,
-              unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, uint8_t n_vecs): DistVec<el_type>(size, add_size, rn_ptr, n_sites * 2 + n_sites * max_ph, n_elec, n_procs, diag_fxn, NULL, n_vecs), neighb_(size, 2 * (n_elec + 1)), n_sites_(n_sites), ph_bits_(max_ph), phonon_nums_(size, n_sites_) {
+              unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, uint8_t n_vecs, std::vector<uint32_t> rns): DistVec<el_type>(size, add_size, rn_ptr, n_sites * 2 + n_sites * max_ph, n_elec, n_procs, diag_fxn, NULL, n_vecs, rns), neighb_(size, 2 * (n_elec + 1)), n_sites_(n_sites), ph_bits_(max_ph), phonon_nums_(size, n_sites_) {
         
     }
     

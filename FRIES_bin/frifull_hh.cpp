@@ -106,22 +106,22 @@ int main(int argc, const char * argv[]) {
     size_t det_idx;
     
     // Initialize hash function for processors and vector
-    unsigned int proc_scrambler[2 * n_orb];
+    std::vector<uint32_t> proc_scrambler(2 * n_orb);
     double loc_norm, glob_norm;
     double last_one_norm = 0;
     
     if (load_dir) {
-        load_proc_hash(load_dir, proc_scrambler);
+        load_proc_hash(load_dir, proc_scrambler.data());
     }
     else {
         if (proc_rank == 0) {
             for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
                 proc_scrambler[det_idx] = genrand_mt(rngen_ptr);
             }
-            save_proc_hash(result_dir, proc_scrambler, 2 * n_orb);
+            save_proc_hash(result_dir, proc_scrambler.data(), 2 * n_orb);
         }
 #ifdef USE_MPI
-        MPI_Bcast(&proc_scrambler, 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+        MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 #endif
     }
     
@@ -134,9 +134,8 @@ int main(int argc, const char * argv[]) {
     std::function<double(const uint8_t *)> diag_shortcut = [hub_len](const uint8_t *det) {
         return hub_diag((uint8_t *)det, hub_len);
     };
-    HubHolVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, hub_len, ph_bits, n_elec, n_procs, diag_shortcut, 2);
+    HubHolVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, hub_len, ph_bits, n_elec, n_procs, diag_shortcut, 2, proc_scrambler);
     size_t det_size = CEILING(2 * n_orb + ph_bits * n_orb, 8);
-    sol_vec.proc_scrambler_ = proc_scrambler;
     
     uint8_t neel_det[det_size];
     gen_neel_det_1D(n_orb, n_elec, ph_bits, neel_det);

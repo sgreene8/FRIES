@@ -107,8 +107,8 @@ public:
         cols_ = new_cols;
     }
     
-    Matrix(const Matrix& m) = delete;
-    Matrix& operator= (const Matrix& m) = delete;
+//    Matrix(const Matrix& m) = delete;
+//    Matrix& operator= (const Matrix& m) = delete;
     
     /*! \return Current number of rows in matrix */
     size_t rows() const {
