@@ -470,7 +470,7 @@ public:
                 if (values_(curr_vec_idx_, *idx_ptr) == 0) {
                     double sum_vals = 0;
                     for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
-                        sum_vals += values_(curr_vec_idx_, *idx_ptr);
+                        sum_vals += fabs(values_(vec_idx, *idx_ptr));
                     }
                     if (sum_vals == 0) {
                         del_at_pos(*idx_ptr);
