@@ -63,7 +63,7 @@ TEST_CASE("Test calculation of observables from systematic sampling", "[sys_obs]
     mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, (unsigned int) time(NULL));
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
     
-    size_t input_len = 10;
+    unsigned int input_len = 10;
     size_t num_rns = 10;
     double input_vec[input_len];
     double tmp_vec[input_len];
@@ -79,7 +79,7 @@ TEST_CASE("Test calculation of observables from systematic sampling", "[sys_obs]
     };
     
     for (size_t test_idx = 0; test_idx < 100; test_idx++) {
-        unsigned int n_samp = (test_idx + 1) % 50;
+        unsigned int n_samp = (test_idx % (input_len / 2)) + 1;
         double tot_norm;
         for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
             input_vec[el_idx] = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
@@ -102,7 +102,7 @@ TEST_CASE("Test calculation of observables from systematic sampling", "[sys_obs]
                 comp_obs += obs_fxn(el_idx) * tmp_vec[el_idx] * tmp_vec[el_idx];
             }
             if (fabs(comp_obs - observables[rn_idx]) > 1e-7) {
-                printf("Observable-based systematic compression failed for rn = %lf, n_samp = %lu\nVector:\n", rn, test_idx % 50);
+                printf("Observable-based systematic compression failed for rn = %lf, n_samp = %lu\nVector:\n", rn, (test_idx % (input_len / 2)) + 1);
                 for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
                     printf("%lf\n", input_vec[el_idx]);
                 }
