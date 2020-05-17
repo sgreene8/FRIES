@@ -12,7 +12,6 @@
 /*! \brief Abstract class definition for performing a generic compression or sampling operation
  */
 class Sampler {
-    uint32_t n_times_; ///< Total number of times the compression or sampling operation has been performed
 public:
     /*! \brief Sample the target distribution or perform stochastic compression on the target vector
      */
@@ -40,6 +39,7 @@ protected:
     mt_struct *rngen_ptr_; ///< Pointer to a struct for generating random numbers
     std::vector<double> accum_; ///< Vector in which to accumulate the cumulative mean
     unsigned int n_samp_; ///< Number of samples to use for compression
+    uint32_t n_times_; ///< Total number of times the compression or sampling operation has been performed
     
     /*! \brief Generate a random number from the uniform distribution on [0, 1)
      */
@@ -53,13 +53,14 @@ class HierComp : Sampler {
     std::vector<unsigned int> counts_; ///< Number of divisions for rows that are divided uniformly
     std::vector<double> row_wts_; ///< Sum of weights for each row
     Matrix<double> sub_wts_; ///< Probabilities for rows that are not divided uniformly
-    Matrix<bool> keep_idx_;
+    Matrix<bool> keep_idx1_;
+    Matrix<bool> keep_idx2_;
     double loc_norm_; ///< Sum of magnitudes of elements not preserved exactly
     std::vector<double> wt_remain_; ///< Scratch space to use in compression
     std::vector<double> comp_vals_; ///< Vector to hold the compressed values from compression operation
     Matrix<size_t> comp_idx_; ///< 2-D array to hold indices of compressed values
 public:
-    HierComp(size_t rows, size_t cols, unsigned int n_samp) : counts_(rows), row_wts_(rows), sub_wts_(rows, cols), Sampler(rows * cols, n_samp), keep_idx_(rows, cols), wt_remain_(rows), comp_idx_(n_samp, 2) {
+    HierComp(size_t rows, size_t cols, unsigned int n_samp) : counts_(rows), row_wts_(rows), sub_wts_(rows, cols), Sampler(rows * cols, n_samp), keep_idx1_(rows, cols), keep_idx2_(rows, cols), wt_remain_(rows), comp_idx_(n_samp, 2), comp_vals_(n_samp) {
         for (size_t row_idx = 0; row_idx < rows; row_idx += 2) {
             row_wts_[row_idx] = Sampler::gen_rn() * 10;
             counts_[row_idx] = 0;
@@ -74,17 +75,18 @@ public:
         }
         for (size_t row_idx = 1; row_idx < rows; row_idx += 2) {
             row_wts_[row_idx] = Sampler::gen_rn() * 10;
-            counts_[row_idx] = genrand_mt(rngen_ptr_) % cols;
+            counts_[row_idx] = (genrand_mt(rngen_ptr_) % cols) + 1;
         }
-        loc_norm_ = find_keep_sub(row_wts_.data(), counts_.data(), sub_wts_, keep_idx_, NULL, rows, &(Sampler::n_samp_), wt_remain_.data());
+        loc_norm_ = find_keep_sub(row_wts_.data(), counts_.data(), sub_wts_, keep_idx1_, NULL, rows, &(Sampler::n_samp_), wt_remain_.data());
     }
     
     void sample() {
         Sampler::sample();
         double rn = Sampler::gen_rn();
-        size_t n_cmp = sys_sub(row_wts_.data(), counts_.data(), sub_wts_, keep_idx_, NULL, row_wts_.size(), n_samp_, wt_remain_.data(), &loc_norm_, rn, comp_vals_.data(), (size_t (*)[2]) comp_idx_.data());
+        std::copy(keep_idx1_.data(), keep_idx1_.data() + keep_idx1_.cols() * row_wts_.size(), keep_idx2_.data());
+        size_t n_cmp = sys_sub(row_wts_.data(), counts_.data(), sub_wts_, keep_idx2_, NULL, row_wts_.size(), n_samp_, wt_remain_.data(), &loc_norm_, rn, comp_vals_.data(), (size_t (*)[2]) comp_idx_.data());
         for (size_t samp_idx = 0; samp_idx < n_cmp; samp_idx++) {
-            accum_[comp_idx_(samp_idx, 0) * keep_idx_.cols() + comp_idx_(samp_idx, 1)] += comp_vals_[samp_idx];
+            accum_[comp_idx_(samp_idx, 0) * keep_idx1_.cols() + comp_idx_(samp_idx, 1)] += comp_vals_[samp_idx];
         }
     }
     
@@ -94,7 +96,7 @@ public:
         for (size_t row_idx = 0; row_idx < row_wts_.size(); row_idx++) {
             if (counts_[row_idx] == 0) {
                 for (size_t sub_idx = 0; sub_idx < n_col; sub_idx++) {
-                    double diff = fabs(accum_[row_idx * n_col + sub_idx] - row_wts_[row_idx] * sub_wts_(row_idx, sub_idx));
+                    double diff = fabs(accum_[row_idx * n_col + sub_idx] / n_times_ - row_wts_[row_idx] * sub_wts_(row_idx, sub_idx));
                     if (diff > max) {
                         max = diff;
                     }
@@ -102,7 +104,7 @@ public:
             }
             else {
                 for (size_t sub_idx = 0; sub_idx < counts_[row_idx]; sub_idx++) {
-                    double diff = fabs(accum_[row_idx * n_col + sub_idx] - row_wts_[row_idx] / counts_[row_idx]);
+                    double diff = fabs(accum_[row_idx * n_col + sub_idx] / n_times_ - row_wts_[row_idx] / counts_[row_idx]);
                     if (diff > max) {
                         max = diff;
                     }

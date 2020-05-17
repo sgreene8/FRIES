@@ -11,16 +11,19 @@
  */
 
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <FRIES/compress_utils.hpp>
 #include "sampler.hpp"
 
 int main(int argc, const char * argv[]) {
-    unsigned int n_iter = 1000;
-    HierComp test(100, 10, 100);
+    unsigned int n_iter = 2000;
+    std::ofstream out_file;
+    out_file.open("max_diff.txt");
+    HierComp test(10, 5, 8);
     
     for (unsigned int iter = 0; iter < n_iter; iter++) {
         test.sample();
-        std::cout << test.calc_max_diff() << "\n";
+        out_file << test.calc_max_diff() << "\n";
     }
 }
