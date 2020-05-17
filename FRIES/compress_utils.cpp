@@ -361,10 +361,9 @@ void sys_comp_nonuni(double *vec_vals, size_t vec_len, double *loc_norms,
                 for (rn_idx++; rn_idx < right_rn_idx - 1; rn_idx++) {
                     pdf_integral += probs[rn_idx % n_probs];
                 }
-                if (rn_idx != (size_t)right_rn_idx) {
-                    pdf_frac = right_rn_idx - (size_t)right_rn_idx;
-                    pdf_integral += probs[rn_idx % n_probs];
-                }
+                pdf_frac = right_rn_idx - (size_t)right_rn_idx;
+                pdf_integral += probs[rn_idx % n_probs] * pdf_frac;
+                
                 vec_vals[det_idx] = fabs(tmp_val) / pdf_integral * ((tmp_val > 0) - (tmp_val < 0));
                 loc_norms[proc_rank] += fabs(tmp_val) / pdf_integral;
                 rn_sys += tmp_glob_norm / n_samp;

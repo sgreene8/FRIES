@@ -20,7 +20,7 @@ int main(int argc, const char * argv[]) {
     unsigned int n_iter = 2000;
     std::ofstream out_file;
     out_file.open("max_diff.txt");
-    HierComp test(10, 5, 8);
+    NonuniComp test(100, 30);
     
     for (unsigned int iter = 0; iter < n_iter; iter++) {
         test.sample();
