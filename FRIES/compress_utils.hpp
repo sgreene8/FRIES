@@ -76,7 +76,7 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
               unsigned int n_samp, std::vector<bool> &keep_exact, double rand_num);
 
 
-/*! \brief Systematic resampling of vector elements using a nonuniform probability distribution
+/*! \brief Systematic resampling of vector elements using an arbitrary (not necessarily uniform) probability distribution
  *
  * \param [in, out] vec_vals Elements in the vector (can be negative) before
  *                      and after compression (length \p vec_len)

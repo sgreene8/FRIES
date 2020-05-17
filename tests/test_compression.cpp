@@ -111,3 +111,41 @@ TEST_CASE("Test calculation of observables from systematic sampling", "[sys_obs]
         }
     }
 }
+
+
+TEST_CASE("Test systematic sampling with arbitrary distribution", "[sys_arbitrary]") {
+    mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, 0);
+    sgenrand_mt(0, rngen_ptr);
+    
+    unsigned int input_len = 10;
+    double input_vec[input_len];
+    double tmp_vec[input_len];
+    size_t vec_srt[input_len];
+    for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
+        vec_srt[el_idx] = el_idx;
+    }
+    std::vector<bool> vec_keep1(input_len, false);
+    std::vector<bool> vec_keep2(input_len, false);
+    size_t num_rns = 10;
+    double uni_probs[num_rns];
+    for (size_t prob_idx = 0; prob_idx < num_rns; prob_idx++) {
+        uni_probs[prob_idx] = 1. / num_rns;
+    }
+    
+    unsigned int n_samp = input_len / 2;
+    double tot_norm;
+    double samp_norm = find_preserve(input_vec, vec_srt, vec_keep1, input_len, &n_samp, &tot_norm);
+    for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
+        tmp_vec[el_idx] = input_vec[el_idx];
+        vec_keep2[el_idx] = vec_keep1[el_idx];
+    }
+    double tmp_norm = samp_norm;
+    sys_comp_nonuni(input_vec, input_len, &samp_norm, n_samp, vec_keep1, uni_probs, num_rns, rngen_ptr);
+    
+    double rn = 0.5107590879779309;
+    sys_comp(tmp_vec, input_len, &tmp_norm, n_samp, vec_keep2, rn);
+    
+    for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
+        REQUIRE(input_vec[el_idx] == Approx(tmp_vec[el_idx]).margin(1e-7));
+    }
+}
