@@ -305,7 +305,7 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
 
 void sys_comp_nonuni(double *vec_vals, size_t vec_len, double *loc_norms,
                      unsigned int n_samp, std::vector<bool> &keep_exact,
-                     double *probs, size_t n_probs, mt_struct *rn_gen) {
+                     double *probs, size_t n_probs, double rand_num) {
     int n_procs = 1;
     int proc_rank = 0;
 #ifdef USE_MPI
@@ -314,12 +314,13 @@ void sys_comp_nonuni(double *vec_vals, size_t vec_len, double *loc_norms,
 #endif
     double rn_sys = 0;
     if (proc_rank == 0) {
-        unsigned int aliases [n_probs];
-        double alias_probs [n_probs];
-        setup_alias(probs, aliases, alias_probs, n_probs);
-        uint8_t sample;
-        sample_alias(aliases, alias_probs, n_probs, &sample, 1, 1, rn_gen);
-        rn_sys = genrand_mt(rn_gen) / (1. + UINT32_MAX) / n_probs + (double) sample / n_probs;
+        double cum_prob = probs[0];
+        size_t prob_idx = 1;
+        for (; prob_idx < n_probs && cum_prob < rand_num; prob_idx++) {
+            cum_prob += probs[prob_idx];
+        }
+        prob_idx--;
+        rn_sys = (prob_idx + 1 - (cum_prob - rand_num) / probs[prob_idx]) / n_probs;
     }
 #ifdef USE_MPI
     MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -351,17 +352,18 @@ void sys_comp_nonuni(double *vec_vals, size_t vec_len, double *loc_norms,
                 double right_rn_idx = mag_before / (tmp_glob_norm / n_samp / n_probs);
                 size_t rn_idx = left_rn_idx;
                 double pdf_frac;
+                double pdf_integral = 0;
                 if (rn_idx == (size_t)right_rn_idx) {
                     pdf_frac = right_rn_idx - left_rn_idx;
                 }
                 else {
                     pdf_frac = (size_t)(left_rn_idx + 1) - left_rn_idx;
+                    pdf_integral = pdf_frac * probs[rn_idx % n_probs];
+                    for (rn_idx++; rn_idx <= right_rn_idx - 1; rn_idx++) {
+                        pdf_integral += probs[rn_idx % n_probs];
+                    }
+                    pdf_frac = right_rn_idx - (size_t)right_rn_idx;
                 }
-                double pdf_integral = pdf_frac * probs[rn_idx % n_probs];
-                for (rn_idx++; rn_idx < right_rn_idx - 1; rn_idx++) {
-                    pdf_integral += probs[rn_idx % n_probs];
-                }
-                pdf_frac = right_rn_idx - (size_t)right_rn_idx;
                 pdf_integral += probs[rn_idx % n_probs] * pdf_frac;
                 
                 vec_vals[det_idx] = fabs(tmp_val) / pdf_integral * ((tmp_val > 0) - (tmp_val < 0));

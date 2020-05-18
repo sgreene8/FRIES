@@ -17,6 +17,7 @@
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/ndarr.hpp>
 #include <functional>
+#include <iostream>
 
 /*! \brief Round a non-integral number binomially.
  *
@@ -89,11 +90,12 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
  *                      zeroed in the compression
  * \param [in] probs    Probability distribution used to generate the random number used for compression
  * \param [in] n_probs  Number of elements in \p probs
- * \param [in] rn_gen       Pointer to random number generator
+ * \param [in] rand_num A random number chosen uniformly on [0, 1). Only the
+ *                      argument from the 0th MPI process is used.
  */
 void sys_comp_nonuni(double *vec_vals, size_t vec_len, double *loc_norms,
                      unsigned int n_samp, std::vector<bool> &keep_exact,
-                     double *probs, size_t n_probs, mt_struct *rn_gen);
+                     double *probs, size_t n_probs, double rand_num);
 
 
 /*! \brief Calculate the value of some diagonal observable that would be obtained if different values were used for

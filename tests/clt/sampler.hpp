@@ -149,7 +149,8 @@ public:
         std::copy(keep_idx1_.begin(), keep_idx1_.end(), keep_idx2_.begin());
         std::copy(orig_vec_.begin(), orig_vec_.end(), tmp_vec_.begin());
         loc_norm2_ = loc_norm1_;
-        sys_comp_nonuni(tmp_vec_.data(), tmp_vec_.size(), &loc_norm2_, n_samp_, keep_idx2_, probs_.data(), probs_.size(), rngen_ptr_);
+        double rn = gen_rn();
+        sys_comp_nonuni(tmp_vec_.data(), tmp_vec_.size(), &loc_norm2_, n_samp_, keep_idx2_, probs_.data(), probs_.size(), rn);
         double sum = 0;
         for (size_t el_idx = 0; el_idx < tmp_vec_.size(); el_idx++) {
             accum_[el_idx] += tmp_vec_[el_idx];
