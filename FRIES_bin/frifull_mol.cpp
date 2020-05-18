@@ -28,10 +28,12 @@ int main(int argc, const char * argv[]) {
     const char *load_dir = NULL;
     const char *ini_path = NULL;
     const char *trial_path = NULL;
+    const char *rdm_path = NULL;
     unsigned int target_nonz = 0;
     unsigned int max_n_dets = 0;
     unsigned int tmp_norm = 0;
     unsigned int max_iter = 1000000;
+    float rdm_confidence = 0;
     struct argparse_option options[] = {
         OPT_HELP(),
         OPT_STRING('d', "hf_path", &hf_path, "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt"),
@@ -43,6 +45,8 @@ int main(int argc, const char * argv[]) {
         OPT_STRING('n', "ini_vec", &ini_path, "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)."),
         OPT_STRING('v', "trial_vec", &trial_path, "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text files)."),
         OPT_INTEGER('I', "max_iter", &max_iter, "Maximum number of iterations to run the calculation."),
+        OPT_STRING('r', "rdm_path", &rdm_path, "Path to file from which to load the diagonal elements of the 1-RDM to use in compression"),
+        OPT_FLOAT('c', "kernel_confidence", &rdm_confidence, "Parameter to use in the kernel function when using the 1-RDM to guide compression"),
         OPT_END(),
     };
     
