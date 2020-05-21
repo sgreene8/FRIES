@@ -142,7 +142,7 @@ int main(int argc, const char * argv[]) {
 #ifdef USE_MPI
     MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 #endif
-    DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 3, proc_scrambler);
+    DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2, proc_scrambler);
     
     uint8_t hf_det[det_size];
     gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
@@ -237,7 +237,7 @@ int main(int argc, const char * argv[]) {
         }
     }
     sol_vec.perform_add();
-    sol_vec.copy_vec(0, 2);
+    sol_vec.copy_vec(0, 1);
     loc_norm = sol_vec.local_norm();
     glob_norm = sum_mpi(loc_norm, proc_rank, n_procs);
     
@@ -315,7 +315,7 @@ int main(int argc, const char * argv[]) {
     for (uint32_t iteration = 0; iteration < max_iter; iteration++) {
         // Initialize the solution vector
         double en_shift = 0;
-        sol_vec.copy_vec(2, 0);
+        sol_vec.copy_vec(1, 0);
         
         for (uint16_t krylov_idx = 0; krylov_idx < n_trial; krylov_idx++) {
 #pragma mark Krylov dot products and orthogonalization
@@ -324,22 +324,24 @@ int main(int argc, const char * argv[]) {
                 double d_prod = sol_vec.dot(curr_trial->indices(), curr_trial->values(), curr_trial->curr_size(), trial_hashes[trial_idx]);
                 d_prod = sum_mpi(d_prod, proc_rank, n_procs);
                 
-                if (trial_idx == krylov_idx) {
-                    if (proc_rank == hf_proc) {
-                        fprintf(dmat_file, "%lf,", d_prod);
-                    }
-                }
-                else {
-                    double *trial_vals = curr_trial->values();
-                    for (size_t det_idx = 0; det_idx < curr_trial->curr_size(); det_idx++) {
-                        sol_vec.add(curr_trial->indices()[det_idx], -d_prod * trial_vals[det_idx], 1);
-                    }
-                }
+                fprintf(dmat_file, "%lf,", d_prod);
+                
+//                if (trial_idx == krylov_idx) {
+//                    if (proc_rank == hf_proc) {
+//                        fprintf(dmat_file, "%lf,", d_prod);
+//                    }
+//                }
+//                else {
+//                    double *trial_vals = curr_trial->values();
+//                    for (size_t det_idx = 0; det_idx < curr_trial->curr_size(); det_idx++) {
+//                        sol_vec.add(curr_trial->indices()[det_idx], -d_prod * trial_vals[det_idx], 1);
+//                    }
+//                }
             }
             
-            sol_vec.copy_vec(0, 1);
-            sol_vec.set_curr_vec_idx(1);
-            sol_vec.perform_add();
+//            sol_vec.copy_vec(0, 1);
+//            sol_vec.set_curr_vec_idx(1);
+//            sol_vec.perform_add();
             for (uint16_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
                 DistVec<double> *curr_htrial = htrial_vecs[trial_idx];
                 double d_prod = sol_vec.dot(curr_htrial->indices(), curr_htrial->values(), curr_htrial->curr_size(), htrial_hashes[trial_idx]);
