@@ -8,6 +8,7 @@
 #include <FRIES/det_store.h>
 #include <forward_list>
 #include <iostream>
+#include <functional>
 
 
 /*! \brief Hash table used to to index Slater determinant indices in the
