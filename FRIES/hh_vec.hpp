@@ -38,7 +38,7 @@ public:
      * \param [out] occ_orbs    Occupied orbitals in the determinant
      * \return number of 1 bits in the bit string
      */
-    uint8_t gen_orb_list(uint8_t *det, uint8_t *occ_orbs) {
+    uint8_t gen_orb_list(uint8_t *det, uint8_t *occ_orbs) override {
         uint8_t max_byte = CEILING(n_sites_ * 2, 8);
         uint8_t last_byte = det[max_byte - 1];
         uint8_t remainder = (2 * n_sites_) % 8;
@@ -56,7 +56,7 @@ public:
      * \param [in] idx          Vector index
      * \return process index from hash value
      */
-    int idx_to_proc(uint8_t *idx) {
+    int idx_to_proc(uint8_t *idx) override {
         unsigned int n_elec = (unsigned int)DistVec<el_type>::occ_orbs_.cols();
         uint8_t orbs[n_elec];
         gen_orb_list(idx, orbs);
@@ -77,7 +77,7 @@ public:
      * \param [in] idx          Vector index
      * \return hash value
      */
-    uintmax_t idx_to_hash(uint8_t *idx, uint8_t *orbs) {
+    uintmax_t idx_to_hash(uint8_t *idx, uint8_t *orbs) override {
         unsigned int n_elec = (unsigned int)DistVec<el_type>::occ_orbs_.cols();
         if (gen_orb_list(idx, orbs) != n_elec) {
             uint8_t n_bytes = DistVec<el_type>::indices_.cols();
@@ -91,7 +91,7 @@ public:
     }
     
     /*! \brief Double the maximum number of elements that can be stored */
-    void expand() {
+    void expand() override {
         DistVec<el_type>::expand();
         size_t new_size = DistVec<el_type>::max_size_;
         neighb_.reshape(new_size, neighb_.cols());
@@ -249,7 +249,7 @@ public:
     }
     
     
-    void initialize_at_pos(size_t pos, uint8_t *orbs) {
+    void initialize_at_pos(size_t pos, uint8_t *orbs) override {
         DistVec<el_type>::initialize_at_pos(pos, orbs);
         uint8_t *det = DistVec<el_type>::indices_[pos];
         find_neighbors_1D(det, neighb_[pos]);
