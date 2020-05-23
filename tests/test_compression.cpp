@@ -140,9 +140,9 @@ TEST_CASE("Test systematic sampling with arbitrary distribution", "[sys_arbitrar
         vec_keep2[el_idx] = vec_keep1[el_idx];
     }
     double tmp_norm = samp_norm;
-    sys_comp_nonuni(input_vec, input_len, &samp_norm, n_samp, vec_keep1, uni_probs, num_rns, rngen_ptr);
-    
     double rn = 0.5107590879779309;
+    sys_comp_nonuni(input_vec, input_len, &samp_norm, n_samp, vec_keep1, uni_probs, num_rns, rn);
+    
     sys_comp(tmp_vec, input_len, &tmp_norm, n_samp, vec_keep2, rn);
     
     for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
