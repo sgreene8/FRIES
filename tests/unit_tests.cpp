@@ -4,12 +4,16 @@
 #include <iostream>
 #include <string>
 #include <string.h>
+#include <FRIES/mpi_switch.h>
 
 std::string test_inputs::hf_path;
 std::string test_inputs::out_path;
 
 int main( int argc, char* argv[] )
 {
+#ifdef USE_MPI
+    MPI_Init(NULL, NULL);
+#endif
     Catch::Session session; // There must be exactly one instance
     
     std::string hf_path;
@@ -38,4 +42,8 @@ int main( int argc, char* argv[] )
     test_inputs::out_path = out_path;
     
     return session.run();
+
+#ifdef USE_MPI
+    MPI_Finalize();
+#endif
 }
