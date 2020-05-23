@@ -80,7 +80,7 @@ public:
         loc_norm_ = find_keep_sub(row_wts_.data(), counts_.data(), sub_wts_, keep_idx1_, NULL, rows, &(Sampler::n_samp_), wt_remain_.data());
     }
     
-    void sample() {
+    void sample() override {
         Sampler::sample();
         double rn = gen_rn();
         std::copy(keep_idx1_.data(), keep_idx1_.data() + keep_idx1_.cols() * row_wts_.size(), keep_idx2_.data());
@@ -90,7 +90,7 @@ public:
         }
     }
     
-    double calc_max_diff() {
+    double calc_max_diff() override {
         double max = 0;
         size_t n_col = sub_wts_.cols();
         for (size_t row_idx = 0; row_idx < row_wts_.size(); row_idx++) {
@@ -144,7 +144,7 @@ public:
     }
     
     
-    void sample() {
+    void sample() override {
         Sampler::sample();
         std::copy(keep_idx1_.begin(), keep_idx1_.end(), keep_idx2_.begin());
         std::copy(orig_vec_.begin(), orig_vec_.end(), tmp_vec_.begin());
@@ -159,7 +159,7 @@ public:
     }
     
     
-    double calc_max_diff() {
+    double calc_max_diff() override {
         double max = 0;
         for (size_t el_idx = 0; el_idx < orig_vec_.size(); el_idx++) {
             double diff = fabs(accum_[el_idx] / n_times_ - orig_vec_[el_idx]);
