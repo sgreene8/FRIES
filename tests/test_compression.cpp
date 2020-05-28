@@ -67,16 +67,16 @@ TEST_CASE("Test calculation of observables from systematic sampling", "[sys_obs]
     size_t num_rns = 10;
     double input_vec[input_len];
     double tmp_vec[input_len];
-    double observables[num_rns];
     size_t vec_srt[input_len];
     for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
         vec_srt[el_idx] = el_idx;
     }
     std::vector<bool> vec_keep1(input_len, false);
     std::vector<bool> vec_keep2(input_len, false);
-    std::function<double(size_t)> obs_fxn = [](size_t idx) {
-        return idx + 1;
+    std::function<void(size_t, double *)> obs_fxn = [](size_t idx, double *res) {
+        *res = idx + 1;
     };
+    Matrix<double> obs_vals(num_rns, 1);
     
     for (size_t test_idx = 0; test_idx < 100; test_idx++) {
         unsigned int n_samp = (test_idx % (input_len / 2)) + 1;
@@ -86,7 +86,7 @@ TEST_CASE("Test calculation of observables from systematic sampling", "[sys_obs]
             vec_keep1[el_idx] = false;
         }
         double samp_norm = find_preserve(input_vec, vec_srt, vec_keep1, input_len, &n_samp, &tot_norm);
-        sys_obs(input_vec, input_len, &samp_norm, n_samp, vec_keep1, obs_fxn, observables, num_rns);
+        sys_obs(input_vec, input_len, &samp_norm, n_samp, vec_keep1, obs_fxn, obs_vals);
         
         for (size_t rn_idx = 0; rn_idx < num_rns; rn_idx++) {
             for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
@@ -99,14 +99,16 @@ TEST_CASE("Test calculation of observables from systematic sampling", "[sys_obs]
             
             double comp_obs = 0;
             for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
-                comp_obs += obs_fxn(el_idx) * tmp_vec[el_idx] * tmp_vec[el_idx];
+                double tmp_obs;
+                obs_fxn(el_idx, &tmp_obs);
+                comp_obs += tmp_obs * tmp_vec[el_idx] * tmp_vec[el_idx];
             }
-            if (fabs(comp_obs - observables[rn_idx]) > 1e-7) {
+            if (fabs(comp_obs - obs_vals(rn_idx, 0)) > 1e-7) {
                 printf("Observable-based systematic compression failed for rn = %lf, n_samp = %lu\nVector:\n", rn, (test_idx % (input_len / 2)) + 1);
                 for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
                     printf("%lf\n", input_vec[el_idx]);
                 }
-                REQUIRE(comp_obs == Approx(observables[rn_idx]).margin(1e-7));
+                REQUIRE(comp_obs == Approx(obs_vals(rn_idx, 0)).margin(1e-7));
             }
         }
     }
