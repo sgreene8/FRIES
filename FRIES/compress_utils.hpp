@@ -107,16 +107,13 @@ void sys_comp_nonuni(double *vec_vals, size_t vec_len, double *loc_norms,
  * \param [in] n_samp   Number of samples in systematic resampling
  * \param [in] keep_exact Array indicating elements to be preserved exactly
  *                      in compression
- * \param [in] obs      Function that takes the index of an element in \p vec_vals and returns the value
- *          of the observable from that index
- * \param [out] obs_vals    The value of the observable for each of the possible random numbers that
+ * \param [in] obs      Function that takes the index of an element in \p vec_vals and adds to an array the values of the observables
+ * \param [out] obs_vals    The values of the observables for each of the possible random numbers that
  *              can be used in systematic compression
- * \param [in] num_rns      The number of random numbers to test, in the inverval [0, 1), and therefore
-*                      the length of \p obs_vals
  */
 void sys_obs(double *vec_vals, size_t vec_len, double *loc_norms, unsigned int n_samp,
-             std::vector<bool> &keep_exact, std::function<double(size_t)> obs,
-             double *obs_vals, size_t num_rns);
+             std::vector<bool> &keep_exact, std::function<void(size_t, double *)> obs,
+             Matrix<double> &obs_vals);
 
 
 /*! \brief Sum a variable across all MPI processes

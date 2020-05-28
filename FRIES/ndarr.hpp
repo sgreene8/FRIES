@@ -40,6 +40,11 @@ public:
         return data_[cols_ * row + col];
     }
     
+    /*! \brief Zero all matrix elements */
+    void zero() {
+        std::fill(data_.begin(), data_.end(), 0);
+    }
+    
     /*! \brief Access matrix row
      * \param [in] row      Row index
      * \return pointer to 0th element in a row of a matrix

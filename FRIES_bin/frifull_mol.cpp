@@ -100,6 +100,12 @@ int main(int argc, const char * argv[]) {
     Matrix<double> *h_core = in_data.hcore;
     FourDArr *eris = in_data.eris;
     
+    std::vector<double> rdm_diag(tot_orb);
+    if (rdm_path) {
+        load_rdm(rdm_path, rdm_diag.data());
+        std::copy(rdm_diag.begin() + n_frz / 2, rdm_diag.end(), rdm_diag.begin());
+    }
+    
     // Rn generator
     mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, proc_rank, (unsigned int) time(NULL));
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
@@ -123,6 +129,13 @@ int main(int argc, const char * argv[]) {
             max_n_symm = symm_lookup[det_idx][0];
         }
     }
+    
+    std::function<void(size_t, double *)> rdm_obs = [n_elec_unf, &sol_vec, n_orb](size_t idx, double *obs_vals) {
+        uint8_t *orbs = sol_vec.orbs_at_pos(idx);
+        for (size_t elec_idx = 0; elec_idx < n_elec_unf; elec_idx++) {
+            obs_vals[orbs[elec_idx] % n_orb] += 1;
+        }
+    };
     
     // Initialize hash function for processors and vector
     unsigned int proc_scrambler[2 * n_orb];
@@ -206,6 +219,7 @@ int main(int argc, const char * argv[]) {
     FILE *shift_file = NULL;
     FILE *norm_file = NULL;
     FILE *nkept_file = NULL;
+    FILE *prob_file = NULL;
     
 #pragma mark Initialize solution vector
     if (load_dir) {
@@ -268,6 +282,9 @@ int main(int argc, const char * argv[]) {
         strcpy(file_path, result_dir);
         strcat(file_path, "nkept.txt");
         nkept_file = fopen(file_path, "a");
+        strcpy(file_path, result_dir);
+        strcat(file_path, "probs.txt");
+        prob_file = fopen(file_path, "a");
         
         strcpy(file_path, result_dir);
         strcat(file_path, "params.txt");
@@ -296,6 +313,9 @@ int main(int argc, const char * argv[]) {
         srt_arr[det_idx] = det_idx;
     }
     std::vector<bool> keep_exact(max_n_dets, false);
+    size_t num_rn_obs = rdm_path ? 5 : 0;
+    Matrix<double> obs_vals(num_rn_obs, n_orb);
+    std::vector<double> obs_probs(num_rn_obs);
     
     for (unsigned int iterat = 0; iterat < max_iter; iterat++) {
         h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, orb_indices, n_frz, n_elec_unf, 1, -eps);
@@ -318,6 +338,27 @@ int main(int argc, const char * argv[]) {
         glob_norm += sol_vec.dense_norm();
         if (proc_rank == hf_proc) {
             fprintf(nkept_file, "%u\n", target_nonz - n_samp);
+        }
+        if (rdm_path) {
+            sys_obs(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rdm_obs, obs_vals);
+            double two_norm = sol_vec.two_norm();
+            two_norm = sum_mpi(two_norm, proc_rank, n_procs);
+            double prob_norm = 0;
+            for (size_t rn_idx = 0; rn_idx < num_rn_obs; rn_idx++) {
+                obs_probs[rn_idx] = 0;
+                for (size_t obs_idx = 0; obs_idx < n_orb; obs_idx++) {
+                    double obs = sum_mpi(obs_vals(rn_idx, obs_idx), proc_rank, n_procs) / two_norm;
+                    obs_probs[rn_idx] += (obs - rdm_diag[obs_idx]) * (obs - rdm_diag[obs_idx]);
+                }
+                obs_probs[rn_idx] = exp(-obs_probs[rn_idx] / rdm_confidence / rdm_confidence);
+                prob_norm += obs_probs[rn_idx];
+            }
+            if ((iterat + 1) % 1000 == 0 && proc_rank == hf_proc) {
+                for (size_t rn_idx = 0; rn_idx < num_rn_obs; rn_idx++) {
+                    fprintf(prob_file, "%lf,", obs_probs[rn_idx]);
+                }
+                fprintf(prob_file, "\n");
+            }
         }
         
         // Adjust shift
@@ -344,7 +385,12 @@ int main(int argc, const char * argv[]) {
 #ifdef USE_MPI
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
 #endif
-        sys_comp(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
+        if (rdm_path) {
+            sys_comp_nonuni(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, obs_probs.data(), num_rn_obs, rn_sys);
+        }
+        else {
+            sys_comp(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
+        }
         for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
             if (keep_exact[det_idx]) {
                 sol_vec.del_at_pos(det_idx);
@@ -359,6 +405,7 @@ int main(int argc, const char * argv[]) {
                 fflush(den_file);
                 fflush(shift_file);
                 fflush(nkept_file);
+                fflush(prob_file);
             }
         }
     }
@@ -368,6 +415,7 @@ int main(int argc, const char * argv[]) {
         fclose(den_file);
         fclose(shift_file);
         fclose(nkept_file);
+        fclose(prob_file);
     }
 #ifdef USE_MPI
     MPI_Finalize();

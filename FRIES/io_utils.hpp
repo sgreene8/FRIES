@@ -153,4 +153,12 @@ void save_proc_hash(const char *path, unsigned int *proc_hash, size_t n_hash);
 void load_proc_hash(const char *path, unsigned int *proc_hash);
 
 
+/*! \brief Load from disk the diagonal elements of the 1-RDM
+ *
+ * \param [in] path     Path of the file from which to load
+ * \param [out] vals        Values loaded from the file
+ */
+void load_rdm(const char *path, double *vals);
+
+
 #endif /* io_utils_h */
