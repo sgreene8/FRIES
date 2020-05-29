@@ -35,15 +35,19 @@ int main( int argc, char* argv[] )
     
     // Let Catch (using Clara) parse the command line
     int returnCode = session.applyCommandLine( argc, argv );
-    if( returnCode != 0 ) // Indicates a command line error
+    if( returnCode != 0 ) {// Indicates a command line error
+#ifdef USE_MPI
+        MPI_Finalize();
+#endif
         return returnCode;
+    }
     
     test_inputs::hf_path = hf_path;
     test_inputs::out_path = out_path;
-    
-    return session.run();
 
+    int result = session.run();
 #ifdef USE_MPI
     MPI_Finalize();
 #endif
+    return result;
 }

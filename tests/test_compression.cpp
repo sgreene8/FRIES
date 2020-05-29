@@ -78,24 +78,36 @@ TEST_CASE("Test calculation of observables from systematic sampling", "[sys_obs]
     };
     Matrix<double> obs_vals(num_rns, 1);
     
-    for (size_t test_idx = 0; test_idx < 100; test_idx++) {
+    int n_procs = 1;
+    int proc_rank = 0;
+#ifdef USE_MPI
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+#endif
+    double norms[n_procs];
+    double norms2[n_procs];
+    
+    for (size_t test_idx = 0; test_idx < 10; test_idx++) {
         unsigned int n_samp = (test_idx % (input_len / 2)) + 1;
         double tot_norm;
         for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
             input_vec[el_idx] = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
             vec_keep1[el_idx] = false;
         }
-        double samp_norm = find_preserve(input_vec, vec_srt, vec_keep1, input_len, &n_samp, &tot_norm);
-        sys_obs(input_vec, input_len, &samp_norm, n_samp, vec_keep1, obs_fxn, obs_vals);
+        norms[proc_rank] = find_preserve(input_vec, vec_srt, vec_keep1, input_len, &n_samp, &tot_norm);
+#ifdef USE_MPI
+        MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+#endif
+        sys_obs(input_vec, input_len, norms, n_samp, vec_keep1, obs_fxn, obs_vals);
         
         for (size_t rn_idx = 0; rn_idx < num_rns; rn_idx++) {
             for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
                 tmp_vec[el_idx] = input_vec[el_idx];
                 vec_keep2[el_idx] = vec_keep1[el_idx];
             }
-            double tmp_norm = samp_norm;
+            std::copy(norms, norms + n_procs, norms2);
             double rn = rn_idx / (double)num_rns;
-            sys_comp(tmp_vec, input_len, &tmp_norm, n_samp, vec_keep2, rn);
+            sys_comp(tmp_vec, input_len, norms2, n_samp, vec_keep2, rn);
             
             double comp_obs = 0;
             for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
