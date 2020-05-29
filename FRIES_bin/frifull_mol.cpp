@@ -335,6 +335,9 @@ int main(int argc, const char * argv[]) {
 #pragma mark Vector compression step
         unsigned int n_samp = target_nonz;
         loc_norms[proc_rank] = find_preserve(sol_vec.values(), srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
+#ifdef USE_MPI
+        MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+#endif
         glob_norm += sol_vec.dense_norm();
         if (proc_rank == hf_proc) {
             fprintf(nkept_file, "%u\n", target_nonz - n_samp);
@@ -382,9 +385,6 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-#ifdef USE_MPI
-        MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-#endif
         if (rdm_path) {
             sys_comp_nonuni(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, obs_probs.data(), num_rn_obs, rn_sys);
         }
