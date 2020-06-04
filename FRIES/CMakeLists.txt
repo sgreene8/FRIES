@@ -34,7 +34,6 @@ if(USE_MPI)
         target_link_libraries(fries PUBLIC ${MPI_LIBRARIES})
     endif()
     target_compile_definitions(fries PUBLIC USE_MPI)
-    message(STATUS "MPIEXEC_EXECUTABLE=${MPIEXEC_EXECUTABLE}")
 endif()
 
 
