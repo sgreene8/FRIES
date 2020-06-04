@@ -282,14 +282,14 @@ int main(int argc, const char * argv[]) {
                     if (ph_ex[prev_idx]) {
                         uint8_t *curr_ph = sol_vec.phonons_at_pos(det_idx);
                         uint8_t *curr_occ = sol_vec.orbs_at_pos(det_idx);
-                        uint8_t site = curr_occ[exc_idx % n_elec];
+                        uint8_t site = curr_occ[exc_idx % n_elec] % hub_len;
                         uint8_t phonon_num = curr_ph[site];
                         if (exc_idx < n_elec && phonon_num > 0) {
-                            sol_vec.det_from_ph(curr_det, new_det, site % hub_len, -1);
+                            sol_vec.det_from_ph(curr_det, new_det, site, -1);
                             matr_el *= sqrt(phonon_num);
                         }
                         else if (exc_idx >= n_elec && phonon_num + 1 < (1 << ph_bits)) {
-                            sol_vec.det_from_ph(curr_det, new_det, site % hub_len, +1);
+                            sol_vec.det_from_ph(curr_det, new_det, site, +1);
                             matr_el *= sqrt(phonon_num + 1);
                         }
                         else {
@@ -345,12 +345,6 @@ int main(int argc, const char * argv[]) {
             }
         }
         sol_vec.add_vecs(0, 1);
-        
-//        for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
-//            char det_str[2 * det_size + 1];
-//            print_str(sol_vec.indices()[det_idx], det_size, det_str);
-//            printf("%s, %lf\n", det_str, sol_vec[det_idx][0]);
-//        }
         
         // Compression step
         unsigned int n_samp = target_nonz;
