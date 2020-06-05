@@ -406,7 +406,7 @@ void sys_obs(double *vec_vals, size_t vec_len, double *loc_norms, unsigned int n
     }
     size_t num_rns = obs_vals.rows();
     
-    double left_rn_idx = mag_before / (glob_norm / n_samp / num_rns);
+    double left_rn_idx = mag_before * n_samp * num_rns / glob_norm;
     
     for (size_t el_idx = 0; el_idx < vec_len; el_idx++) {
         std::fill(obs_tmp.begin(), obs_tmp.end(), 0);
@@ -421,7 +421,7 @@ void sys_obs(double *vec_vals, size_t vec_len, double *loc_norms, unsigned int n
         }
         else {
             mag_before += tmp_val;
-            double right_rn_idx = mag_before / (glob_norm / n_samp / num_rns);
+            double right_rn_idx = mag_before * n_samp * num_rns / glob_norm;
             size_t rn_idx = left_rn_idx;
             if (fabs(rn_idx - left_rn_idx) != 0) {
                 rn_idx++;

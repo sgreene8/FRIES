@@ -118,7 +118,7 @@ TEST_CASE("Test calculation of observables from systematic sampling", "[sys_obs]
             if (fabs(comp_obs - obs_vals(rn_idx, 0)) > 1e-7) {
                 printf("Observable-based systematic compression failed for rn = %lf, n_samp = %lu\nVector:\n", rn, (test_idx % (input_len / 2)) + 1);
                 for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
-                    printf("%lf\n", input_vec[el_idx]);
+                    printf("%lf->%lf\n", input_vec[el_idx], tmp_vec[el_idx]);
                 }
                 REQUIRE(comp_obs == Approx(obs_vals(rn_idx, 0)).margin(1e-7));
             }
