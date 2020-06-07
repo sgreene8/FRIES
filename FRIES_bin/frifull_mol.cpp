@@ -356,6 +356,9 @@ int main(int argc, const char * argv[]) {
                 obs_probs[rn_idx] = exp(-obs_probs[rn_idx] / rdm_confidence / rdm_confidence);
                 prob_norm += obs_probs[rn_idx];
             }
+            for (size_t rn_idx = 0; rn_idx < num_rn_obs; rn_idx++) {
+                obs_probs[rn_idx] /= prob_norm;
+            }
             if ((iterat + 1) % 1000 == 0 && proc_rank == hf_proc) {
                 for (size_t rn_idx = 0; rn_idx < num_rn_obs; rn_idx++) {
                     fprintf(prob_file, "%lf,", obs_probs[rn_idx]);
