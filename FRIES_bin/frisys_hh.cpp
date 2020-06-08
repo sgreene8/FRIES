@@ -314,8 +314,6 @@ int main(int argc, const char * argv[]) {
                         matr_el *= -1; // hub_t
                     }
                     if (fabs(matr_el) > 1e-9) {
-                        char det_str[2 * det_size + 1];
-                        print_str(new_det, det_size, det_str);
                         sol_vec.add(new_det, matr_el, ini_flag);
                         num_added++;
                     }
