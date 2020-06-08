@@ -43,16 +43,9 @@ public:
     /*! \brief Constructor for the hash table
      *
      * \param [in] table_size   Desired length of the hash table
-     * \param [in] rn_gen       Pointer to a MT object to use for generating random
-     *                          integers
-     * \param [in] rn_len       Number of random integers to use in the hash
-     *                          function (must be >= # of spin orbitals in basis)
+     * \param [in] rand_ints    Vector of random integers to use for hashing (length must be >= # of spin orbitals in basis)
      */
-    HashTable(size_t table_size, mt_struct *rn_gen, unsigned int rn_len) : buckets_(table_size), scrambler_(rn_len), idx_size_(CEILING(rn_len, 8)) {
-        for (unsigned int idx = 0; idx < rn_len; idx++) {
-            scrambler_[idx] = genrand_mt(rn_gen);
-        }
-    }
+    HashTable(size_t table_size, const std::vector<uint32_t> rand_ints) : buckets_(table_size), scrambler_(rand_ints), idx_size_(CEILING(rand_ints.size(), 8)) {}
     
 
     /*! \brief Read value from hash table

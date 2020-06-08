@@ -17,6 +17,9 @@ target_link_libraries(frifull_hh PRIVATE fries)
 add_executable(frifull_mol frifull_mol.cpp)
 target_link_libraries(frifull_mol PRIVATE fries)
 
+add_executable(frisys_hh frisys_hh.cpp)
+target_link_libraries(frisys_hh PRIVATE fries)
+
 add_executable(arnoldi_mol arnoldi_mol.cpp)
 target_link_libraries(arnoldi_mol PRIVATE fries)
 find_package(LAPACK REQUIRED)
@@ -31,6 +34,7 @@ install(
         frifull_hh
         frifull_mol
         arnoldi_mol
+        frisys_hh
     RUNTIME
         DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}
         COMPONENT bin
