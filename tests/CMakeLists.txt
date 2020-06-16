@@ -9,5 +9,5 @@ target_sources(unit_tests
     test_vector.cpp
 )
 
-add_test(NAME all COMMAND unit_tests --hf_path ${CMAKE_CURRENT_LIST_DIR}/../examples/Neon_augccpvdz_HF/ --out_path ${CMAKE_CURRENT_LIST_DIR})
+add_test(NAME all COMMAND unit_tests --hf_path ${CMAKE_CURRENT_LIST_DIR}/../Hartree-Fock/Neon_augccpvdz/ --out_path ${CMAKE_CURRENT_LIST_DIR})
 ## -s -n alias
