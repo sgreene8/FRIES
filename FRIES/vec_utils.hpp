@@ -575,16 +575,16 @@ public:
 #endif
         
         char buffer[300];
+        int dense_sizes[n_procs];
         if (my_rank == 0) {
             sprintf(buffer, "%sdense.txt", path);
-            int dense_sizes[n_procs];
             read_csv(dense_sizes, buffer);
-#ifdef USE_MPI
-            MPI_Scatter(dense_sizes, 1, MPI_INT, &n_dense_, 1, MPI_INT, 0, MPI_COMM_WORLD);
-#else
-            n_dense_ = dense_sizes[my_rank];
-#endif
         }
+#ifdef USE_MPI
+        MPI_Scatter(dense_sizes, 1, MPI_INT, &n_dense_, 1, MPI_INT, 0, MPI_COMM_WORLD);
+#else
+        n_dense_ = dense_sizes[my_rank];
+#endif
         
         size_t el_size = sizeof(el_type);
         
@@ -612,6 +612,7 @@ public:
         
         n_nonz_ = 0;
         uint8_t tmp_orbs[occ_orbs_.cols()];
+        double tmp_vals[values_.rows()];
         for (size_t det_idx = 0; det_idx < n_dets; det_idx++) {
             int is_nonz = 0;
             for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
@@ -625,9 +626,12 @@ public:
                 ssize_t *idx_ptr = vec_hash_.read(new_idx, hash_val, true);
                 *idx_ptr = n_nonz_;
                 memmove(indices_[n_nonz_], new_idx, n_bytes);
+                for (size_t val_idx = 0; val_idx < values_.rows(); val_idx++) {
+                    tmp_vals[val_idx] = values_(val_idx, det_idx);
+                }
                 initialize_at_pos(n_nonz_, tmp_orbs);
                 for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
-                    values_(vec_idx, n_nonz_) = values_(vec_idx, det_idx);
+                    values_(vec_idx, n_nonz_) = tmp_vals[vec_idx];
                 }
                 n_nonz_++;
             }

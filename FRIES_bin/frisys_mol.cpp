@@ -241,6 +241,26 @@ int main(int argc, const char * argv[]) {
     if (!load_dir && determ_path) {
         n_determ = sol_vec.init_dense(determ_path, result_dir);
     }
+    int dense_sizes[n_procs];
+    int determ_tmp = (int) n_determ;
+#ifdef USE_MPI
+    MPI_Gather(&determ_tmp, 1, MPI_INT, dense_sizes, 1, MPI_INT, 0, MPI_COMM_WORLD);
+#else
+    dense_sizes[proc_rank] = determ_tmp;
+#endif
+    if (proc_rank == 0) {
+        sprintf(file_path, "%sdense.txt", result_dir);
+        FILE *dense_f = fopen(file_path, "w");
+        if (!dense_f) {
+            fprintf(stderr, "Error opening file containing sizes of deterministic subspaces.\n");
+            return 0;
+        }
+        for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+            fprintf(dense_f, "%d,", dense_sizes[proc_idx]);
+        }
+        fprintf(dense_f, "\n");
+        fclose(dense_f);
+    }
     
 #pragma mark Initialize solution vector
     if (load_dir) {
