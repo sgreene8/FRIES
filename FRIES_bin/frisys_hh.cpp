@@ -265,14 +265,14 @@ int main(int argc, const char * argv[]) {
             while (num_added > 0) {
                 num_added = 0;
                 while (samp_idx < comp_len && num_added < adder_size) {
-                    size_t det_idx = det_indices[comp_idx[samp_idx][0]];
+                    size_t prev_idx = comp_idx[samp_idx][0];
+                    size_t det_idx = det_indices[prev_idx];
                     double curr_val = vals_before_mult[det_idx];
                     uint8_t ini_flag = fabs(curr_val) >= init_thresh;
                     if (ini_flag != add_ini) {
                         samp_idx++;
                         continue;
                     }
-                    uint8_t prev_idx = comp_idx[samp_idx][0];
                     uint8_t exc_idx = comp_idx[samp_idx][1];
                     uint8_t *curr_det = sol_vec.indices()[det_idx];
                     double matr_el = comp_vec1[samp_idx] * -eps;
