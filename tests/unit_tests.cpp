@@ -4,12 +4,16 @@
 #include <iostream>
 #include <string>
 #include <string.h>
+#include <FRIES/mpi_switch.h>
 
 std::string test_inputs::hf_path;
 std::string test_inputs::out_path;
 
 int main( int argc, char* argv[] )
 {
+#ifdef USE_MPI
+    MPI_Init(NULL, NULL);
+#endif
     Catch::Session session; // There must be exactly one instance
     
     std::string hf_path;
@@ -31,11 +35,19 @@ int main( int argc, char* argv[] )
     
     // Let Catch (using Clara) parse the command line
     int returnCode = session.applyCommandLine( argc, argv );
-    if( returnCode != 0 ) // Indicates a command line error
+    if( returnCode != 0 ) {// Indicates a command line error
+#ifdef USE_MPI
+        MPI_Finalize();
+#endif
         return returnCode;
+    }
     
     test_inputs::hf_path = hf_path;
     test_inputs::out_path = out_path;
-    
-    return session.run();
+
+    int result = session.run();
+#ifdef USE_MPI
+    MPI_Finalize();
+#endif
+    return result;
 }

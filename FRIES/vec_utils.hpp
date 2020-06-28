@@ -153,7 +153,6 @@ private:
     int n_nonz_; ///< Current number of nonzero elements in vector, including all in the dense subspace
     double *curr_shift_;
     Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
-    std::vector<uint32_t> proc_scrambler_; ///< Array of random numbers used in the hash function for assigning vector indices to MPI
 protected:
     Matrix<uint8_t> indices_; ///< Array of indices of vector elements
     size_t max_size_; ///< Maximum number of vector elements that can be stored
@@ -519,12 +518,24 @@ public:
 
     /*! \brief Calculate the sum of the magnitudes of the vector elements on each MPI process
      *
-     * \return The sum of the magnitudes on each process
+     * \return The sum of the magnitudes on this process
      */
-    double local_norm() {
+    double local_norm() const {
         double norm = 0;
         for (size_t idx = 0; idx < curr_size_; idx++) {
             norm += fabs(values_(curr_vec_idx_, idx));
+        }
+        return norm;
+    }
+    
+    /*! \brief Calculate the sum of the squares of the vector elements on each MPI process
+     *
+     * \return The two-norm of the elements on this process
+     */
+    double two_norm() const {
+        double norm = 0;
+        for (size_t idx = 0; idx < curr_size_; idx++) {
+            norm += values_(curr_vec_idx_, idx) * values_(curr_vec_idx_, idx);
         }
         return norm;
     }

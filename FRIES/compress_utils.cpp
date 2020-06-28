@@ -279,9 +279,8 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
     }
     
     loc_norms[proc_rank] = 0;
-    double tmp_val;
     for (size_t det_idx = 0; det_idx < vec_len; det_idx++) {
-        tmp_val = vec_vals[det_idx];
+        double tmp_val = vec_vals[det_idx];
         if (keep_exact[det_idx]) {
             loc_norms[proc_rank] += fabs(tmp_val);
             keep_exact[det_idx] = 0;
@@ -302,6 +301,142 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
 #ifdef USE_MPI
     MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
 #endif
+}
+
+void sys_comp_nonuni(double *vec_vals, size_t vec_len, double *loc_norms,
+                     unsigned int n_samp, std::vector<bool> &keep_exact,
+                     double *probs, size_t n_probs, double rand_num) {
+    int n_procs = 1;
+    int proc_rank = 0;
+#ifdef USE_MPI
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+#endif
+    double rn_sys = 0;
+    if (proc_rank == 0) {
+        double cum_prob = probs[0];
+        size_t prob_idx = 1;
+        for (; prob_idx < n_probs && cum_prob < rand_num; prob_idx++) {
+            cum_prob += probs[prob_idx];
+        }
+        prob_idx--;
+        rn_sys = (prob_idx + 1 - (cum_prob - rand_num) / probs[prob_idx]) / n_probs;
+    }
+#ifdef USE_MPI
+    MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+#endif
+    double tmp_glob_norm = 0;
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        tmp_glob_norm += loc_norms[proc_idx];
+    }
+    double mag_before = 0;
+    if (n_samp > 0) {
+        mag_before = seed_sys(loc_norms, &rn_sys, n_samp);
+    }
+    else {
+        mag_before = 0;
+        rn_sys = INFINITY;
+    }
+    
+    loc_norms[proc_rank] = 0;
+    for (size_t det_idx = 0; det_idx < vec_len; det_idx++) {
+        double tmp_val = vec_vals[det_idx];
+        if (keep_exact[det_idx]) {
+            loc_norms[proc_rank] += fabs(tmp_val);
+            keep_exact[det_idx] = 0;
+        }
+        else if (tmp_val != 0) {
+            mag_before += fabs(tmp_val);
+            if (rn_sys < mag_before) {
+                double left_rn_idx = (mag_before - fabs(tmp_val)) / (tmp_glob_norm / n_samp / n_probs);
+                double right_rn_idx = mag_before / (tmp_glob_norm / n_samp / n_probs);
+                size_t rn_idx = left_rn_idx;
+                double pdf_frac;
+                double pdf_integral = 0;
+                if (rn_idx == (size_t)right_rn_idx) {
+                    pdf_frac = right_rn_idx - left_rn_idx;
+                }
+                else {
+                    pdf_frac = (size_t)(left_rn_idx + 1) - left_rn_idx;
+                    pdf_integral = pdf_frac * probs[rn_idx % n_probs];
+                    for (rn_idx++; rn_idx <= right_rn_idx - 1; rn_idx++) {
+                        pdf_integral += probs[rn_idx % n_probs];
+                    }
+                    pdf_frac = right_rn_idx - (size_t)right_rn_idx;
+                }
+                pdf_integral += probs[rn_idx % n_probs] * pdf_frac;
+                
+                vec_vals[det_idx] = fabs(tmp_val) / pdf_integral * ((tmp_val > 0) - (tmp_val < 0));
+                loc_norms[proc_rank] += fabs(tmp_val) / pdf_integral;
+                rn_sys += tmp_glob_norm / n_samp;
+            }
+            else {
+                vec_vals[det_idx] = 0;
+                keep_exact[det_idx] = 1;
+            }
+        }
+    }
+#ifdef USE_MPI
+    MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+#endif
+}
+
+
+void sys_obs(double *vec_vals, size_t vec_len, double *loc_norms, unsigned int n_samp,
+             std::vector<bool> &keep_exact, std::function<void(size_t, double *)> obs,
+             Matrix<double> &obs_vals) {
+    int n_procs = 1;
+    int proc_rank = 0;
+#ifdef USE_MPI
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+#endif
+    double glob_norm = 0;
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        glob_norm += loc_norms[proc_idx];
+    }
+    
+    obs_vals.zero();
+    size_t n_obs = obs_vals.cols();
+    std::vector<double> obs_tmp(n_obs);
+    
+    double mag_before = 0;
+    for (int proc_idx = 0; proc_idx < proc_rank; proc_idx++) {
+        mag_before += loc_norms[proc_idx];
+    }
+    size_t num_rns = obs_vals.rows();
+    
+    double left_rn_idx = mag_before * n_samp * num_rns / glob_norm;
+    
+    for (size_t el_idx = 0; el_idx < vec_len; el_idx++) {
+        std::fill(obs_tmp.begin(), obs_tmp.end(), 0);
+        obs(el_idx, obs_tmp.data());
+        double tmp_val = fabs(vec_vals[el_idx]);
+        if (keep_exact[el_idx]) {
+            for (size_t rn_idx = 0; rn_idx < num_rns; rn_idx++) {
+                for (size_t obs_idx = 0; obs_idx < n_obs; obs_idx++) {
+                    obs_vals(rn_idx, obs_idx) += obs_tmp[obs_idx] * tmp_val * tmp_val;
+                }
+            }
+        }
+        else {
+            mag_before += tmp_val;
+            double right_rn_idx = mag_before * n_samp * num_rns / glob_norm;
+            size_t rn_idx = left_rn_idx;
+            if (fabs(rn_idx - left_rn_idx) != 0) {
+                rn_idx++;
+            }
+            if (fabs(right_rn_idx - n_samp * num_rns) < 1e-8) { // correct for floating-point error
+                right_rn_idx = n_samp * num_rns - 0.5;
+            }
+            for (; rn_idx < right_rn_idx; rn_idx++) {
+                for (size_t obs_idx = 0; obs_idx < n_obs; obs_idx++) {
+                    obs_vals(rn_idx % num_rns, obs_idx) += obs_tmp[obs_idx] * glob_norm / n_samp * glob_norm / n_samp;
+                }
+            }
+            left_rn_idx = right_rn_idx;
+        }
+    }
 }
 
 

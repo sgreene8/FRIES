@@ -433,3 +433,17 @@ void load_proc_hash(const char *path, unsigned int *proc_hash) {
     fclose(file_p);
 }
 
+void load_rdm(const char *path, double *vals) {
+    FILE *file_p = fopen(path, "r");
+    if (!file_p) {
+        fprintf(stderr, "Error: could not open RDM file.\n");
+        return;
+    }
+    int num_read = 1;
+    size_t n_vals = 0;
+    while (num_read == 1) {
+        num_read = fscanf(file_p, "%lf\n", &vals[n_vals]);
+        n_vals++;
+    }
+    fclose(file_p);
+}
