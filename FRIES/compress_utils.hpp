@@ -75,6 +75,17 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
               unsigned int n_samp, std::vector<bool> &keep_exact, double rand_num);
 
 
+/*! \brief Calculate a budget for compressing vectors on each MPI process independently using systematic resampling
+ *
+ * \param [in] loc_norms    Sum of magnitudes of elements on each MPI process
+ * \param [in] n_samp       Total number of elements (across all processes) to select in sampling
+ * \param [in] rand_num A random number chosen uniformly on [0, 1). Only the
+ *                      argument from the 0th MPI process is used. 
+ * \return Number of elements to sample on this process
+ */
+uint32_t sys_budget(double *loc_norms, uint32_t n_samp, double rand_num);
+
+
 /*! \brief Sum a variable across all MPI processes
  *
  * \param [in] local    local value to be summed

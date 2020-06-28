@@ -305,6 +305,34 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
 }
 
 
+uint32_t sys_budget(double *loc_norms, uint32_t n_samp, double rand_num) {
+    int n_procs = 1;
+    int proc_rank = 0;
+    double rn_sys = rand_num;
+#ifdef USE_MPI
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+    MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+#endif
+    double tmp_glob_norm = 0;
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        tmp_glob_norm += loc_norms[proc_idx];
+    }
+    
+    if (n_samp > 0) {
+        double lbound = seed_sys(loc_norms, &rn_sys, n_samp);
+        int32_t ret_num = (lbound + loc_norms[proc_rank] - rn_sys) * n_samp / tmp_glob_norm;
+        if (ret_num < 0) {
+            ret_num = 0;
+        }
+        return ret_num;
+    }
+    else {
+        return 0;
+    }
+}
+
+
 void adjust_shift(double *shift, double one_norm, double *last_norm,
                   double target_norm, double damp_factor) {
     if (*last_norm) {
