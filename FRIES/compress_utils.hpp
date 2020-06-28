@@ -78,10 +78,18 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
 
 
 /*! \brief Calculate a budget for compressing vectors on each MPI process independently using systematic resampling
-/*! \brief Systematic resampling of vector elements using an arbitrary (not necessarily uniform) probability distribution
  *
  * \param [in] loc_norms    Sum of magnitudes of elements on each MPI process
  * \param [in] n_samp       Total number of elements (across all processes) to select in sampling
+ * \param [in] rand_num A random number chosen uniformly on [0, 1). Only the
+ *                      argument from the 0th MPI process is used.
+ * \return Number of elements to sample on this process
+ */
+ uint32_t sys_budget(double *loc_norms, uint32_t n_samp, double rand_num);
+
+
+/*! \brief Systematic resampling of vector elements using an arbitrary (not necessarily uniform) probability distribution
+ *
  * \param [in, out] vec_vals Elements in the vector (can be negative) before
  *                      and after compression (length \p vec_len)
  * \param [in] vec_len  Number of elements in the vector
@@ -94,10 +102,6 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
  * \param [in] probs    Probability distribution used to generate the random number used for compression
  * \param [in] n_probs  Number of elements in \p probs
  * \param [in] rand_num A random number chosen uniformly on [0, 1). Only the
- *                      argument from the 0th MPI process is used. 
- * \return Number of elements to sample on this process
- */
-uint32_t sys_budget(double *loc_norms, uint32_t n_samp, double rand_num);
  *                      argument from the 0th MPI process is used.
  */
 void sys_comp_nonuni(double *vec_vals, size_t vec_len, double *loc_norms,
