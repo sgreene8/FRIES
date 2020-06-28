@@ -167,7 +167,7 @@ int main(int argc, const char * argv[]) {
         MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 #endif
     }
-    DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, &en_shift, 2, proc_scrambler);
+    DistVec<double> sol_vec(max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, &en_shift, 2, proc_scrambler);
     
     uint8_t hf_det[det_size];
     gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
@@ -189,8 +189,8 @@ int main(int argc, const char * argv[]) {
     }
     unsigned int tot_trial = sum_mpi((int) n_trial, proc_rank, n_procs);
     tot_trial = CEILING(tot_trial * 2, n_procs);
-    DistVec<double> trial_vec(tot_trial, tot_trial, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, proc_scrambler);
-    DistVec<double> htrial_vec(tot_trial * n_ex / n_procs, tot_trial * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2, proc_scrambler);
+    DistVec<double> trial_vec(tot_trial, tot_trial, n_orb * 2, n_elec_unf, n_procs, proc_scrambler);
+    DistVec<double> htrial_vec(tot_trial * n_ex / n_procs, tot_trial * n_ex / n_procs, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2, proc_scrambler);
     if (trial_path) { // load trial vector from file
         for (det_idx = 0; det_idx < n_trial; det_idx++) {
             trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);

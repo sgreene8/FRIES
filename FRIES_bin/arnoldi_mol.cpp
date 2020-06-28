@@ -142,7 +142,7 @@ int main(int argc, const char * argv[]) {
 #ifdef USE_MPI
     MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 #endif
-    DistVec<double> sol_vec(max_n_dets, adder_size, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2, proc_scrambler);
+    DistVec<double> sol_vec(max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2, proc_scrambler);
     
     uint8_t hf_det[det_size];
     gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
@@ -173,8 +173,8 @@ int main(int argc, const char * argv[]) {
 #endif
 //        trial_vecs[trial_idx] = new DistVec<double>(n_trial_dets, n_trial_dets, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, proc_scrambler);
 //        htrial_vecs[trial_idx] = new DistVec<double>(n_trial_dets * n_ex / n_procs, n_trial_dets * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, (double *)NULL, 2, proc_scrambler);
-        trial_vecs.emplace_back(n_trial_dets, n_trial_dets, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, proc_scrambler);
-        htrial_vecs.emplace_back(n_trial_dets * n_ex / n_procs, n_trial_dets * n_ex / n_procs, rngen_ptr, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, (double *)NULL, 2, proc_scrambler);
+        trial_vecs.emplace_back(n_trial_dets, n_trial_dets, n_orb * 2, n_elec_unf, n_procs, proc_scrambler);
+        htrial_vecs.emplace_back(n_trial_dets * n_ex / n_procs, n_trial_dets * n_ex / n_procs, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, (double *)NULL, 2, proc_scrambler);
         
         for (det_idx = 0; det_idx < n_trial_dets; det_idx++) {
             trial_vecs[trial_idx].add(load_dets[det_idx], load_vals[det_idx], 1);

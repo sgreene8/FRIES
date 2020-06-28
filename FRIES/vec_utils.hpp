@@ -174,18 +174,17 @@ protected:
     
 public:
     
-    DistVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_bits,
+    DistVec(size_t size, size_t add_size, uint8_t n_bits,
             unsigned int n_elec, int n_procs, std::vector<uint32_t> rns) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns) { }
     
     /*! \brief Constructor for DistVec object
     * \param [in] size         Maximum number of elements to be stored in the vector
     * \param [in] add_size     Maximum number of elements per processor to use in Adder object
-    * \param [in] rn_ptr       Pointer to an mt_struct object for RN generation
     * \param [in] n_bits        Number of bits used to encode each index of the vector
     * \param [in] n_elec       Number of electrons represented in each vector index
      * \param [in] n_procs Number of MPI processes over which to distribute vector elements
      */
-    DistVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_bits,
+    DistVec(size_t size, size_t add_size, uint8_t n_bits,
             unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs, std::vector<uint32_t> rns) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns) { }
     
     uint8_t n_bits() {

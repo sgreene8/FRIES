@@ -18,16 +18,13 @@ public:
     /*! \brief Constructor for HubHolVec object
      * \param [in] size         Maximum number of elements to be stored in the vector
      * \param [in] add_size     Maximum number of elements per processor to use in Adder object
-     * \param [in] rn_ptr       Pointer to an mt_struct object for RN generation
      * \param [in] n_sites        Number of sites along one dimension of the lattice
      * \param [in] max_ph       Number of bits used initially to encode the occupancy number for each phonon
      * \param [in] n_elec       Number of electrons represented in each vector index
      * \param [in] n_procs Number of MPI processes over which to distribute vector elements
      */
-    HubHolVec(size_t size, size_t add_size, mt_struct *rn_ptr, uint8_t n_sites, uint8_t max_ph,
-              unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, uint8_t n_vecs, std::vector<uint32_t> rns): DistVec<el_type>(size, add_size, rn_ptr, n_sites * 2 + n_sites * max_ph, n_elec, n_procs, diag_fxn, NULL, n_vecs, rns), neighb_(size, 2 * (n_elec + 1)), n_sites_(n_sites), ph_bits_(max_ph), phonon_nums_(size, n_sites_) {
-        
-    }
+    HubHolVec(size_t size, size_t add_size, uint8_t n_sites, uint8_t max_ph,
+              unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, uint8_t n_vecs, std::vector<uint32_t> rns): DistVec<el_type>(size, add_size, n_sites * 2 + n_sites * max_ph, n_elec, n_procs, diag_fxn, NULL, n_vecs, rns), neighb_(size, 2 * (n_elec + 1)), n_sites_(n_sites), ph_bits_(max_ph), phonon_nums_(size, n_sites_) { }
     
     
     /*! \brief Generate list of occupied orbitals from bit-string representation of

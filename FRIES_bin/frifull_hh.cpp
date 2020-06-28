@@ -134,7 +134,7 @@ int main(int argc, const char * argv[]) {
     std::function<double(const uint8_t *)> diag_shortcut = [hub_len](const uint8_t *det) {
         return hub_diag((uint8_t *)det, hub_len);
     };
-    HubHolVec<double> sol_vec(max_n_dets, spawn_length, rngen_ptr, hub_len, ph_bits, n_elec, n_procs, diag_shortcut, 2, proc_scrambler);
+    HubHolVec<double> sol_vec(max_n_dets, spawn_length, hub_len, ph_bits, n_elec, n_procs, diag_shortcut, 2, proc_scrambler);
     size_t det_size = CEILING(2 * n_orb + ph_bits * n_orb, 8);
     
     uint8_t neel_det[det_size];
