@@ -151,10 +151,8 @@ public:
         loc_norm2_ = loc_norm1_;
         double rn = gen_rn();
         sys_comp_nonuni(tmp_vec_.data(), tmp_vec_.size(), &loc_norm2_, n_samp_, keep_idx2_, probs_.data(), probs_.size(), rn);
-        double sum = 0;
         for (size_t el_idx = 0; el_idx < tmp_vec_.size(); el_idx++) {
             accum_[el_idx] += tmp_vec_[el_idx];
-            sum += tmp_vec_[el_idx];
         }
     }
     
@@ -168,6 +166,39 @@ public:
             }
         }
         return max;
+    }
+};
+
+class ParBudget : Sampler {
+    std::vector<double> norms_;
+    double tot_norm_;
+    double loc_norm_;
+public:
+    ParBudget(unsigned int n_samp) : Sampler(1, n_samp) {
+        int n_procs = 1;
+        int proc_rank = 0;
+#ifdef USE_MPI
+        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+        MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+#endif
+        norms_.reserve(n_procs);
+        loc_norm_ = gen_rn();
+        norms_[proc_rank] = loc_norm_;
+#ifdef USE_MPI
+        MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, norms.data(), 1, MPI_DOUBLE, MPI_COMM_WORLD);
+#endif
+        for (size_t el_idx = 0; el_idx < n_procs; el_idx++) {
+            tot_norm_ += norms_[el_idx];
+        }
+    }
+    
+    void sample() override {
+        Sampler::sample();
+        accum_[0] += sys_budget(norms_.data(), n_samp_, gen_rn());
+    }
+    
+    double calc_max_diff() override {
+        return fabs(accum_[0] / n_times_ - n_samp_ * loc_norm_ / tot_norm_);
     }
 };
 

@@ -75,7 +75,9 @@ public:
         }
         
         if (collisions > 20) {
-            fprintf(stderr, "There is a line in the hash table with >20 hash collisions.\n");
+            char det_str[2 * idx_size_];
+            print_str(det, idx_size_, det_str);
+            fprintf(stderr, "Line %zu in the hash table has >20 hash collisions (det: %s, hash: %ju, %s)\n", table_idx, det_str, hash_val, ret_ptr ? "found" : "not found");
         }
         if (!ret_ptr && create) {
             list.emplace_front(idx_size_);
