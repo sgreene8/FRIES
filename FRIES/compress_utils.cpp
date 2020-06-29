@@ -456,7 +456,7 @@ uint32_t sys_budget(double *loc_norms, uint32_t n_samp, double rand_num) {
     
     if (n_samp > 0) {
         double lbound = seed_sys(loc_norms, &rn_sys, n_samp);
-        int32_t ret_num = (lbound + loc_norms[proc_rank] - rn_sys) * n_samp / tmp_glob_norm;
+        int32_t ret_num = (lbound + loc_norms[proc_rank] - rn_sys) * n_samp / tmp_glob_norm + 1;
         if (ret_num < 0) {
             ret_num = 0;
         }
