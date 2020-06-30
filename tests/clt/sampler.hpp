@@ -185,7 +185,7 @@ public:
         loc_norm_ = gen_rn();
         norms_[proc_rank] = loc_norm_;
 #ifdef USE_MPI
-        MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, norms.data(), 1, MPI_DOUBLE, MPI_COMM_WORLD);
+        MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, norms_.data(), 1, MPI_DOUBLE, MPI_COMM_WORLD);
 #endif
         for (size_t el_idx = 0; el_idx < n_procs; el_idx++) {
             tot_norm_ += norms_[el_idx];
@@ -194,11 +194,31 @@ public:
     
     void sample() override {
         Sampler::sample();
-        accum_[0] += sys_budget(norms_.data(), n_samp_, gen_rn());
+        uint32_t budget = sys_budget(norms_.data(), n_samp_, gen_rn());
+        accum_[0] += budget;
     }
     
     double calc_max_diff() override {
-        return fabs(accum_[0] / n_times_ - n_samp_ * loc_norm_ / tot_norm_);
+        int n_procs = 1;
+        int proc_rank = 0;
+#ifdef USE_MPI
+        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+        MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+#endif
+        double all_results[n_procs];
+#ifdef USE_MPI
+        MPI_Gather(accum_.data(), 1, MPI_DOUBLE, all_results, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+#endif
+        double max = 0;
+        if (proc_rank == 0) {
+            for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+                double diff = fabs(all_results[proc_idx] / n_times_ - n_samp_ * norms_[proc_idx] / tot_norm_);
+                if (diff > max) {
+                    max = diff;
+                }
+            }
+        }
+        return max;
     }
 };
 

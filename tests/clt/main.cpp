@@ -17,17 +17,24 @@
 #include "sampler.hpp"
 
 int main(int argc, const char * argv[]) {
+    int proc_rank = 0;
 #ifdef USE_MPI
     MPI_Init(NULL, NULL);
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
 #endif
-    unsigned int n_iter = 2000;
+    unsigned int n_iter = 10000;
     std::ofstream out_file;
-    out_file.open("max_diff.txt");
-    ParBudget test(30);
+    if (proc_rank == 0) {
+        out_file.open("max_diff.txt");
+    }
+    ParBudget test(5);
     
     for (unsigned int iter = 0; iter < n_iter; iter++) {
         test.sample();
-        out_file << test.calc_max_diff() << "\n";
+        double diff = test.calc_max_diff();
+        if (proc_rank == 0) {
+            out_file << diff << "\n";
+        }
     }
 
 #ifdef USE_MPI
