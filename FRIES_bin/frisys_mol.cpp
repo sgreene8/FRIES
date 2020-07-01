@@ -256,7 +256,7 @@ int main(int argc, const char * argv[]) {
             return 0;
         }
         for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-            fprintf(dense_f, "%d,", dense_sizes[proc_idx]);
+            fprintf(dense_f, "%d, ", dense_sizes[proc_idx]);
         }
         fprintf(dense_f, "\n");
         fclose(dense_f);
