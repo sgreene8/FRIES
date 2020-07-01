@@ -8,7 +8,9 @@
 #include <FRIES/det_store.h>
 #include <forward_list>
 #include <iostream>
+#include <fstream>
 #include <functional>
+#include <FRIES/mpi_switch.h>
 
 
 /*! \brief Hash table used to to index Slater determinant indices in the
@@ -86,6 +88,29 @@ public:
             ret_ptr = &entry.val;
         }
         return ret_ptr;
+    }
+    
+    void print_ht() {
+        int my_rank = 0;
+#ifdef USE_MPI
+        MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+#endif
+        FILE *file_p;
+        char buffer[50];
+        sprintf(buffer, "hash%d.txt", my_rank);
+        file_p = fopen(buffer, "w");
+        for (size_t table_idx = 0; table_idx < buckets_.size();
+             table_idx++) {
+            unsigned int collisions = 0;
+            std::forward_list<hash_entry> &list = buckets_[table_idx];
+            if (!list.empty()){
+                for (hash_entry &entry : list) {
+                    collisions++;
+                }
+            }
+            fprintf(file_p, "%u\n", collisions);
+        }
+        fclose(file_p);
     }
     
 
