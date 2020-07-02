@@ -88,6 +88,20 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
  uint32_t sys_budget(double *loc_norms, uint32_t n_samp, double rand_num);
 
 
+/*! \brief If needed, adjust elements in a vector prior to resampling to ensure that each element can be selected
+ * only 0 or 1 times
+ *
+ * \param [in, out] vec_vals Elements in the vector (can be negative) to be compressed
+ * \param [in] vec_len  Number of elements in this segment of the vector
+ * \param [in] n_samp_loc   The number of elements to be selected from this segment only
+ * \param [in] exp_nsamp_loc The expected value of \p n_samp_loc
+ * \param [in] n_samp_tot   The total number of elements that will be selected from all segments
+ * \param [in] tot_norm     The total one-norm of all vector segmemts
+ */
+void adjust_probs(double *vec_vals, size_t vec_len, uint32_t n_samp_loc,
+                  double exp_nsamp_loc, uint32_t n_samp_tot, double tot_norm);
+
+
 /*! \brief Systematic resampling of vector elements using an arbitrary (not necessarily uniform) probability distribution
  *
  * \param [in, out] vec_vals Elements in the vector (can be negative) before

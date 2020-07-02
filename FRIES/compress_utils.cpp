@@ -467,6 +467,61 @@ uint32_t sys_budget(double *loc_norms, uint32_t n_samp, double rand_num) {
     }
 }
 
+void adjust_probs(double *vec_vals, size_t vec_len, uint32_t n_samp_loc,
+                  double exp_nsamp_loc, uint32_t n_samp_tot, double tot_norm) {
+    bool el_too_big = false;
+    double ceil = ceill(exp_nsamp_loc);
+    double resid = exp_nsamp_loc - (unsigned int)exp_nsamp_loc;
+    double sampling_unit = tot_norm / n_samp_tot;
+    for (size_t vec_idx = 0; vec_idx < vec_len; vec_idx++) {
+        if ((fabs(vec_vals[vec_idx]) / tot_norm * ceil / exp_nsamp_loc) > 1) {
+            el_too_big = true;
+            break;
+        }
+    }
+    if (el_too_big) {
+        double counter = exp_nsamp_loc;
+        if (n_samp_loc > exp_nsamp_loc) {
+            for (size_t vec_idx = 0; vec_idx < vec_len; vec_idx++) {
+                int8_t sign = 2 * (vec_vals[vec_idx] > 0) - 1;
+                double pi = fabs(vec_vals[vec_idx]) / sampling_unit;
+                if (pi < resid) {
+                    counter += pi / resid - pi;
+                    vec_vals[vec_idx] /= resid;
+                }
+                else {
+                    counter += 1 - pi;
+                    vec_vals[vec_idx] = sign * sampling_unit;
+                }
+                if (counter >= n_samp_loc) {
+//                    vec_vals[vec_idx] = sign * (fabs(vec_vals[vec_idx]) + sampling_unit * (counter - n_samp_loc));
+                    vec_vals[vec_idx] += sign * sampling_unit * (counter - n_samp_loc);
+                    break;
+                }
+            }
+        }
+        else {
+            for (size_t vec_idx = 0; vec_idx < vec_len; vec_idx++) {
+                int8_t sign = 2 * (vec_vals[vec_idx] > 0) - 1;
+                double pi = fabs(vec_vals[vec_idx]) / sampling_unit;
+                if (pi > resid) {
+                    double quotient = (pi - resid) / (1 - resid) - pi;
+                    counter += quotient;
+                    vec_vals[vec_idx] = sign * quotient;
+                }
+                else {
+                    counter -= pi;
+                    vec_vals[vec_idx] = 0;
+                }
+                if (counter <= n_samp_loc) {
+                    vec_vals[vec_idx] += sign * sampling_unit * (counter - n_samp_loc);
+                    break;
+                }
+            }
+        }
+    }
+}
+
 
 void adjust_shift(double *shift, double one_norm, double *last_norm,
                   double target_norm, double damp_factor) {
