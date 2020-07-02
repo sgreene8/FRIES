@@ -24,7 +24,7 @@ public:
      * \param [in] n_procs Number of MPI processes over which to distribute vector elements
      */
     HubHolVec(size_t size, size_t add_size, uint8_t n_sites, uint8_t max_ph,
-              unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, uint8_t n_vecs, std::vector<uint32_t> rns): DistVec<el_type>(size, add_size, n_sites * 2 + n_sites * max_ph, n_elec, n_procs, diag_fxn, NULL, n_vecs, rns), neighb_(size, 2 * (n_elec + 1)), n_sites_(n_sites), ph_bits_(max_ph), phonon_nums_(size, n_sites_) { }
+              unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, uint8_t n_vecs, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct): DistVec<el_type>(size, add_size, n_sites * 2 + n_sites * max_ph, n_elec, n_procs, diag_fxn, NULL, n_vecs, rns_common, rns_distinct), neighb_(size, 2 * (n_elec + 1)), n_sites_(n_sites), ph_bits_(max_ph), phonon_nums_(size, n_sites_) { }
     
     
     /*! \brief Generate list of occupied orbitals from bit-string representation of
@@ -59,7 +59,7 @@ public:
         gen_orb_list(idx, orbs);
         uint8_t phonons[n_sites_];
         decode_phonons(idx, phonons);
-        unsigned long long hash_val = DistVec<el_type>::vec_hash_.hash_fxn(orbs, n_elec, phonons, n_sites_);
+        unsigned long long hash_val = DistVec<el_type>::proc_hash_.hash_fxn(orbs, n_elec, phonons, n_sites_);
         int n_procs = 1;
 #ifdef USE_MPI
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);

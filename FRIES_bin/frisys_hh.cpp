@@ -119,6 +119,10 @@ int main(int argc, const char * argv[]) {
         MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 #endif
     }
+    std::vector<uint32_t> vec_scrambler(2 * n_orb);
+    for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
+        vec_scrambler[det_idx] = genrand_mt(rngen_ptr);
+    }
     
     // Solution vector
     unsigned int spawn_length = target_nonz * 4 / n_procs;
@@ -127,7 +131,7 @@ int main(int argc, const char * argv[]) {
     std::function<double(const uint8_t *)> diag_shortcut = [hub_len](const uint8_t *det) {
         return hub_diag((uint8_t *)det, hub_len);
     };
-    HubHolVec<double> sol_vec(max_n_dets, spawn_length, hub_len, ph_bits, n_elec, n_procs, diag_shortcut, 2, proc_scrambler);
+    HubHolVec<double> sol_vec(max_n_dets, spawn_length, hub_len, ph_bits, n_elec, n_procs, diag_shortcut, 2, proc_scrambler, vec_scrambler);
     size_t det_size = CEILING(2 * n_orb + ph_bits * n_orb, 8);
     
     uint8_t neel_det[det_size];

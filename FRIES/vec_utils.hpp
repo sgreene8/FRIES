@@ -160,6 +160,7 @@ protected:
     Matrix<uint8_t> occ_orbs_; ///< Matrix containing lists of occupied orbitals for each determniant index
     uint8_t n_bits_; ///< Number of bits used to encode each index of the vector
     HashTable<ssize_t> vec_hash_; ///< Hash table for quickly finding indices in \p indices_
+    HashTable<ssize_t> proc_hash_; ///< Container for a hash function for mapping determinants to processes
     uint64_t nonini_occ_add; ///< Number of times an addition from a noninitiator determinant to an occupied determinant occurred
     std::vector<double> matr_el_; ///< Array of pre-calculated diagonal matrix elements associated with each vector element
     std::function<double(const uint8_t *)> diag_calc_;
@@ -175,7 +176,7 @@ protected:
 public:
     
     DistVec(size_t size, size_t add_size, uint8_t n_bits,
-            unsigned int n_elec, int n_procs, std::vector<uint32_t> rns) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns) { }
+            unsigned int n_elec, int n_procs, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns_distinct), proc_hash_(0, rns_common) { }
     
     /*! \brief Constructor for DistVec object
     * \param [in] size         Maximum number of elements to be stored in the vector
@@ -185,7 +186,7 @@ public:
      * \param [in] n_procs Number of MPI processes over which to distribute vector elements
      */
     DistVec(size_t size, size_t add_size, uint8_t n_bits,
-            unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs, std::vector<uint32_t> rns) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns) { }
+            unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns_distinct), proc_hash_(0, rns_common) { }
     
     uint8_t n_bits() {
         return n_bits_;
@@ -260,7 +261,7 @@ public:
         unsigned int n_elec = (unsigned int)occ_orbs_.cols();
         uint8_t orbs[n_elec];
         gen_orb_list(idx, orbs);
-        uintmax_t hash_val = vec_hash_.hash_fxn(orbs, n_elec, NULL, 0);
+        uintmax_t hash_val = proc_hash_.hash_fxn(orbs, n_elec, NULL, 0);
         int n_procs = 1;
 #ifdef USE_MPI
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
@@ -270,7 +271,7 @@ public:
     
     virtual int idx_to_proc(uint8_t *idx, uint8_t *orbs) {
         unsigned int n_elec = (unsigned int)occ_orbs_.cols();
-        uintmax_t hash_val = vec_hash_.hash_fxn(orbs, n_elec, NULL, 0);
+        uintmax_t hash_val = proc_hash_.hash_fxn(orbs, n_elec, NULL, 0);
         int n_procs = 1;
 #ifdef USE_MPI
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);

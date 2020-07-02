@@ -26,9 +26,11 @@ TEST_CASE("Test diagonal matrix element evaluation", "[molec_diag]") {
     Matrix<double> *h_core = in_data.hcore;
     FourDArr *eris = in_data.eris;
     
+    std::vector<uint32_t> vec_scrambler(2 * n_orb);
+    
     // Construct DistVec object
     std::vector<uint32_t> tmp;
-    DistVec<double> sol_vec(10, 0, 2 * n_orb, n_elec_unf, 1, tmp);
+    DistVec<double> sol_vec(10, 0, 2 * n_orb, n_elec_unf, 1, tmp, tmp);
     
     uint8_t *hf_det = sol_vec.indices()[0];
     gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
@@ -257,7 +259,7 @@ TEST_CASE("Test generation of excitations in the Hubbard model", "[hub_excite]")
     
     // Solution vector
     std::vector<uint32_t> tmp;
-    HubHolVec<int> sol_vec(1, 0, n_sites, 0, n_elec, 1, NULL, 1, tmp);
+    HubHolVec<int> sol_vec(1, 0, n_sites, 0, n_elec, 1, NULL, 1, tmp, tmp);
     
     Matrix<uint8_t> &neighb = sol_vec.neighb();
     sol_vec.find_neighbors_1D(det, neighb[0]);
@@ -276,7 +278,7 @@ TEST_CASE("Test generation of excitations in the Hubbard model", "[hub_excite]")
     
     REQUIRE(det[0] == 0b1001);
     
-    HubHolVec<int>sol_vec2(1, 0, n_sites, 1, n_elec, 1, NULL, 0, tmp);
+    HubHolVec<int>sol_vec2(1, 0, n_sites, 1, n_elec, 1, NULL, 0, tmp, tmp);
     sol_vec2.find_neighbors_1D(det, neighb[0]);
     
     REQUIRE(neighb[0][0] == 1);
@@ -303,7 +305,7 @@ TEST_CASE("Test identification of empty neighboring orbitals in a Hubbard determ
     
     // Solution vector
     std::vector<uint32_t> tmp;
-    HubHolVec<int> sol_vec(1, 0, n_sites, 0, n_elec, 1, NULL, 1, tmp);
+    HubHolVec<int> sol_vec(1, 0, n_sites, 0, n_elec, 1, NULL, 1, tmp, tmp);
     
     uint8_t *neighb = sol_vec.neighb()[0];
     sol_vec.find_neighbors_1D(det, neighb);
@@ -332,7 +334,7 @@ TEST_CASE("Test counting of singly/doubly occupied sites in a Hubbard-Holstein b
     
     // Solution vector
     std::vector<uint32_t> tmp;
-    HubHolVec<int> sol_vec(1, 0, n_sites, 0, n_elec, 1, NULL, 1, tmp);
+    HubHolVec<int> sol_vec(1, 0, n_sites, 0, n_elec, 1, NULL, 1, tmp, tmp);
     
     uint8_t occ[n_elec];
     sol_vec.gen_orb_list(det, occ);
@@ -351,7 +353,7 @@ TEST_CASE("Test generation of phonon excitations/de-excitations in the Holstein 
     size_t det_size = CEILING(2 * n_sites + ph_bits * n_sites, 8);
     
     std::vector<uint32_t> tmp;
-    HubHolVec<double> sol_vec(1, 0, n_sites, ph_bits, n_elec, 1, NULL, 1, tmp);
+    HubHolVec<double> sol_vec(1, 0, n_sites, ph_bits, n_elec, 1, NULL, 1, tmp, tmp);
     
     uint8_t orig_det[det_size];
     orig_det[0] = 0b00101110;

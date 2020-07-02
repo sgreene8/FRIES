@@ -148,7 +148,11 @@ int main(int argc, const char * argv[]) {
         MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 #endif
     }
-    DistVec<double> sol_vec(max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2, proc_scrambler);
+    std::vector<uint32_t> vec_scrambler(2 * n_orb);
+    for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
+        vec_scrambler[det_idx] = genrand_mt(rngen_ptr);
+    }
+    DistVec<double> sol_vec(max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2, proc_scrambler, vec_scrambler);
     
     std::function<void(size_t, double *)> rdm_obs = [n_elec_unf, &sol_vec, n_orb](size_t idx, double *obs_vals) {
         uint8_t *orbs = sol_vec.orbs_at_pos(idx);
@@ -175,8 +179,8 @@ int main(int argc, const char * argv[]) {
     else {
         n_trial = 1;
     }
-    DistVec<double> trial_vec(n_trial, n_trial, n_orb * 2, n_elec_unf, n_procs, proc_scrambler);
-    DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2, proc_scrambler);
+    DistVec<double> trial_vec(n_trial, n_trial, n_orb * 2, n_elec_unf, n_procs, proc_scrambler, vec_scrambler);
+    DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2, proc_scrambler, vec_scrambler);
     if (trial_path) { // load trial vector from file
         for (det_idx = 0; det_idx < n_trial; det_idx++) {
             trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
