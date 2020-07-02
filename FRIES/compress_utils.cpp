@@ -303,6 +303,30 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
 #endif
 }
 
+void sys_comp_series(double *vec_vals, size_t vec_len, double seg_norm, double sampl_val,
+                     uint32_t n_samp, std::vector<bool> &keep_exact, double rand_num) {
+    double sampl_unit = seg_norm / n_samp;
+    double rn_sys = rand_num * sampl_unit;
+    double lbound = 0;
+    for (size_t det_idx = 0; det_idx < vec_len; det_idx++) {
+        double tmp_val = vec_vals[det_idx];
+        if (keep_exact[det_idx]) {
+            keep_exact[det_idx] = 0;
+        }
+        else if (tmp_val != 0) {
+            lbound += fabs(tmp_val);
+            if (rn_sys < lbound) {
+                vec_vals[det_idx] = sampl_val * ((tmp_val > 0) - (tmp_val < 0));
+                rn_sys += sampl_unit;
+            }
+            else {
+                vec_vals[det_idx] = 0;
+                keep_exact[det_idx] = true;
+            }
+        }
+    }
+}
+
 void sys_comp_nonuni(double *vec_vals, size_t vec_len, double *loc_norms,
                      unsigned int n_samp, std::vector<bool> &keep_exact,
                      double *probs, size_t n_probs, double rand_num) {

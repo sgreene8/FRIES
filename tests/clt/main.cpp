@@ -27,7 +27,8 @@ int main(int argc, const char * argv[]) {
     if (proc_rank == 0) {
         out_file.open("max_diff.txt");
     }
-    ParBudget test(5);
+//    ParBudget test(5);
+    SysSerial test(10);
     
     for (unsigned int iter = 0; iter < n_iter; iter++) {
         test.sample();

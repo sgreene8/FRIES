@@ -76,6 +76,22 @@ double find_preserve(double *values, size_t *srt_idx, std::vector<bool> &keep_id
 void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
               unsigned int n_samp, std::vector<bool> &keep_exact, double rand_num);
 
+/*! \brief Systematic resampling of vector elements only on this process. Does not use MPI
+ *
+ * \param [in, out] vec_vals Elements in the vector (can be negative) before
+ *                      and after compression (length \p vec_len)
+ * \param [in] vec_len  Number of elements in the vector
+ * \param [in] seg_norm  Sum of magnitudes of elements in this segment not preserved exactly
+ * \param [in] sampl_val    Magnitude to assign to elements selected
+ * \param [in] n_samp   Number of samples in systematic resampling (just for this segment)
+ * \param [in, out] keep_exact Array indicating elements to be preserved exactly
+ *                      in compression; upon return, 1's indicate elements
+ *                      zeroed in the compression
+ * \param [in] rand_num A random number chosen uniformly on [0, 1)
+ */
+void sys_comp_series(double *vec_vals, size_t vec_len, double seg_norm, double sampl_val,
+                     uint32_t n_samp, std::vector<bool> &keep_exact, double rand_num);
+
 
 /*! \brief Calculate a budget for compressing vectors on each MPI process independently using systematic resampling
  *

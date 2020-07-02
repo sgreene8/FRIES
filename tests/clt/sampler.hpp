@@ -46,6 +46,10 @@ protected:
     double gen_rn() {
         return genrand_mt(rngen_ptr_) / (1. * UINT32_MAX);
     }
+    
+    void resize(size_t new_size) {
+        accum_.resize(new_size, 0);
+    }
 };
 
 
@@ -216,6 +220,79 @@ public:
                 if (diff > max) {
                     max = diff;
                 }
+            }
+        }
+        return max;
+    }
+};
+
+class SysSerial : Sampler {
+    std::vector<double> orig_vec_;
+    std::vector<double> tmp_vec_;
+    double one_norm_;
+    std::vector<bool> keep_idx1_;
+    std::vector<bool> keep_idx2_;
+public:
+    SysSerial(uint32_t n_samp) : orig_vec_(100), tmp_vec_(0), keep_idx1_(100, false), keep_idx2_(0), Sampler(100, n_samp) {
+        one_norm_ = gen_rn() * n_samp;
+        size_t vec_idx = 0;
+        size_t vec_len = 100;
+        double tmp_norm = 0;
+        while (tmp_norm < one_norm_) {
+            if (vec_idx == vec_len) {
+                vec_len *= 2;
+                Sampler::resize(vec_len);
+                orig_vec_.resize(vec_len);
+                keep_idx1_.resize(vec_len, false);
+            }
+            orig_vec_[vec_idx] = one_norm_ / n_samp * (2 * gen_rn() - 1);
+            if ((vec_idx % 10) == 0) {
+                keep_idx1_[vec_idx] = true;
+            }
+            else {
+                tmp_norm += fabs(orig_vec_[vec_idx]);
+            }
+            vec_idx++;
+        }
+        vec_len = vec_idx;
+        orig_vec_.resize(vec_len);
+        tmp_vec_.resize(vec_len);
+        keep_idx1_.resize(vec_len);
+        keep_idx2_.resize(vec_len);
+        Sampler::resize(vec_len);
+        
+        orig_vec_[vec_len - 1] -= (tmp_norm - one_norm_) * ((orig_vec_[vec_len - 1] > 0) - (orig_vec_[vec_len - 1] < 0));
+        
+        tmp_norm = 0;
+        for (vec_idx = 0; vec_idx < vec_len; vec_idx++) {
+            if (!keep_idx1_[vec_idx]) {
+                tmp_norm += fabs(orig_vec_[vec_idx]);
+                if (fabs(orig_vec_[vec_idx]) > one_norm_ / n_samp) {
+                    std::cout << "Error: one of the elements is too big\n";
+                }
+            }
+        }
+        if (fabs(tmp_norm - one_norm_) > 1e-10) {
+            std::cout << "Error: the one-norms don't match up.\n";
+        }
+    }
+    
+    void sample() override {
+        Sampler::sample();
+        std::copy(keep_idx1_.begin(), keep_idx1_.end(), keep_idx2_.begin());
+        std::copy(orig_vec_.begin(), orig_vec_.end(), tmp_vec_.begin());
+        sys_comp_series(tmp_vec_.data(), tmp_vec_.size(), one_norm_, one_norm_ / n_samp_, n_samp_, keep_idx2_, gen_rn());
+        for (size_t el_idx = 0; el_idx < tmp_vec_.size(); el_idx++) {
+            accum_[el_idx] += tmp_vec_[el_idx];
+        }
+    }
+    
+    double calc_max_diff() override {
+        double max = 0;
+        for (size_t el_idx = 0; el_idx < orig_vec_.size(); el_idx++) {
+            double diff = fabs(accum_[el_idx] / n_times_ - orig_vec_[el_idx]);
+            if (diff > max) {
+                max = diff;
             }
         }
         return max;
