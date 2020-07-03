@@ -1,0 +1,8 @@
+FRI calculation
+HF path: ../N2_str/
+epsilon (imaginary time step): 0.000500
+Target norm 5000000.000000
+Initiator threshold: 4.000000
+Matrix nonzero: 5000000
+Vector nonzero: 5000000
+Restarting calculation from ../N2_load/
