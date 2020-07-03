@@ -288,7 +288,7 @@ int main(int argc, const char * argv[]) {
     }
     else if (ini_path) {
         Matrix<uint8_t> load_dets(max_n_dets, det_size);
-        double *load_vals = (double *)sol_vec.values();
+        double *load_vals = sol_vec.values();
         
         size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, DOUB);
         
