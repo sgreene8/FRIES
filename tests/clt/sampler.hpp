@@ -281,7 +281,75 @@ public:
         Sampler::sample();
         std::copy(keep_idx1_.begin(), keep_idx1_.end(), keep_idx2_.begin());
         std::copy(orig_vec_.begin(), orig_vec_.end(), tmp_vec_.begin());
-        sys_comp_series(tmp_vec_.data(), tmp_vec_.size(), one_norm_, one_norm_ / n_samp_, n_samp_, keep_idx2_, gen_rn());
+        sys_comp_serial(tmp_vec_.data(), tmp_vec_.size(), one_norm_, one_norm_ / n_samp_, n_samp_, keep_idx2_, gen_rn());
+        for (size_t el_idx = 0; el_idx < tmp_vec_.size(); el_idx++) {
+            accum_[el_idx] += tmp_vec_[el_idx];
+        }
+    }
+    
+    double calc_max_diff() override {
+        double max = 0;
+        for (size_t el_idx = 0; el_idx < orig_vec_.size(); el_idx++) {
+            double diff = fabs(accum_[el_idx] / n_times_ - orig_vec_[el_idx]);
+            if (diff > max) {
+                max = diff;
+            }
+        }
+        return max;
+    }
+};
+
+class SysStratified : Sampler {
+    std::vector<double> orig_vec_;
+    std::vector<double> tmp_vec_;
+    std::vector<size_t> srt_idx_;
+    std::vector<bool> keep_idx1_;
+    std::vector<bool> keep_idx2_;
+    std::vector<double> loc_norms_;
+    double glob_norm_;
+    double exp_nsamp_;
+public:
+    SysStratified(size_t n_elem, uint32_t n_samp) : orig_vec_(n_elem), tmp_vec_(n_elem), srt_idx_(n_elem), keep_idx1_(n_elem), keep_idx2_(n_elem), Sampler(n_elem, n_samp) {
+        for (size_t el_idx = 0; el_idx < n_elem; el_idx++) {
+            orig_vec_[el_idx] = gen_rn() * 2 - 1;
+            srt_idx_[el_idx] = el_idx;
+        }
+
+        int n_procs = 1;
+        int proc_rank = 0;
+#ifdef USE_MPI
+        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+        MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+#endif
+        loc_norms_.resize(n_procs);
+        double tmp;
+        loc_norms_[proc_rank] = find_preserve(orig_vec_.data(), srt_idx_.data(), keep_idx1_, n_elem, &n_samp_, &tmp);
+#ifdef USE_MPI
+        MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms_.data(), 1, MPI_DOUBLE, MPI_COMM_WORLD);
+#endif
+        glob_norm_ = 0;
+        for (size_t proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+            glob_norm_ += loc_norms_[proc_idx];
+        }
+        exp_nsamp_ = n_samp_ * loc_norms_[proc_rank] / glob_norm_;
+    }
+    
+    void sample() override {
+        Sampler::sample();
+
+        int proc_rank = 0;
+#ifdef USE_MPI
+        MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+#endif
+        
+        uint32_t loc_nsamp = sys_budget(loc_norms_.data(), n_samp_, gen_rn());
+        
+        std::copy(keep_idx1_.begin(), keep_idx1_.end(), keep_idx2_.begin());
+        std::copy(orig_vec_.begin(), orig_vec_.end(), tmp_vec_.begin());
+        
+        adjust_probs(tmp_vec_.data(), tmp_vec_.size(), loc_nsamp, exp_nsamp_, n_samp_, glob_norm_);
+        sys_comp_serial(tmp_vec_.data(), tmp_vec_.size(), loc_norms_[proc_rank], glob_norm_ / n_samp_, loc_nsamp, keep_idx2_, gen_rn());
+        
         for (size_t el_idx = 0; el_idx < tmp_vec_.size(); el_idx++) {
             accum_[el_idx] += tmp_vec_[el_idx];
         }

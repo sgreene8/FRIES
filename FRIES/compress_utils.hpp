@@ -89,7 +89,7 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
  *                      zeroed in the compression
  * \param [in] rand_num A random number chosen uniformly on [0, 1)
  */
-void sys_comp_series(double *vec_vals, size_t vec_len, double seg_norm, double sampl_val,
+void sys_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double sampl_val,
                      uint32_t n_samp, std::vector<bool> &keep_exact, double rand_num);
 
 

@@ -303,7 +303,7 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
 #endif
 }
 
-void sys_comp_series(double *vec_vals, size_t vec_len, double seg_norm, double sampl_val,
+void sys_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double sampl_val,
                      uint32_t n_samp, std::vector<bool> &keep_exact, double rand_num) {
     double sampl_unit = seg_norm / n_samp;
     double rn_sys = rand_num * sampl_unit;

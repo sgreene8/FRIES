@@ -28,7 +28,8 @@ int main(int argc, const char * argv[]) {
         out_file.open("max_diff.txt");
     }
 //    ParBudget test(5);
-    SysSerial test(10);
+//    SysSerial test(10);
+    SysStratified test(10, 5);
     
     for (unsigned int iter = 0; iter < n_iter; iter++) {
         test.sample();
