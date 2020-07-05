@@ -39,7 +39,7 @@ int main(int argc, const char * argv[]) {
         OPT_INTEGER('M', "mat_nonz", &matr_samp, "Target number of nonzero matrix elements to keep after each iteration"),
         OPT_STRING('y', "result_dir", &result_dir, "Directory in which to save output files"),
         OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
-        OPT_STRING('v', "trial_vecs", &trial_path, "Prefix for files containing the vectors with which to calculate the energy and initialize the calculation (unless load_dir is provided). Files must have names <trial_vec>dets<xx> and <trial_vec>vals<xx>, where xx is a 2-digit number ranging from 0 to (n_trial - 1), and be text files."),
+        OPT_STRING('v', "trial_vecs", &trial_path, "Prefix for files containing the vectors with which to calculate the energy and initialize the calculation (unless load_dir is provided). Files must have names <trial_vecs>dets<xx> and <trial_vecs>vals<xx>, where xx is a 2-digit number ranging from 0 to (n_trial - 1), and be text files."),
         OPT_INTEGER('k', "num_trial", &n_trial, "Number of trial vectors to use to calculate dot products with the iterates."),
         OPT_INTEGER('I', "max_iter", &max_iter, "Maximum number of iterations to run the calculation."),
         OPT_END(),
@@ -267,6 +267,9 @@ int main(int argc, const char * argv[]) {
         for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
             sol_vecs[vec_idx].copy_vec(2, 0);
         }
+        if (proc_rank == 0) {
+            printf("Macro iteration %u\n", iteration);
+        }
         
         for (uint16_t krylov_idx = 0; krylov_idx < n_krylov; krylov_idx++) {
 #pragma mark Krylov dot products
@@ -289,48 +292,51 @@ int main(int argc, const char * argv[]) {
                 if (proc_rank == 0) {
                     fprintf(dmat_file, "\n");
                     fprintf(bmat_file, "\n");
-                    fflush(dmat_file);
-                    fflush(bmat_file);
                 }
-                
-# pragma mark Power iteration
-                size_t new_max_dets = max_n_dets;
-                for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
-                    DistVec<double> &curr_vec = sol_vecs[vec_idx];
-                    curr_vec.set_curr_vec_idx(0);
-                    h_op_offdiag(curr_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, 1, -eps);
-                    curr_vec.set_curr_vec_idx(0);
-                    h_op_diag(curr_vec, 0, 1, -eps);
-                    curr_vec.add_vecs(0, 1);
-                    if (curr_vec.max_size() > new_max_dets) {
-                        new_max_dets = curr_vec.max_size();
-                    }
+            }
+            if (proc_rank == 0) {
+                printf("Krylov iteration %u\n", krylov_idx);
+                fflush(dmat_file);
+                fflush(bmat_file);
+            }
+            
+# pragma mark Matrix multiplication
+            size_t new_max_dets = max_n_dets;
+            for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
+                DistVec<double> &curr_vec = sol_vecs[vec_idx];
+                curr_vec.set_curr_vec_idx(0);
+                h_op_offdiag(curr_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, 1, -eps);
+                curr_vec.set_curr_vec_idx(0);
+                h_op_diag(curr_vec, 0, 1, -eps);
+                curr_vec.add_vecs(0, 1);
+                if (curr_vec.max_size() > new_max_dets) {
+                    new_max_dets = curr_vec.max_size();
                 }
-                
-                if (new_max_dets > max_n_dets) {
-                    keep_exact.resize(new_max_dets, false);
-                    srt_arr.resize(new_max_dets);
-                    for (; max_n_dets < new_max_dets; max_n_dets++) {
-                        srt_arr[max_n_dets] = max_n_dets;
-                    }
-                }
+            }
+            
+            if (new_max_dets > max_n_dets) {
+                keep_exact.resize(new_max_dets, false);
+                srt_arr.resize(new_max_dets);
+            }
 #pragma mark Vector compression
-                for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
-                    unsigned int n_samp = target_nonz;
-                    double glob_norm;
-                    loc_norms[proc_rank] = find_preserve(sol_vecs[vec_idx].values(), srt_arr.data(), keep_exact, sol_vecs[vec_idx].curr_size(), &n_samp, &glob_norm);
-                    if (proc_rank == 0) {
-                        rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
-                    }
+            for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
+                unsigned int n_samp = target_nonz;
+                double glob_norm;
+                for (size_t det_idx = 0; det_idx < sol_vecs[vec_idx].curr_size(); det_idx++) {
+                    srt_arr[det_idx] = det_idx;
+                }
+                loc_norms[proc_rank] = find_preserve(sol_vecs[vec_idx].values(), srt_arr.data(), keep_exact, sol_vecs[vec_idx].curr_size(), &n_samp, &glob_norm);
+                if (proc_rank == 0) {
+                    rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
+                }
 #ifdef USE_MPI
-                    MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+                MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
 #endif
-                    sys_comp(sol_vecs[vec_idx].values(), sol_vecs[vec_idx].curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
-                    for (size_t det_idx = 0; det_idx < sol_vecs[vec_idx].curr_size(); det_idx++) {
-                        if (keep_exact[det_idx]) {
-                            sol_vecs[vec_idx].del_at_pos(det_idx);
-                            keep_exact[det_idx] = 0;
-                        }
+                sys_comp(sol_vecs[vec_idx].values(), sol_vecs[vec_idx].curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
+                for (size_t det_idx = 0; det_idx < sol_vecs[vec_idx].curr_size(); det_idx++) {
+                    if (keep_exact[det_idx]) {
+                        sol_vecs[vec_idx].del_at_pos(det_idx);
+                        keep_exact[det_idx] = 0;
                     }
                 }
             }
