@@ -113,9 +113,13 @@ void sys_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
  * \param [in] exp_nsamp_loc The expected value of \p n_samp_loc
  * \param [in] n_samp_tot   The total number of elements that will be selected from all segments
  * \param [in] tot_norm     The total one-norm of all vector segmemts
+ * \param [in] keep_exact Array indicating elements to be preserved exactly
+ *                      in compression
+ * \return One-norm of the segment after adjusting the probabilities
  */
-void adjust_probs(double *vec_vals, size_t vec_len, uint32_t n_samp_loc,
-                  double exp_nsamp_loc, uint32_t n_samp_tot, double tot_norm);
+double adjust_probs(double *vec_vals, size_t vec_len, uint32_t n_samp_loc,
+                  double exp_nsamp_loc, uint32_t n_samp_tot, double tot_norm,
+                  std::vector<bool> &keep_exact);
 
 
 /*! \brief Systematic resampling of vector elements using an arbitrary (not necessarily uniform) probability distribution

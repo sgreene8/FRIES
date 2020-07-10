@@ -480,7 +480,11 @@ uint32_t sys_budget(double *loc_norms, uint32_t n_samp, double rand_num) {
     
     if (n_samp > 0) {
         double lbound = seed_sys(loc_norms, &rn_sys, n_samp);
-        int32_t ret_num = (lbound + loc_norms[proc_rank] - rn_sys) * n_samp / tmp_glob_norm + 1;
+        double num_int = (lbound + loc_norms[proc_rank] - rn_sys) * n_samp / tmp_glob_norm;
+        int32_t ret_num = num_int + 1;
+        if ((num_int - (int)num_int) < 1e-8) {
+            ret_num--;
+        }
         if (ret_num < 0) {
             ret_num = 0;
         }
@@ -491,14 +495,16 @@ uint32_t sys_budget(double *loc_norms, uint32_t n_samp, double rand_num) {
     }
 }
 
-void adjust_probs(double *vec_vals, size_t vec_len, uint32_t n_samp_loc,
-                  double exp_nsamp_loc, uint32_t n_samp_tot, double tot_norm) {
+double adjust_probs(double *vec_vals, size_t vec_len, uint32_t n_samp_loc,
+                    double exp_nsamp_loc, uint32_t n_samp_tot, double tot_norm,
+                    std::vector<bool> &keep_exact) {
     bool el_too_big = false;
     double ceil = ceill(exp_nsamp_loc);
     double resid = exp_nsamp_loc - (unsigned int)exp_nsamp_loc;
     double sampling_unit = tot_norm / n_samp_tot;
+    double loc_norm = exp_nsamp_loc * sampling_unit;
     for (size_t vec_idx = 0; vec_idx < vec_len; vec_idx++) {
-        if ((fabs(vec_vals[vec_idx]) / tot_norm * ceil / exp_nsamp_loc) > 1) {
+        if (!keep_exact[vec_idx] && fabs(vec_vals[vec_idx]) >= loc_norm / ceil) {
             el_too_big = true;
             break;
         }
@@ -507,42 +513,49 @@ void adjust_probs(double *vec_vals, size_t vec_len, uint32_t n_samp_loc,
         double counter = exp_nsamp_loc;
         if (n_samp_loc > exp_nsamp_loc) {
             for (size_t vec_idx = 0; vec_idx < vec_len; vec_idx++) {
-                int8_t sign = 2 * (vec_vals[vec_idx] > 0) - 1;
-                double pi = fabs(vec_vals[vec_idx]) / sampling_unit;
-                if (pi < resid) {
-                    counter += pi / resid - pi;
-                    vec_vals[vec_idx] /= resid;
-                }
-                else {
-                    counter += 1 - pi;
-                    vec_vals[vec_idx] = sign * sampling_unit;
-                }
-                if (counter >= n_samp_loc) {
-//                    vec_vals[vec_idx] = sign * (fabs(vec_vals[vec_idx]) + sampling_unit * (counter - n_samp_loc));
-                    vec_vals[vec_idx] += sign * sampling_unit * (counter - n_samp_loc);
-                    break;
+                if (!keep_exact[vec_idx]) {
+                    int8_t sign = 2 * (vec_vals[vec_idx] > 0) - 1;
+                    double pi = fabs(vec_vals[vec_idx]) / sampling_unit;
+                    if (pi < resid) {
+                        counter += pi / resid - pi;
+                        vec_vals[vec_idx] /= resid;
+                    }
+                    else {
+                        counter += 1 - pi;
+                        vec_vals[vec_idx] = sign * sampling_unit;
+                    }
+                    if (counter >= n_samp_loc) {
+                        vec_vals[vec_idx] += sign * sampling_unit * (n_samp_loc - counter);
+                        break;
+                    }
                 }
             }
         }
         else {
             for (size_t vec_idx = 0; vec_idx < vec_len; vec_idx++) {
-                int8_t sign = 2 * (vec_vals[vec_idx] > 0) - 1;
-                double pi = fabs(vec_vals[vec_idx]) / sampling_unit;
-                if (pi > resid) {
-                    double quotient = (pi - resid) / (1 - resid) - pi;
-                    counter += quotient;
-                    vec_vals[vec_idx] = sign * quotient;
-                }
-                else {
-                    counter -= pi;
-                    vec_vals[vec_idx] = 0;
-                }
-                if (counter <= n_samp_loc) {
-                    vec_vals[vec_idx] += sign * sampling_unit * (counter - n_samp_loc);
-                    break;
+                if (!keep_exact[vec_idx]) {
+                    int8_t sign = 2 * (vec_vals[vec_idx] > 0) - 1;
+                    double pi = fabs(vec_vals[vec_idx]) / sampling_unit;
+                    if (pi > resid) {
+                        double quotient = (pi - resid) / (1 - resid);
+                        counter += quotient - pi;
+                        vec_vals[vec_idx] = sign * quotient * sampling_unit;
+                    }
+                    else {
+                        counter -= pi;
+                        vec_vals[vec_idx] = 0;
+                    }
+                    if (counter <= n_samp_loc) {
+                        vec_vals[vec_idx] += sign * sampling_unit * (n_samp_loc - counter);
+                        break;
+                    }
                 }
             }
         }
+        return n_samp_loc * loc_norm / exp_nsamp_loc;
+    }
+    else {
+        return loc_norm;
     }
 }
 
