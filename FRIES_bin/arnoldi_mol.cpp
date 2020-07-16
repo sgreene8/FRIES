@@ -30,8 +30,8 @@ int main(int argc, const char * argv[]) {
     unsigned int target_nonz = 0;
     unsigned int matr_samp = 0;
     unsigned int max_n_dets = 0;
-    unsigned int max_iter = 1000000;
-    unsigned int n_krylov = 100;
+    unsigned int max_iter = 500000;
+    unsigned int n_krylov = 500;
     struct argparse_option options[] = {
         OPT_HELP(),
         OPT_STRING('d', "hf_path", &hf_path, "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt"),
@@ -227,6 +227,7 @@ int main(int argc, const char * argv[]) {
         FILE *param_f = fopen(file_path, "w");
         fprintf(param_f, "Arnoldi calculation\nHF path: %s\nepsilon (imaginary time step): %lf\nMatrix nonzero: %u\nVector nonzero: %u\n", hf_path, eps, matr_samp, target_nonz);
         fprintf(param_f, "Path for trial vectors: %s\n", trial_path);
+        fprintf(param_f, "Krylov iterations: %u\n", n_krylov);
         fclose(param_f);
     }
     
