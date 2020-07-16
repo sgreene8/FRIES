@@ -404,14 +404,14 @@ int main(int argc, const char * argv[]) {
             }
         }
     }
-        sol_vec.save(result_dir);
-        if (proc_rank == ref_proc) {
-            fclose(num_file);
-            fclose(den_file);
-            fclose(shift_file);
-        }
-    #ifdef USE_MPI
-        MPI_Finalize();
-    #endif
+    sol_vec.save(result_dir);
+    if (proc_rank == ref_proc) {
+        fclose(num_file);
+        fclose(den_file);
+        fclose(shift_file);
+    }
+#ifdef USE_MPI
+    MPI_Finalize();
+#endif
     return 0;
 }
