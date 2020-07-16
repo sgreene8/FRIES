@@ -296,6 +296,10 @@ public:
         }
         return vec_hash_.hash_fxn(orbs, n_elec, NULL, 0);
     }
+    
+    void print_ht() {
+        vec_hash_.print_ht();
+    }
 
     /*! \brief Add an element to the DistVec object
      *
