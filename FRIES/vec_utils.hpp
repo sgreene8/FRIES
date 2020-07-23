@@ -74,11 +74,7 @@ public:
         }
     }
     
-//    Adder(const Adder &a) = delete;
-    
-//    Adder& operator= (const Adder &a) = delete;
-    
-    /*! \brief Remove the elements from the internal buffers and send them to the DistVec objects on their corresponding MPI processes
+    /*! \brief Remove the elements from the internal buffers and send them to the DistVec objects on their corresponding MPI processes for addition
      */
     void perform_add();
     
@@ -146,12 +142,12 @@ class DistVec {
 private:
     Matrix<el_type> values_; ///< Values of vector elements
     uint8_t curr_vec_idx_; ///< Current vector to consider when adding, accessing elements, etc.
-    std::vector<double> ini_success_;
-    std::vector<double> ini_fail_;
+    std::vector<double> ini_success_; ///< Vector used to accumulate the sum of PT2 weights from successful additions to the vector (eq 9 in Ghanem et al., JCP 151, 224108, 2019)
+    std::vector<double> ini_fail_; ///< Vector used to accumulate the sum of PT2 weights from unsuccessful additions to the vector (eq 10 in Ghanem et al., JCP 151, 224108, 2019)
     size_t n_dense_; ///< The first \p n_dense elements in the DistVec object will always be stored, even if their corresponding values are 0
     std::stack<size_t> vec_stack_; ///< Pointer to top of stack for managing available positions in the indices array
     int n_nonz_; ///< Current number of nonzero elements in vector, including all in the dense subspace
-    double *curr_shift_;
+    double *curr_shift_; ///< If nonnull, used to calculate perturbative corrections from unsuccessful additions to the vector (see Ghanem et al., JCP 151, 224108, 2019)
     Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
 protected:
     Matrix<uint8_t> indices_; ///< Array of indices of vector elements
@@ -163,7 +159,7 @@ protected:
     HashTable<ssize_t> proc_hash_; ///< Container for a hash function for mapping determinants to processes
     uint64_t nonini_occ_add; ///< Number of times an addition from a noninitiator determinant to an occupied determinant occurred
     std::vector<double> matr_el_; ///< Array of pre-calculated diagonal matrix elements associated with each vector element
-    std::function<double(const uint8_t *)> diag_calc_;
+    std::function<double(const uint8_t *)> diag_calc_; ///< Pointer to a function used to calculate diagonal matrix elements for elements in this vector
     
     virtual void initialize_at_pos(size_t pos, uint8_t *orbs) {
         for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
@@ -269,6 +265,12 @@ public:
         return hash_val % n_procs;
     }
     
+    /*! \brief Hash function mapping vector index to MPI process
+     *
+     * \param [in] idx          Vector index
+     * \param [in] orbs         Array of occupied orbital indices in \p idx
+     * \return process index from hash value
+     */
     virtual int idx_to_proc(uint8_t *idx, uint8_t *orbs) {
         unsigned int n_elec = (unsigned int)occ_orbs_.cols();
         uintmax_t hash_val = proc_hash_.hash_fxn(orbs, n_elec, NULL, 0);
@@ -284,6 +286,7 @@ public:
      * The local hash value is used to find the index on a particular processor
      *
      * \param [in] idx          Vector index
+     * \param [out] orbs        Array of occupied orbital indices in \p idx
      * \return hash value
      */
     virtual uintmax_t idx_to_hash(uint8_t *idx, uint8_t *orbs) {
@@ -297,6 +300,9 @@ public:
         return vec_hash_.hash_fxn(orbs, n_elec, NULL, 0);
     }
     
+    
+    /*! \brief Print number of elements in each row of vector hash table
+     */
     void print_ht() {
         vec_hash_.print_ht();
     }
@@ -369,6 +375,8 @@ public:
         return values_.rows();
     }
     
+    /*! \brief Zero the internal vectors used to sum the PT2 weights for elements added to the vector
+     */
     void zero_ini() {
         std::fill(ini_success_.begin(), ini_success_.end(), 0);
         std::fill(ini_fail_.begin(), ini_fail_.end(), 0);
@@ -387,12 +395,12 @@ public:
         return adder_.size();
     }
     
-    /*! \return The maximum number of elements the vector can store*/
+    /*! \brief Get the maximum number of elements the vector can store*/
     size_t max_size() const {
         return max_size_;
     }
     
-    /*!\returns The current number of nonzero elements in the vector */
+    /*!\brief Get the current number of nonzero elements in the vector */
     int n_nonz() const {
         return n_nonz_;
     }
@@ -423,10 +431,16 @@ public:
         }
     }
     
+    /*! \brief Zero all vector elements at \p curr_vec_idx_ without removing them from the hash table
+     */
     void zero_vec() {
         std::fill(values_[curr_vec_idx_], values_[curr_vec_idx_ + 1], 0);
     }
     
+    /*! \brief Change the internal vector used to store elements in this DistVec object
+     *
+     * \param [in] new_idx      Index of the internal vector to use
+     */
     void set_curr_vec_idx(uint8_t new_idx) {
         if (new_idx < values_.rows()) {
             curr_vec_idx_ = new_idx;
@@ -438,8 +452,10 @@ public:
     
     /*! \brief Add elements destined for this process to the DistVec object
      * \param [in] indices Indices of the elements to be added
-     * \param [in] vals     Values of the elements to be added
+     * \param [in, out] vals     Values of the elements to be added. Upon return, contains 2nd-order perturbative
+     *                      correction (see Ghanem et al., JCP 151, 224108, 2019)
      * \param [in] count    Number of elements to be added
+     * \param [out] successes        Bool vector indicating which elements were successfully added to vector (c.f. initiator criteria)
      */
     void add_elements(uint8_t *indices, el_type *vals, size_t count,
                       Matrix<bool>::RowReference successes) {
@@ -490,7 +506,7 @@ public:
     
     /*! \brief Get a pointer to a value in the \p values_ matric of the DistVec object
      
-    * \param [in] pos          The position of the corresponding index in the \p indices_ array
+     * \param [in] pos          The position of the corresponding index in the \p indices_ array
      */
     el_type *operator[](size_t pos) {
         return &values_(curr_vec_idx_, pos);
@@ -511,7 +527,7 @@ public:
     
     /*! \brief Get a pointer to the diagonal matrix element corresponding to an element in the DistVec object
      
-    * \param [in] pos          The position of the corresponding index in the \p indices_ array
+     * \param [in] pos          The position of the corresponding index in the \p indices_ array
      */
     double matr_el_at_pos(size_t pos) {
         if (std::isnan(matr_el_[pos])) {
@@ -544,7 +560,7 @@ public:
         return norm;
     }
 
-    /*! Save a DistVec object to disk in binary format
+    /*! \brief Save a DistVec object to disk in binary format
      *
      * The vector indices from each MPI process are stored in the file
      * [path]dets[MPI rank].dat, and the values at [path]vals[MPI rank].dat
@@ -573,7 +589,7 @@ public:
         fclose(file_p);
     }
 
-    /*! Load a vector from disk in binary format
+    /*! \brief Load a vector from disk in binary format
      *
      * The vector indices from each MPI process are read from the file
      * [path]dets[MPI rank].dat, and the values from [path]vals[MPI rank].dat
@@ -770,19 +786,28 @@ public:
         curr_size_ = tot_size;
     }
     
-    bool get_add_info(size_t row, size_t col, double *weight) const {
-        return adder_.get_add_result(row, col, weight);
-    }
-    
-    void add_ini_weight(size_t idx, bool success, double weight) {
+    /*! \brief Accumulate sums of PT2 weights corresponding to elements added to vector during multiplication
+     *
+     * This function performs the sums in eqs 9 & 10 in Ghanem et al., JCP 151, 224108, 2019
+     *
+     * \param [in] row      The index of the MPI process (adder buffer row) to which the element was sent when it was added
+     * \param [in] col      The column index of the element in the adder buffer when it was added
+     * \param [in] idx      Index of the element in the local storage on this process
+     */
+    void add_ini_weight(size_t row, size_t col, size_t idx) {
+        double *weight;
+        bool success = adder_.get_add_result(row, col, weight);
+        *weight = fabs(*weight);
         if (success) {
-            ini_success_[idx] += weight;
+            ini_success_[idx] += *weight;
         }
         else {
-            ini_fail_[idx] += weight;
+            ini_fail_[idx] += *weight;
         }
     }
     
+    /*! \brief Get the fraction of weight for successful additions at a position in the vector (\p idx )
+     */
     double get_pacc(size_t idx) {
         if (curr_shift_) {
             double denom = ini_success_[idx] + ini_fail_[idx];

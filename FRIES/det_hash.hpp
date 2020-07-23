@@ -89,7 +89,9 @@ public:
         }
         return ret_ptr;
     }
-    
+
+    /*! \brief Print number of elements in each row of hash table
+     */
     void print_ht() {
         int my_rank = 0;
 #ifdef USE_MPI
