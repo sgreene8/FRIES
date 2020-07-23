@@ -221,10 +221,24 @@ public:
      */
     double dot(Matrix<uint8_t> &idx2, double *vals2, size_t num2,
                uintmax_t *hashes2) {
-        ssize_t *ht_ptr;
         double numer = 0;
         for (size_t hf_idx = 0; hf_idx < num2; hf_idx++) {
-            ht_ptr = vec_hash_.read(idx2[hf_idx], hashes2[hf_idx], false);
+            ssize_t * ht_ptr = vec_hash_.read(idx2[hf_idx], hashes2[hf_idx], false);
+            if (ht_ptr) {
+                numer += vals2[hf_idx] * values_(curr_vec_idx_, *ht_ptr);
+            }
+        }
+        return numer;
+    }
+    
+    /*! \brief Same as function above, except hash values are not provided
+     */
+    double dot(Matrix<uint8_t> &idx2, double *vals2, size_t num2) {
+        double numer = 0;
+        uint8_t tmp_occ[occ_orbs_.cols()];
+        for (size_t hf_idx = 0; hf_idx < num2; hf_idx++) {
+            uintmax_t hash_val = idx_to_hash(idx2[hf_idx], tmp_occ);
+            ssize_t * ht_ptr = vec_hash_.read(idx2[hf_idx], hash_val, false);
             if (ht_ptr) {
                 numer += vals2[hf_idx] * values_(curr_vec_idx_, *ht_ptr);
             }
@@ -795,14 +809,14 @@ public:
      * \param [in] idx      Index of the element in the local storage on this process
      */
     void add_ini_weight(size_t row, size_t col, size_t idx) {
-        double *weight;
-        bool success = adder_.get_add_result(row, col, weight);
-        *weight = fabs(*weight);
+        double weight;
+        bool success = adder_.get_add_result(row, col, &weight);
+        weight = fabs(weight);
         if (success) {
-            ini_success_[idx] += *weight;
+            ini_success_[idx] += weight;
         }
         else {
-            ini_fail_[idx] += *weight;
+            ini_fail_[idx] += weight;
         }
     }
     
