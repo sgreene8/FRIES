@@ -18,10 +18,8 @@
 
 int main(int argc, const char * argv[]) {
     int proc_rank = 0;
-    int n_procs = 1;
 #ifdef USE_MPI
     MPI_Init(NULL, NULL);
-    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
 #endif
     
@@ -32,7 +30,8 @@ int main(int argc, const char * argv[]) {
     }
 //    ParBudget test(5);
 //    SysSerial test(10);
-    SysStratified test(10, 4 * n_procs - 1);
+    PivSerial test(10);
+//    SysStratified test(10, 4 * n_procs - 1);
     
     for (unsigned int iter = 0; iter < n_iter; iter++) {
         test.sample();

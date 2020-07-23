@@ -327,6 +327,120 @@ void sys_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
     }
 }
 
+
+void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double sampl_val,
+                     uint32_t n_samp, std::vector<bool> &keep_exact, mt_struct *rngen_ptr) {
+    double sampl_unit = seg_norm / n_samp;
+    size_t vec_idx = 0;
+    std::vector<double> sampl_el(2 * vec_len / n_samp);
+    size_t resid_idx = 0;
+    double cum_prob;
+    sampl_el[0] = 0; // residual element
+    while (vec_idx < vec_len) {
+        // build probability vector
+        size_t prob_idx;
+        size_t vec_offset = 0;
+        cum_prob = sampl_el[0];
+        for (prob_idx = 1; cum_prob < sampl_unit && (vec_idx + vec_offset) < vec_len; vec_offset++) {
+            size_t vec_max = sampl_el.capacity();
+            if (!keep_exact[vec_idx + vec_offset]) {
+                if (prob_idx == vec_max) {
+                    sampl_el.reserve(vec_max * 2);
+                }
+                sampl_el[prob_idx] = fabs(vec_vals[vec_idx + vec_offset]);
+                cum_prob += sampl_el[prob_idx];
+                prob_idx++;
+            }
+        }
+        size_t vec_max_offset = vec_offset - 1;
+        if (vec_offset + vec_idx == vec_len) {
+            vec_max_offset++;
+        }
+        double bn = cum_prob - sampl_unit;
+        if (fabs(bn) > 1e-8) { // If not at the last sampling interval
+            prob_idx--;
+            cum_prob -= sampl_el[prob_idx];
+        }
+        double an = sampl_unit - cum_prob;
+        
+        // sample H_n from among the units before the cross-border unit
+        double rn = genrand_mt(rngen_ptr) / (1. + UINT32_MAX) * cum_prob;
+        cum_prob = 0;
+        size_t Hn = 0;
+        while (cum_prob < rn) {
+            cum_prob += sampl_el[Hn];
+            Hn++;
+        }
+        if (rn > 0) {
+            Hn--;
+        }
+        if (Hn != 0 && vec_idx != 0) { // residual unit will never be sampled
+            vec_vals[resid_idx] = 0;
+            keep_exact[resid_idx] = true;
+        }
+        
+        // Decide which sample to keep and which to pass on
+        double pass_Hn_prob = an / (sampl_unit - bn); // probability of passing the sample H_n into the next sampling unit
+        if (vec_offset + vec_idx == vec_len) {
+            pass_Hn_prob = 0;
+        }
+        rn = genrand_mt(rngen_ptr) / (1. + UINT32_MAX); // [0, 1) random number
+        if (rn < pass_Hn_prob) { // cross-border unit is sampled and H_n is passed on
+            prob_idx = 1;
+            for (vec_offset = 0; vec_offset < vec_max_offset; vec_offset++) {
+                if (!keep_exact[vec_idx + vec_offset]) {
+                    if (prob_idx == Hn) { // pass it on
+                        resid_idx = vec_idx + vec_offset;
+                    }
+                    else {
+                        vec_vals[vec_idx + vec_offset] = 0;
+                        keep_exact[vec_idx + vec_offset] = true;
+                    }
+                    prob_idx++;
+                }
+                else {
+                    keep_exact[vec_idx + vec_offset] = false;
+                }
+            }
+            // sample cross-border unit
+            double tmp_val = vec_vals[vec_idx + vec_max_offset];
+            vec_vals[vec_idx + vec_max_offset] = sampl_val * ((tmp_val > 0) - (tmp_val < 0));
+        }
+        else { // H_n is sampled and cross-border unit is passed on
+               // deal with residual unit
+            if (Hn == 0) { // residual unit was sampled
+                double tmp_val = vec_vals[resid_idx];
+                vec_vals[resid_idx] = sampl_val * ((tmp_val > 0) - (tmp_val < 0));
+            }
+            prob_idx = 1;
+            for (vec_offset = 0; vec_offset < vec_max_offset; vec_offset++) {
+                if (!keep_exact[vec_idx + vec_offset]) {
+                    if (prob_idx != Hn) { // this element will never be sampled
+                        vec_vals[vec_idx + vec_offset] = 0;
+                        keep_exact[vec_idx + vec_offset] = true;
+                    }
+                    else { // this element is sampled
+                        double tmp_val = vec_vals[vec_idx + vec_offset];
+                        vec_vals[vec_idx + vec_offset] = sampl_val * ((tmp_val > 0) - (tmp_val < 0));
+                    }
+                    prob_idx++;
+                }
+                else {
+                    keep_exact[vec_idx + vec_offset] = false;
+                }
+            }
+            // pass on cross-border unit
+            resid_idx = vec_idx + vec_max_offset;
+        }
+        vec_idx += vec_offset + 1;
+        sampl_el[0] = bn; // residual element
+    }
+    // Zero the residual element
+    vec_vals[resid_idx] = 0;
+    keep_exact[resid_idx] = true;
+}
+
+
 void sys_comp_nonuni(double *vec_vals, size_t vec_len, double *loc_norms,
                      unsigned int n_samp, std::vector<bool> &keep_exact,
                      double *probs, size_t n_probs, double rand_num) {

@@ -93,6 +93,24 @@ void sys_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
                      uint32_t n_samp, std::vector<bool> &keep_exact, double rand_num);
 
 
+/*! \brief Pivotal resampling of vector elements only on this process. Does not use MPI
+ *
+ * \param [in, out] vec_vals Elements in the vector (can be negative) before
+ *                      and after compression (length \p vec_len)
+ * \param [in] vec_len  Number of elements in the vector
+ * \param [in] seg_norm  Sum of magnitudes of elements in this segment not preserved exactly
+ * \param [in] sampl_val    Magnitude to assign to elements selected
+ * \param [in] n_samp   Number of samples in systematic resampling (just for this segment)
+ * \param [in, out] keep_exact Array indicating elements to be preserved exactly
+ *                      in compression; upon return, 1's indicate elements
+ *                      zeroed in the compression
+ * \param [in] rngen_ptr   A pointer to a mt_struct object to use for random number generation
+ */
+void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double sampl_val,
+                     uint32_t n_samp, std::vector<bool> &keep_exact, mt_struct *rngen_ptr);
+
+
+
 /*! \brief Calculate a budget for compressing vectors on each MPI process independently using systematic resampling
  *
  * \param [in] loc_norms    Sum of magnitudes of elements on each MPI process
