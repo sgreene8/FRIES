@@ -78,6 +78,10 @@ public:
      */
     void perform_add();
     
+    /*! \brief Remove elements from internal buffers and send them to the DistVec objects on their corresponding MPI processes for taking dot products
+     */
+    double perform_dot();
+    
     /*! \brief Add an element to the internal buffers
      * \param [in] idx      Index of the element to be added
      * \param [in] val      Value of the added element
@@ -244,6 +248,82 @@ public:
             }
         }
         return numer;
+    }
+    
+    double dot(uint8_t *idx2, double *vals2, size_t num2) {
+        double numer = 0;
+        uint8_t tmp_occ[occ_orbs_.cols()];
+        uint8_t add_n_bytes = CEILING(n_bits_ + 1, 8);
+        for (size_t hf_idx = 0; hf_idx < num2; hf_idx++) {
+            uint8_t *curr_idx = &idx2[hf_idx * add_n_bytes];
+            uintmax_t hash_val = idx_to_hash(curr_idx, tmp_occ);
+            ssize_t * ht_ptr = vec_hash_.read(curr_idx, hash_val, false);
+            if (ht_ptr) {
+                numer += vals2[hf_idx] * values_(curr_vec_idx_, *ht_ptr);
+            }
+        }
+        return numer;
+    }
+    
+    /*! \brief Calculate dot product across all MPI processes
+     *
+     * Unlike the \p dot function above, this function calculates the overlap between vector elements on all MPI process and those in the inputted vectors
+     *
+     * \param [in] idx      Bit string of elements to dot with this vector
+     * \param [in] occ      List of occupied orbitals in each bit string index
+     * \param [in] vals     Values of elements to dot
+     * \param [in] num      Number of elements to be dotted on this process
+     * \return The value of the dot product
+     */
+    double multi_dot(Matrix<uint8_t> &idx, Matrix<uint8_t> &occ, double *vals, size_t num) {
+        int n_procs = 1;
+        int proc_rank = 0;
+#ifdef USE_MPI
+        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+        MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+#endif
+        size_t el_idx = 0;
+        int num_added = 1;
+        int proc;
+        size_t max_add = adder_size();
+        double tot_dprod = 0;
+        while (num_added > 0) {
+            num_added = 0;
+            while (el_idx < num && num_added < max_add) {
+                double curr_el = vals[el_idx];
+                if (curr_el != 0) {
+                    add(idx[el_idx], occ[el_idx], vals[el_idx], 0, &proc);
+                    num_added++;
+                }
+                el_idx++;
+            }
+            num_added = sum_mpi(num_added, proc_rank, n_procs);
+            tot_dprod += adder_.perform_dot();
+        }
+        return tot_dprod;
+    }
+    
+    
+    /*! \brief Calculate dot product of two vectors stored within the internal storage of the DistVec object
+     *
+     * \param [in] idx1      Row index of one of the input vectors within the \p values_ matrix
+     * \param [in] idx2      Row index of one of the input vectors within the \p values_ matrix
+     * \return Value of the dot product
+     */
+    double internal_dot(uint8_t idx1, uint8_t idx2) {
+        double dprod = 0;
+        if (idx1 >= values_.rows()) {
+            fprintf(stderr, "Error: idx1 argument to internal_dot (%u) exceeds bounds of value matrix (%u)\n", (unsigned int) idx1, values_.rows());
+            return 0;
+        }
+        if (idx2 >= values_.rows()) {
+            fprintf(stderr, "Error: idx2 argument to internal_dot (%u) exceeds bounds of value matrix (%u)\n", (unsigned int) idx2, values_.rows());
+            return 0;
+        }
+        for (size_t el_idx = 0; el_idx < curr_size_; el_idx++) {
+            dprod += values_(idx1, el_idx) * values_(idx2, el_idx);
+        }
+        return dprod;
     }
     
     /*! \brief Double the maximum number of elements that can be stored */
@@ -537,6 +617,10 @@ public:
      */
     uint8_t *orbs_at_pos(size_t pos) {
         return occ_orbs_[pos];
+    }
+    
+    Matrix<uint8_t> &occ_orbs() {
+        return occ_orbs_;
     }
     
     /*! \brief Get a pointer to the diagonal matrix element corresponding to an element in the DistVec object
@@ -904,5 +988,41 @@ void Adder<el_type>::perform_add() {
     }
 }
 
+
+template <class el_type>
+double Adder<el_type>::perform_dot() {
+    int n_procs = 1;
+    int my_rank = 0;
+    size_t el_size = sizeof(el_type);
+#ifdef USE_MPI
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+    MPI_Alltoall(send_cts_.data(), 1, MPI_INT, recv_cts_.data(), 1, MPI_INT, MPI_COMM_WORLD);
+    
+    int send_idx_cts[n_procs];
+    int recv_idx_cts[n_procs];
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        send_idx_cts[proc_idx] = send_cts_[proc_idx] * n_bytes_;
+        recv_idx_cts[proc_idx] = recv_cts_[proc_idx] * n_bytes_;
+    }
+    
+    MPI_Alltoallv(send_idx_.data(), send_idx_cts, idx_disp_.data(), MPI_UINT8_T, recv_idx_.data(), recv_idx_cts, idx_disp_.data(), MPI_UINT8_T, MPI_COMM_WORLD);
+    mpi_atoav(send_vals_.data(), send_cts_.data(), val_disp_.data(), recv_vals_.data(), recv_cts_.data());
+#else
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        int cpy_size = send_cts_[proc_idx];
+        recv_cts_[proc_idx] = cpy_size;
+        memcpy(recv_idx_[proc_idx], send_idx_[proc_idx], cpy_size * n_bytes_);
+        memcpy(recv_vals_[proc_idx], send_vals_[proc_idx], cpy_size * el_size);
+    }
+#endif
+    double d_prod = 0;
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        d_prod += parent_vec_->dot(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx]);
+        send_cts_[proc_idx] = 0;
+    }
+    d_prod = sum_mpi(d_prod, my_rank, n_procs);
+    return d_prod;
+}
 
 #endif /* vec_utils_h */
