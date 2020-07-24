@@ -71,8 +71,7 @@ int main(int argc, const char * argv[]) {
         return 0;
     }
     if (n_trial < 2) {
-        fprintf(stderr, "Error: you are either using 1 or 0 trial vectors. Consider using the power method instead of Arnoldi in this case.\n");
-        return 0;
+        fprintf(stderr, "Warning: you provided only 1 or 0 trial vectors. Consider using the power method instead of Arnoldi in this case.\n");
     }
     
     int n_procs = 1;
