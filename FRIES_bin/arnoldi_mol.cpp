@@ -231,24 +231,6 @@ int main(int argc, const char * argv[]) {
         fclose(param_f);
     }
     
-//    size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2) ? n_elec_unf : n_orb - n_elec_unf / 2;
-//    Matrix<double> subwt_mem(spawn_length, n_states);
-//    uint16_t *sub_sizes = (uint16_t *)malloc(sizeof(uint16_t) * spawn_length);
-//    unsigned int *ndiv_vec = (unsigned int *)malloc(sizeof(unsigned int) * spawn_length);
-//    double *comp_vec1 = (double *)malloc(sizeof(double) * spawn_length);
-//    double *comp_vec2 = (double *)malloc(sizeof(double) * spawn_length);
-//    size_t (*comp_idx)[2] = (size_t (*)[2])malloc(sizeof(size_t) * 2 * spawn_length);
-//    size_t comp_len;
-//    size_t *det_indices1 = (size_t *)malloc(sizeof(size_t) * 2 * spawn_length);
-//    size_t *det_indices2 = &det_indices1[spawn_length];
-//    uint8_t (*orb_indices2)[4] = (uint8_t (*)[4])malloc(sizeof(uint8_t) * 4 * spawn_length);
-//    unsigned int unocc_symm_cts[n_irreps][2];
-//    Matrix<bool> keep_idx(spawn_length, n_states);
-//    double *wt_remain = (double *)calloc(spawn_length, sizeof(double));
-//    size_t samp_idx, weight_idx;
-    
-//    hb_info *hb_probs = set_up(tot_orb, n_orb, *eris);
-    
     // Parameters for systematic sampling
     double rn_sys = 0;
     double loc_norms[n_procs];
@@ -281,13 +263,13 @@ int main(int argc, const char * argv[]) {
                     double d_prod = sol_vecs[vec_idx].dot(curr_trial.indices(), curr_trial.values(), curr_trial.curr_size(), trial_hashes[trial_idx].data());
                     d_prod = sum_mpi(d_prod, proc_rank, n_procs);
                     if (proc_rank == 0) {
-                        fprintf(dmat_file, "%lf,", d_prod);
+                        fprintf(dmat_file, "%.9lf,", d_prod);
                     }
                     
                     d_prod = sol_vecs[vec_idx].dot(curr_htrial.indices(), curr_htrial.values(), curr_htrial.curr_size(), htrial_hashes[trial_idx].data());
                     d_prod = sum_mpi(d_prod, proc_rank, n_procs);
                     if (proc_rank == 0) {
-                        fprintf(bmat_file, "%lf,", d_prod);
+                        fprintf(bmat_file, "%.9lf,", d_prod);
                     }
                 }
                 if (proc_rank == 0) {
