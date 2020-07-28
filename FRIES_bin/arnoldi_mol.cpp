@@ -10,9 +10,7 @@
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/compress_utils.hpp>
 #include <FRIES/Ext_Libs/argparse.h>
-#include <FRIES/Hamiltonians/heat_bathPP.hpp>
 #include <FRIES/Hamiltonians/molecule.hpp>
-#include <FRIES/Hamiltonians/near_uniform.hpp>
 #include <FRIES/Ext_Libs/LAPACK/lapacke.h>
 
 static const char *const usage[] = {
@@ -28,15 +26,13 @@ int main(int argc, const char * argv[]) {
     const char *trial_path = NULL;
     unsigned int n_trial = 0;
     unsigned int target_nonz = 0;
-    unsigned int matr_samp = 0;
     unsigned int max_n_dets = 0;
     unsigned int max_iter = 500000;
-    unsigned int n_krylov = 500;
+    unsigned int n_krylov = 5000;
     struct argparse_option options[] = {
         OPT_HELP(),
         OPT_STRING('d', "hf_path", &hf_path, "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt"),
         OPT_INTEGER('m', "vec_nonz", &target_nonz, "Target number of nonzero vector elements to keep after each iteration"),
-        OPT_INTEGER('M', "mat_nonz", &matr_samp, "Target number of nonzero matrix elements to keep after each iteration"),
         OPT_STRING('y', "result_dir", &result_dir, "Directory in which to save output files"),
         OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
         OPT_STRING('v', "trial_vecs", &trial_path, "Prefix for files containing the vectors with which to calculate the energy and initialize the calculation (unless load_dir is provided). Files must have names <trial_vecs>dets<xx> and <trial_vecs>vals<xx>, where xx is a 2-digit number ranging from 0 to (n_trial - 1), and be text files."),
@@ -56,10 +52,6 @@ int main(int argc, const char * argv[]) {
     }
     if (target_nonz == 0) {
         fprintf(stderr, "Error: target number of nonzero vector elements not specified\n");
-        return 0;
-    }
-    if (matr_samp == 0) {
-        fprintf(stderr, "Error: target number of nonzero matrix elements not specified\n");
         return 0;
     }
     if (max_n_dets == 0) {
@@ -103,7 +95,8 @@ int main(int argc, const char * argv[]) {
     sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
     
     // Solution vector
-    unsigned int spawn_length = matr_samp * 4 / n_procs;
+    unsigned int num_ex = n_elec_unf * n_elec_unf * (n_orb - n_elec_unf / 2) * (n_orb - n_elec_unf / 2);
+    unsigned int spawn_length = max_n_dets / n_procs * num_ex / n_procs / 4;
     size_t adder_size = spawn_length > 1000000 ? 1000000 : spawn_length;
     std::function<double(const uint8_t *)> diag_shortcut = [tot_orb, eris, h_core, n_frz, n_elec, hf_en](const uint8_t *occ_orbs) {
         return diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
@@ -134,15 +127,6 @@ int main(int argc, const char * argv[]) {
     }
     size_t det_size = CEILING(2 * n_orb, 8);
     
-    Matrix<uint8_t> symm_lookup(n_irreps, n_orb + 1);
-    gen_symm_lookup(symm, symm_lookup);
-    unsigned int max_n_symm = 0;
-    for (uint8_t irrep_idx = 0; irrep_idx < n_irreps; irrep_idx++) {
-        if (symm_lookup[irrep_idx][0] > max_n_symm) {
-            max_n_symm = symm_lookup[irrep_idx][0];
-        }
-    }
-    
     uint8_t tmp_orbs[n_elec_unf];
     uint8_t (*orb_indices1)[4] = (uint8_t (*)[4])malloc(sizeof(char) * 4 * spawn_length);
     
@@ -151,7 +135,6 @@ int main(int argc, const char * argv[]) {
     trial_vecs.reserve(n_trial);
     std::vector<DistVec<double>> htrial_vecs;
     htrial_vecs.reserve(n_trial);
-    size_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
     
     char vec_path[300];
     Matrix<uint8_t> *load_dets = new Matrix<uint8_t>(max_n_dets, det_size);
@@ -166,7 +149,7 @@ int main(int argc, const char * argv[]) {
         MPI_Bcast(&glob_n_dets, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 #endif
         trial_vecs.emplace_back(glob_n_dets, glob_n_dets, n_orb * 2, n_elec_unf, n_procs, proc_scrambler, vec_scrambler);
-        htrial_vecs.emplace_back(glob_n_dets * n_ex / n_procs, glob_n_dets * n_ex / n_procs, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, (double *)NULL, 2, proc_scrambler, vec_scrambler);
+        htrial_vecs.emplace_back(glob_n_dets * num_ex / n_procs, glob_n_dets * num_ex / n_procs, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, (double *)NULL, 2, proc_scrambler, vec_scrambler);
         
         sol_vecs[trial_idx].set_curr_vec_idx(2);
         for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
@@ -224,7 +207,7 @@ int main(int argc, const char * argv[]) {
         strcpy(file_path, result_dir);
         strcat(file_path, "params.txt");
         FILE *param_f = fopen(file_path, "w");
-        fprintf(param_f, "Arnoldi calculation\nHF path: %s\nepsilon (imaginary time step): %lf\nMatrix nonzero: %u\nVector nonzero: %u\n", hf_path, eps, matr_samp, target_nonz);
+        fprintf(param_f, "Arnoldi calculation\nHF path: %s\nepsilon (imaginary time step): %lf\nVector nonzero: %u\n", hf_path, eps, target_nonz);
         fprintf(param_f, "Path for trial vectors: %s\n", trial_path);
         fprintf(param_f, "Krylov iterations: %u\n", n_krylov);
         fclose(param_f);
