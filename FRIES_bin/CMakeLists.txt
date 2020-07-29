@@ -22,6 +22,7 @@ target_link_libraries(frisys_hh PRIVATE fries)
 
 add_executable(arnoldi_mol arnoldi_mol.cpp)
 target_link_libraries(arnoldi_mol PRIVATE fries)
+target_link_libraries(arnoldi_mol PRIVATE cnpy)
 find_package(LAPACK REQUIRED)
 target_link_libraries(arnoldi_mol PRIVATE ${LAPACK_LIBRARIES})
 

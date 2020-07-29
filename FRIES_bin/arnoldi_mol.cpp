@@ -12,6 +12,7 @@
 #include <FRIES/Ext_Libs/argparse.h>
 #include <FRIES/Hamiltonians/molecule.hpp>
 #include <FRIES/Ext_Libs/LAPACK/lapacke.h>
+#include <FRIES/Ext_Libs/cnpy/cnpy.h>
 
 static const char *const usage[] = {
     "arnoldi_mol [options] [[--] args]",
@@ -29,6 +30,7 @@ int main(int argc, const char * argv[]) {
     unsigned int max_n_dets = 0;
     unsigned int max_iter = 500000;
     unsigned int n_krylov = 5000;
+    int use_npy = 0;
     struct argparse_option options[] = {
         OPT_HELP(),
         OPT_STRING('d', "hf_path", &hf_path, "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt"),
@@ -38,6 +40,7 @@ int main(int argc, const char * argv[]) {
         OPT_STRING('v', "trial_vecs", &trial_path, "Prefix for files containing the vectors with which to calculate the energy and initialize the calculation (unless load_dir is provided). Files must have names <trial_vecs>dets<xx> and <trial_vecs>vals<xx>, where xx is a 2-digit number ranging from 0 to (n_trial - 1), and be text files."),
         OPT_INTEGER('k', "num_trial", &n_trial, "Number of trial vectors to use to calculate dot products with the iterates."),
         OPT_INTEGER('I', "max_iter", &max_iter, "Maximum number of iterations to run the calculation."),
+        OPT_BOOLEAN('n', "use_numpy", &use_npy, "If set, output files will be in numpy (.npy) format. Otherwise, will be in text (.txt) format."),
         OPT_END(),
     };
     
@@ -193,16 +196,18 @@ int main(int argc, const char * argv[]) {
     
     if (proc_rank == 0) {
         // Setup output files
-        strcpy(file_path, result_dir);
-        strcat(file_path, "b_matrix.txt");
-        bmat_file = fopen(file_path, "a");
-        if (!bmat_file) {
-            fprintf(stderr, "Could not open file for writing in directory %s\n", result_dir);
+        if (!use_npy) {
+            strcpy(file_path, result_dir);
+            strcat(file_path, "b_matrix.txt");
+            bmat_file = fopen(file_path, "a");
+            if (!bmat_file) {
+                fprintf(stderr, "Could not open file for writing in directory %s\n", result_dir);
+            }
+            
+            strcpy(file_path, result_dir);
+            strcat(file_path, "d_matrix.txt");
+            dmat_file = fopen(file_path, "a");
         }
-        
-        strcpy(file_path, result_dir);
-        strcat(file_path, "d_matrix.txt");
-        dmat_file = fopen(file_path, "a");
         
         strcpy(file_path, result_dir);
         strcat(file_path, "params.txt");
@@ -227,6 +232,13 @@ int main(int argc, const char * argv[]) {
     }
     std::vector<bool> keep_exact(max_n_dets, false);
     
+    Matrix<double> d_mat(n_trial, n_trial);
+    Matrix<double> b_mat(n_trial, n_trial);
+    std::string dnpy_path(result_dir);
+    dnpy_path.append("d_matrix.npy");
+    std::string bnpy_path(result_dir);
+    bnpy_path.append("b_matrix.npy");
+    
     for (uint32_t iteration = 0; iteration < max_iter; iteration++) {
         // Initialize the solution vectors
         for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
@@ -244,22 +256,28 @@ int main(int argc, const char * argv[]) {
                 for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                     double d_prod = sol_vecs[vec_idx].dot(curr_trial.indices(), curr_trial.values(), curr_trial.curr_size(), trial_hashes[trial_idx].data());
                     d_prod = sum_mpi(d_prod, proc_rank, n_procs);
-                    if (proc_rank == 0) {
-                        fprintf(dmat_file, "%.9lf,", d_prod);
-                    }
+                    d_mat(trial_idx, vec_idx) = d_prod;
                     
                     d_prod = sol_vecs[vec_idx].dot(curr_htrial.indices(), curr_htrial.values(), curr_htrial.curr_size(), htrial_hashes[trial_idx].data());
                     d_prod = sum_mpi(d_prod, proc_rank, n_procs);
-                    if (proc_rank == 0) {
-                        fprintf(bmat_file, "%.9lf,", d_prod);
-                    }
-                }
-                if (proc_rank == 0) {
-                    fprintf(dmat_file, "\n");
-                    fprintf(bmat_file, "\n");
+                    b_mat(trial_idx, vec_idx) = d_prod;
                 }
             }
             if (proc_rank == 0) {
+                if (use_npy) {
+                    cnpy::npy_save(bnpy_path, b_mat.data(), {1, n_trial, n_trial}, "a");
+                    cnpy::npy_save(dnpy_path, d_mat.data(), {1, n_trial, n_trial}, "a");
+                }
+                else {
+                    for (uint16_t row_idx = 0; row_idx < n_trial; row_idx++) {
+                        for (uint16_t col_idx = 0; col_idx < n_trial - 1; col_idx++) {
+                            fprintf(bmat_file, "%.14lf,", b_mat(row_idx, col_idx));
+                            fprintf(dmat_file, "%.14lf,", d_mat(row_idx, col_idx));
+                        }
+                        fprintf(bmat_file, "%.14lf\n", b_mat(row_idx, n_trial - 1));
+                        fprintf(dmat_file, "%.14lf\n", d_mat(row_idx, n_trial - 1));
+                    }
+                }
                 printf("Krylov iteration %u\n", krylov_idx);
                 fflush(dmat_file);
                 fflush(bmat_file);
@@ -309,7 +327,7 @@ int main(int argc, const char * argv[]) {
         //        LAPACKE_dgeev(LAPACK_ROW_MAJOR, 'N', 'N', n_trial, krylov_mat.data(), n_trial, energies_r, energies_i, NULL, n_trial, NULL, n_trial);
     }
     
-    if (proc_rank == 0) {
+    if (proc_rank == 0 && !use_npy) {
         fclose(bmat_file);
         fclose(dmat_file);
     }

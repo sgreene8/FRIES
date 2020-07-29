@@ -6,3 +6,4 @@ install(
 )
 
 add_subdirectory(dcmt)
+add_subdirectory(cnpy)
