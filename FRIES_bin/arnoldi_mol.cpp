@@ -154,15 +154,16 @@ int main(int argc, const char * argv[]) {
         trial_vecs.emplace_back(glob_n_dets, glob_n_dets, n_orb * 2, n_elec_unf, n_procs, proc_scrambler, vec_scrambler);
         htrial_vecs.emplace_back(glob_n_dets * num_ex / n_procs, glob_n_dets * num_ex / n_procs, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, (double *)NULL, 2, proc_scrambler, vec_scrambler);
         
-        sol_vecs[trial_idx].set_curr_vec_idx(2);
+        curr_sol.set_curr_vec_idx(2);
         for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
             trial_vecs[trial_idx].add(load_dets[0][det_idx], load_vals[det_idx], 1);
             htrial_vecs[trial_idx].add(load_dets[0][det_idx], load_vals[det_idx], 1);
-            sol_vecs[trial_idx].add(load_dets[0][det_idx], load_vals[det_idx], 1);
+            curr_sol.add(load_dets[0][det_idx], load_vals[det_idx], 1);
         }
         loc_n_dets++; // just to be safe
         bzero(load_vals, loc_n_dets * sizeof(double));
-        sol_vecs[trial_idx].perform_add();
+        curr_sol.perform_add();
+        curr_sol.fix_min_del_idx();
     }
     delete load_dets;
     

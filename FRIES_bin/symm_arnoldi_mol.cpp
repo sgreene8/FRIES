@@ -144,7 +144,8 @@ int main(int argc, const char * argv[]) {
         }
         loc_n_dets++; // just to be safe
         bzero(load_vals, loc_n_dets * sizeof(double));
-        sol_vecs[trial_idx].perform_add();
+        curr_sol.perform_add();
+        curr_sol.fix_min_del_idx();
     }
     delete load_dets;
     
