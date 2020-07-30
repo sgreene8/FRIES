@@ -121,8 +121,12 @@ int main(int argc, const char * argv[]) {
     
     std::vector<DistVec<double>> sol_vecs;
     sol_vecs.reserve(n_states);
+    // vector 0: current iteration before multiplication
+    // vector 1: current iteration after multiplication
+    // vector 2: temporary vector for off-diagonal multiplication
+    // vector 3: initial vector
     for (uint8_t vec_idx = 0; vec_idx < n_states; vec_idx++) {
-        sol_vecs.emplace_back(max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, nullptr, 3, proc_scrambler, vec_scrambler);
+        sol_vecs.emplace_back(max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, nullptr, 4, proc_scrambler, vec_scrambler);
     }
     size_t det_size = CEILING(2 * n_orb, 8);
     
@@ -138,9 +142,9 @@ int main(int argc, const char * argv[]) {
         
         sprintf(vec_path, "%s%02d", ini_path, trial_idx);
         unsigned int loc_n_dets = (unsigned int) load_vec_txt(vec_path, *load_dets, load_vals, DOUB);
-        sol_vecs[trial_idx].set_curr_vec_idx(2);
+        curr_sol.set_curr_vec_idx(3);
         for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
-            sol_vecs[trial_idx].add(load_dets[0][det_idx], load_vals[det_idx], 1);
+            curr_sol.add(load_dets[0][det_idx], load_vals[det_idx], 1);
         }
         loc_n_dets++; // just to be safe
         bzero(load_vals, loc_n_dets * sizeof(double));
@@ -192,7 +196,7 @@ int main(int argc, const char * argv[]) {
     for (uint32_t iteration = 0; iteration < max_iter; iteration++) {
         // Initialize the solution vectors
         for (uint16_t vec_idx = 0; vec_idx < n_states; vec_idx++) {
-            sol_vecs[vec_idx].copy_vec(2, 0);
+            sol_vecs[vec_idx].copy_vec(3, 0);
         }
         if (proc_rank == 0) {
             printf("Macro iteration %u\n", iteration);
@@ -205,57 +209,44 @@ int main(int argc, const char * argv[]) {
                 fflush(bmat_file);
             }
             
-#pragma mark Krylov dot products
-            for (uint16_t vecl_idx = 0; vecl_idx < n_states; vecl_idx++) {
-                DistVec<double> &lvec = sol_vecs[vecl_idx];
-                for (uint16_t vecr_idx = 0; vecr_idx < n_states; vecr_idx++) {
-                    if (vecl_idx == vecr_idx) {
-                        double dprod = lvec.internal_dot(0, 0);
-                        dprod = sum_mpi(dprod, proc_rank, n_procs);
-                        if (proc_rank == 0) {
-                            fprintf(dmat_file, "%.9lf,", dprod);
-                        }
-                    }
-                    else {
-                        DistVec<double> &rvec = sol_vecs[vecr_idx];
-                        double dprod = lvec.multi_dot(rvec.indices(), rvec.occ_orbs(), rvec.values(), rvec.curr_size());
-                        if (proc_rank == 0) {
-                            fprintf(dmat_file, "%.9lf,", dprod);
-                        }
-                    }
-                }
-                if (proc_rank == 0) {
-                    fprintf(dmat_file, "\n");
-                    fprintf(bmat_file, "\n");
-                }
-            }
-            
 # pragma mark Matrix multiplication
             for (uint16_t vec_idx = 0; vec_idx < n_states; vec_idx++) {
                 DistVec<double> &curr_vec = sol_vecs[vec_idx];
-//                curr_vec.set_curr_vec_idx(0);
-                h_op_offdiag(curr_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, 1, -eps);
-                curr_vec.set_curr_vec_idx(0);
-                h_op_diag(curr_vec, 0, 1, -eps);
+                curr_vec.copy_vec(0, 1);
+                curr_vec.set_curr_vec_idx(1);
+                h_op_offdiag(curr_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, 2, -eps);
+                curr_vec.set_curr_vec_idx(1);
+                h_op_diag(curr_vec, 1, 1, -eps);
+                curr_vec.add_vecs(1, 2);
             }
 
 #pragma mark Krylov dot products
             for (uint16_t vecl_idx = 0; vecl_idx < n_states; vecl_idx++) {
                 DistVec<double> &lvec = sol_vecs[vecl_idx];
+                lvec.set_curr_vec_idx(0);
                 for (uint16_t vecr_idx = 0; vecr_idx < n_states; vecr_idx++) {
-                    double dprod = lvec.internal_dot(0, 0);
-                    dprod = sum_mpi(dprod, proc_rank, n_procs);
+                    double vec_ovlp;
+                    double vec_H_ovlp;
                     if (vecl_idx == vecr_idx) {
-                        if (proc_rank == 0) {
-                            fprintf(dmat_file, "%.9lf,", dprod);
-                        }
+                        vec_ovlp = lvec.internal_dot(0, 0);
+                        vec_ovlp = sum_mpi(vec_ovlp, proc_rank, n_procs);
+                        
+                        vec_H_ovlp = lvec.internal_dot(0, 1);
+                        vec_H_ovlp = sum_mpi(vec_H_ovlp, proc_rank, n_procs);
                     }
                     else {
                         DistVec<double> &rvec = sol_vecs[vecr_idx];
-                        double dprod = lvec.multi_dot(rvec.indices(), rvec.occ_orbs(), rvec.values(), rvec.curr_size());
-                        if (proc_rank == 0) {
-                            fprintf(dmat_file, "%.9lf,", dprod);
-                        }
+                        rvec.set_curr_vec_idx(0);
+                        vec_ovlp = lvec.multi_dot(rvec.indices(), rvec.occ_orbs(), rvec.values(), rvec.curr_size());
+                        
+                        rvec.set_curr_vec_idx(1);
+                        vec_H_ovlp = lvec.multi_dot(rvec.indices(), rvec.occ_orbs(), rvec.values(), rvec.curr_size());
+                    }
+                    // <v|(1 - \eps H)|v> = <v|v> - \eps <v|H|v>
+                    vec_H_ovlp = -(vec_H_ovlp - vec_ovlp) / eps;
+                    if (proc_rank == 0) {
+                        fprintf(dmat_file, "%.9lf,", vec_ovlp);
+                        fprintf(bmat_file, "%.9lf,", vec_H_ovlp);
                     }
                 }
                 if (proc_rank == 0) {
@@ -267,7 +258,7 @@ int main(int argc, const char * argv[]) {
             size_t new_max_dets = max_n_dets;
             for (uint16_t vec_idx = 0; vec_idx < n_states; vec_idx++) {
                 DistVec<double> &curr_vec = sol_vecs[vec_idx];
-                curr_vec.add_vecs(0, 1);
+                curr_vec.copy_vec(1, 0);
                 if (curr_vec.max_size() > new_max_dets) {
                     new_max_dets = curr_vec.max_size();
                 }

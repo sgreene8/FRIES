@@ -314,11 +314,11 @@ public:
     double internal_dot(uint8_t idx1, uint8_t idx2) {
         double dprod = 0;
         if (idx1 >= values_.rows()) {
-            fprintf(stderr, "Error: idx1 argument to internal_dot (%u) exceeds bounds of value matrix (%u)\n", (unsigned int) idx1, values_.rows());
+            fprintf(stderr, "Error: idx1 argument to internal_dot (%u) exceeds bounds of value matrix (%zu)\n", (unsigned int) idx1, values_.rows());
             return 0;
         }
         if (idx2 >= values_.rows()) {
-            fprintf(stderr, "Error: idx2 argument to internal_dot (%u) exceeds bounds of value matrix (%u)\n", (unsigned int) idx2, values_.rows());
+            fprintf(stderr, "Error: idx2 argument to internal_dot (%u) exceeds bounds of value matrix (%zu)\n", (unsigned int) idx2, values_.rows());
             return 0;
         }
         for (size_t el_idx = 0; el_idx < curr_size_; el_idx++) {
