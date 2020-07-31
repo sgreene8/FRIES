@@ -3,22 +3,31 @@
  * \brief Perform FRI with systematic matrix compression on the Hubbard-Holstein model
  */
 
-#include <iostream>
 #include <ctime>
 #include <FRIES/io_utils.hpp>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/compress_utils.hpp>
-#include <FRIES/Ext_Libs/argparse.h>
+#include <FRIES/Ext_Libs/argparse.hpp>
 #include <FRIES/Hamiltonians/hub_holstein.hpp>
 #include <FRIES/hh_vec.hpp>
+#include <stdexcept>
 
-static const char *const usage[] = {
-    "frisys_hh [options] [[--] args]",
-    "frisys_hh [options]",
-    NULL,
+struct MyArgs : public argparse::Args {
+    std::string params_path = kwarg("params_path", "Path to the file that contains the parameters defining the Hamiltonian, number of electrons, number of sites, etc.");
+    double target_norm = kwarg("target", "Target one-norm of solution vector").set_default(0);
+    uint32_t max_iter = kwarg("max_iter", "Maximum number of iterations to run the calculation").set_default(1000000);
+    uint32_t target_nonz = kwarg("vec_nonz", "Target number of nonzero vector elements to keep after each compression operation");
+    std::string result_dir = kwarg("result_dir", "Directory in which to save output files").set_default<std::string>("./");
+    uint32_t max_n_dets = kwarg("max_dets", "Maximum number of determinants on a single MPI process");
+    double init_thresh = kwarg("initiator", "Magnitude of vector element required to make it an initiator").set_default(0);
+    std::shared_ptr<std::string> load_dir = kwarg("load_dir", "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())");
+
+    CONSTRUCTOR(MyArgs);
 };
 
-int main(int argc, const char * argv[]) {
+int main(int argc, char * argv[]) {
+    MyArgs args(argc, argv);
+
     int n_procs = 1;
     int proc_rank = 0;
     unsigned int proc_idx, ref_proc;
@@ -28,46 +37,8 @@ int main(int argc, const char * argv[]) {
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
 #endif
     
-    const char *params_path = NULL;
-    const char *result_dir = "./";
-    const char *load_dir = NULL;
-    unsigned int target_nonz = 0;
-    unsigned int max_n_dets = 0;
-    unsigned int init_thresh = 0;
-    unsigned int tmp_norm = 0;
-    unsigned int max_iter = 1000000;
-    struct argparse_option options[] = {
-        OPT_HELP(),
-        OPT_STRING('d', "params_path", &params_path, "Path to the file that contains the parameters defining the Hamiltonian, number of electrons, number of sites, etc."),
-        OPT_INTEGER('t', "target", &tmp_norm, "Target one-norm of solution vector"),
-        OPT_INTEGER('m', "vec_nonz", &target_nonz, "Target number of nonzero vector elements to keep after each iteration"),
-        OPT_STRING('y', "result_dir", &result_dir, "Directory in which to save output files"),
-        OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
-        OPT_INTEGER('i', "initiator", &init_thresh, "Number of walkers on a determinant required to make it an initiator."),
-        OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())."),
-        OPT_INTEGER('I', "max_iter", &max_iter, "Maximum number of iterations to run the calculation."),
-        OPT_END(),
-    };
-    
-    struct argparse argparse;
-    argparse_init(&argparse, options, usage, 0);
-    argparse_describe(&argparse, "\nPerform an FCIQMC calculation.", "");
-    argc = argparse_parse(&argparse, argc, argv);
-    
-    if (params_path == NULL) {
-        fprintf(stderr, "Error: parameter file not specified.\n");
-        return 0;
-    }
-    if (target_nonz == 0) {
-        fprintf(stderr, "Error: target number of nonzero elements in compression not specified\n");
-        return 0;
-    }
-    if (max_n_dets == 0) {
-        fprintf(stderr, "Error: maximum number of determinants expected on each processor not specified.\n");
-        return 0;
-    }
-    
-    double target_norm = tmp_norm;
+    double target_norm = args.target_norm;
+    uint32_t max_n_dets = args.max_n_dets;
     
     // Parameters
     double shift_damping = 0.05;
@@ -77,7 +48,7 @@ int main(int argc, const char * argv[]) {
     
     // Read in data files
     hh_input in_data;
-    parse_hh_input(params_path, &in_data);
+    parse_hh_input(args.params_path.c_str(), &in_data);
     double eps = in_data.eps;
     unsigned int hub_len = in_data.lat_len;
     unsigned int hub_dim = in_data.n_dim;
@@ -105,15 +76,15 @@ int main(int argc, const char * argv[]) {
     double loc_norm, glob_norm;
     double last_one_norm = 0;
     
-    if (load_dir) {
-        load_proc_hash(load_dir, proc_scrambler.data());
+    if (args.load_dir != nullptr) {
+        load_proc_hash(args.load_dir->c_str(), proc_scrambler.data());
     }
     else {
         if (proc_rank == 0) {
             for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
                 proc_scrambler[det_idx] = genrand_mt(rngen_ptr);
             }
-            save_proc_hash(result_dir, proc_scrambler.data(), 2 * n_orb);
+            save_proc_hash(args.result_dir.c_str(), proc_scrambler.data(), 2 * n_orb);
         }
 #ifdef USE_MPI
         MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
@@ -125,7 +96,7 @@ int main(int argc, const char * argv[]) {
     }
     
     // Solution vector
-    unsigned int spawn_length = target_nonz * 4 / n_procs;
+    unsigned int spawn_length = args.target_nonz * 4 / n_procs;
     size_t adder_size = spawn_length > 200000 ? 200000 : spawn_length;
     uint8_t ph_bits = 3;
     std::function<double(const uint8_t *)> diag_shortcut = [hub_len](const uint8_t *det) {
@@ -141,8 +112,8 @@ int main(int argc, const char * argv[]) {
     sol_vec.gen_orb_list(neel_det, neel_occ);
     
     // Initialize solution vector
-    if (load_dir) {
-        sol_vec.load(load_dir);
+    if (args.load_dir != nullptr) {
+        sol_vec.load(args.load_dir->c_str());
     }
     else {
         if (ref_proc == proc_rank) {
@@ -152,7 +123,7 @@ int main(int argc, const char * argv[]) {
     sol_vec.perform_add();
     loc_norm = sol_vec.local_norm();
     glob_norm = sum_mpi(loc_norm, proc_rank, n_procs);
-    if (load_dir) {
+    if (args.load_dir != nullptr) {
         last_one_norm = glob_norm;
     }
     
@@ -163,28 +134,28 @@ int main(int argc, const char * argv[]) {
     FILE *shift_file = NULL;
     if (proc_rank == ref_proc) {
         // Setup output files
-        strcpy(file_path, result_dir);
+        strcpy(file_path, args.result_dir.c_str());
         strcat(file_path, "projnum.txt");
         num_file = fopen(file_path, "a");
         if (!num_file) {
-            fprintf(stderr, "Could not open file for writing in directory %s\n", result_dir);
+            fprintf(stderr, "Could not open file for writing in directory %s\n", args.result_dir.c_str());
         }
-        strcpy(file_path, result_dir);
+        strcpy(file_path, args.result_dir.c_str());
         strcat(file_path, "projden.txt");
         den_file = fopen(file_path, "a");
-        strcpy(file_path, result_dir);
+        strcpy(file_path, args.result_dir.c_str());
         strcat(file_path, "S.txt");
         shift_file = fopen(file_path, "a");
-        strcpy(file_path, result_dir);
+        strcpy(file_path, args.result_dir.c_str());
         strcat(file_path, "norm.txt");
         norm_file = fopen(file_path, "a");
         
-        strcpy(file_path, result_dir);
+        strcpy(file_path, args.result_dir.c_str());
         strcat(file_path, "params.txt");
         FILE *param_f = fopen(file_path, "w");
-        fprintf(param_f, "FRI calculation\nHubbard-Holstein parameters path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nInitiator threshold: %u\nVector nonzero: %u\n", params_path, eps, target_norm, init_thresh, target_nonz);
-        if (load_dir) {
-            fprintf(param_f, "Restarting calculation from %s\n", load_dir);
+        fprintf(param_f, "FRI calculation\nHubbard-Holstein parameters path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nInitiator threshold: %lf\nVector nonzero: %u\n", args.params_path.c_str(), eps, target_norm, args.init_thresh, args.target_nonz);
+        if (args.load_dir != nullptr) {
+            fprintf(param_f, "Restarting calculation from %s\n", args.load_dir->c_str());
         }
         else {
             fprintf(param_f, "Initializing calculation from Neel unit vector\n");
@@ -215,7 +186,7 @@ int main(int argc, const char * argv[]) {
     double recv_nums[n_procs];
     
     Matrix<uint8_t> &neighb_orbs = sol_vec.neighb();
-    for (unsigned int iterat = 0; iterat < max_iter; iterat++) {
+    for (unsigned int iterat = 0; iterat < args.max_iter; iterat++) {
         for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
             double *curr_el = sol_vec[det_idx];
             double weight = fabs(*curr_el);
@@ -232,7 +203,7 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec1, sol_vec.curr_size(), ndiv_vec, subwt_mem, keep_idx, NULL, target_nonz, wt_remain.data(), rn_sys, comp_vec2, comp_idx);
+        comp_len = comp_sub(comp_vec1, sol_vec.curr_size(), ndiv_vec, subwt_mem, keep_idx, NULL, args.target_nonz, wt_remain.data(), rn_sys, comp_vec2, comp_idx);
         if (comp_len > spawn_length) {
             fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
         }
@@ -252,7 +223,7 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, subwt_mem, keep_idx, NULL, target_nonz, wt_remain.data(), rn_sys, comp_vec1, comp_idx);
+        comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, subwt_mem, keep_idx, NULL, args.target_nonz, wt_remain.data(), rn_sys, comp_vec1, comp_idx);
         if (comp_len > spawn_length) {
             fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
         }
@@ -272,7 +243,7 @@ int main(int argc, const char * argv[]) {
                     size_t prev_idx = comp_idx[samp_idx][0];
                     size_t det_idx = det_indices[prev_idx];
                     double curr_val = vals_before_mult[det_idx];
-                    uint8_t ini_flag = fabs(curr_val) >= init_thresh;
+                    uint8_t ini_flag = fabs(curr_val) >= args.init_thresh;
                     if (ini_flag != add_ini) {
                         samp_idx++;
                         continue;
@@ -349,7 +320,7 @@ int main(int argc, const char * argv[]) {
         sol_vec.add_vecs(0, 1);
         
         // Compression step
-        unsigned int n_samp = target_nonz;
+        unsigned int n_samp = args.target_nonz;
         loc_norms[proc_rank] = find_preserve(sol_vec.values(), srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
         
         // Adjust shift
@@ -396,7 +367,7 @@ int main(int argc, const char * argv[]) {
         
         // Save vector snapshot to disk
         if ((iterat + 1) % save_interval == 0) {
-            sol_vec.save(result_dir);
+            sol_vec.save(args.result_dir.c_str());
             if (proc_rank == ref_proc) {
                 fflush(num_file);
                 fflush(den_file);
@@ -404,7 +375,7 @@ int main(int argc, const char * argv[]) {
             }
         }
     }
-    sol_vec.save(result_dir);
+    sol_vec.save(args.result_dir.c_str());
     if (proc_rank == ref_proc) {
         fclose(num_file);
         fclose(den_file);

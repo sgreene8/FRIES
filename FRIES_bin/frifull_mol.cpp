@@ -13,61 +13,30 @@
 #include <FRIES/io_utils.hpp>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/compress_utils.hpp>
-#include <FRIES/Ext_Libs/argparse.h>
+#include <FRIES/Ext_Libs/argparse.hpp>
 #include <FRIES/Hamiltonians/molecule.hpp>
+#include <stdexcept>
 
-static const char *const usage[] = {
-    "frifull_mol [options] [[--] args]",
-    "frifull_mol [options]",
-    NULL,
+struct MyArgs : public argparse::Args {
+    std::string hf_path = kwarg("hf_path", "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt");
+    double target_norm = kwarg("target", "Target one-norm of solution vector").set_default(0);
+    uint32_t max_iter = kwarg("max_iter", "Maximum number of iterations to run the calculation").set_default(1000000);
+    uint32_t target_nonz = kwarg("vec_nonz", "Target number of nonzero vector elements to keep after each iteration");
+    std::string result_dir = kwarg("result_dir", "Directory in which to save output files").set_default<std::string>("./");
+    uint32_t max_n_dets = kwarg("max_dets", "Maximum number of determinants on a single MPI process");
+    std::shared_ptr<std::string> load_dir = kwarg("load_dir", "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())");
+    std::shared_ptr<std::string> ini_path = kwarg("ini_vec", "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)");
+    std::shared_ptr<std::string> trial_path = kwarg("trial_vec", "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text)");
+    std::shared_ptr<std::string> rdm_path = kwarg("rdm_path", "Path to file from which to load the diagonal elements of the 1-RDM to use in compression");
+    double rdm_confidence = kwarg("kernel_confidence", "Parameter to use in the kernel function when using the 1-RDM to guide compression").set_default(0);
+
+    CONSTRUCTOR(MyArgs);
 };
 
-int main(int argc, const char * argv[]) {
-    const char *hf_path = NULL;
-    const char *result_dir = "./";
-    const char *load_dir = NULL;
-    const char *ini_path = NULL;
-    const char *trial_path = NULL;
-    const char *rdm_path = NULL;
-    unsigned int target_nonz = 0;
-    unsigned int max_n_dets = 0;
-    unsigned int tmp_norm = 0;
-    unsigned int max_iter = 1000000;
-    float rdm_confidence = 0;
-    struct argparse_option options[] = {
-        OPT_HELP(),
-        OPT_STRING('d', "hf_path", &hf_path, "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt"),
-        OPT_INTEGER('t', "target", &tmp_norm, "Target one-norm of solution vector"),
-        OPT_INTEGER('m', "vec_nonz", &target_nonz, "Target number of nonzero vector elements to keep after each iteration"),
-        OPT_STRING('y', "result_dir", &result_dir, "Directory in which to save output files"),
-        OPT_INTEGER('p', "max_dets", &max_n_dets, "Maximum number of determinants on a single MPI process."),
-        OPT_STRING('l', "load_dir", &load_dir, "Directory from which to load checkpoint files from a previous calculation (in binary format, see documentation for DistVec::save() and DistVec::load())."),
-        OPT_STRING('n', "ini_vec", &ini_path, "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)."),
-        OPT_STRING('v', "trial_vec", &trial_path, "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text files)."),
-        OPT_INTEGER('I', "max_iter", &max_iter, "Maximum number of iterations to run the calculation."),
-        OPT_STRING('r', "rdm_path", &rdm_path, "Path to file from which to load the diagonal elements of the 1-RDM to use in compression"),
-        OPT_FLOAT('c', "kernel_confidence", &rdm_confidence, "Parameter to use in the kernel function when using the 1-RDM to guide compression"),
-        OPT_END(),
-    };
+int main(int argc, char * argv[]) {
+    MyArgs args(argc, argv);
     
-    struct argparse argparse;
-    argparse_init(&argparse, options, usage, 0);
-    argparse_describe(&argparse, "\nFRI without matrix compression for molecules.", "");
-    argc = argparse_parse(&argparse, argc, argv);
-    
-    if (hf_path == NULL) {
-        fprintf(stderr, "Error: HF directory not specified.\n");
-        return 0;
-    }
-    if (target_nonz == 0) {
-        fprintf(stderr, "Error: target number of nonzero vector elements not specified\n");
-        return 0;
-    }
-    if (max_n_dets == 0) {
-        fprintf(stderr, "Error: maximum number of determinants expected on each processor not specified.\n");
-        return 0;
-    }
-    double target_norm = tmp_norm;
+    double target_norm = args.target_norm;
     
     int n_procs = 1;
     int proc_rank = 0;
@@ -86,7 +55,7 @@ int main(int argc, const char * argv[]) {
     
     // Read in data files
     hf_input in_data;
-    parse_hf_input(hf_path, &in_data);
+    parse_hf_input(args.hf_path.c_str(), &in_data);
     double eps = in_data.eps;
     unsigned int n_elec = in_data.n_elec;
     unsigned int n_frz = in_data.n_frz;
@@ -101,8 +70,8 @@ int main(int argc, const char * argv[]) {
     FourDArr *eris = in_data.eris;
     
     std::vector<double> rdm_diag(tot_orb);
-    if (rdm_path) {
-        load_rdm(rdm_path, rdm_diag.data());
+    if (args.rdm_path != nullptr) {
+        load_rdm(args.rdm_path->c_str(), rdm_diag.data());
         std::copy(rdm_diag.begin() + n_frz / 2, rdm_diag.end(), rdm_diag.begin());
     }
     
@@ -112,7 +81,7 @@ int main(int argc, const char * argv[]) {
     
     // Solution vector
     unsigned int num_ex = n_elec_unf * n_elec_unf * (n_orb - n_elec_unf / 2) * (n_orb - n_elec_unf / 2);
-    unsigned int spawn_len = max_n_dets / n_procs * num_ex / n_procs / 4;
+    unsigned int spawn_len = args.target_nonz / n_procs * num_ex / n_procs / 4;
     size_t adder_size = spawn_len > 1000000 ? 1000000 : spawn_len;
     std::function<double(const uint8_t *)> diag_shortcut = [tot_orb, eris, h_core, n_frz, n_elec, hf_en](const uint8_t *occ_orbs) {
         return diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
@@ -134,15 +103,15 @@ int main(int argc, const char * argv[]) {
     double loc_norm, glob_norm;
     double last_norm = 0;
     
-    if (load_dir) {
-        load_proc_hash(load_dir, proc_scrambler.data());
+    if (args.load_dir != nullptr) {
+        load_proc_hash(args.load_dir->c_str(), proc_scrambler.data());
     }
     else {
         if (proc_rank == 0) {
             for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
                 proc_scrambler[det_idx] = genrand_mt(rngen_ptr);
             }
-            save_proc_hash(result_dir, proc_scrambler.data(), 2 * n_orb);
+            save_proc_hash(args.result_dir.c_str(), proc_scrambler.data(), 2 * n_orb);
         }
 #ifdef USE_MPI
         MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
@@ -152,7 +121,7 @@ int main(int argc, const char * argv[]) {
     for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
         vec_scrambler[det_idx] = genrand_mt(rngen_ptr);
     }
-    DistVec<double> sol_vec(max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2, proc_scrambler, vec_scrambler);
+    DistVec<double> sol_vec(args.max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2, proc_scrambler, vec_scrambler);
     
     std::function<void(size_t, double *)> rdm_obs = [n_elec_unf, &sol_vec, n_orb](size_t idx, double *obs_vals) {
         uint8_t *orbs = sol_vec.orbs_at_pos(idx);
@@ -173,15 +142,15 @@ int main(int argc, const char * argv[]) {
     size_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
     Matrix<uint8_t> &load_dets = sol_vec.indices();
     double *load_vals = (double *)sol_vec.values();
-    if (trial_path) { // load trial vector from file
-        n_trial = load_vec_txt(trial_path, load_dets, load_vals, DOUB);
+    if (args.trial_path != nullptr) { // load trial vector from file
+        n_trial = load_vec_txt(args.trial_path->c_str(), load_dets, load_vals, DOUB);
     }
     else {
         n_trial = 1;
     }
     DistVec<double> trial_vec(n_trial, n_trial, n_orb * 2, n_elec_unf, n_procs, proc_scrambler, vec_scrambler);
     DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2, proc_scrambler, vec_scrambler);
-    if (trial_path) { // load trial vector from file
+    if (args.trial_path != nullptr) { // load trial vector from file
         for (det_idx = 0; det_idx < n_trial; det_idx++) {
             trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
             htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
@@ -223,10 +192,10 @@ int main(int argc, const char * argv[]) {
     FILE *prob_file = NULL;
     
 #pragma mark Initialize solution vector
-    if (load_dir) {
+    if (args.load_dir != nullptr) {
         // load energy shift (see https://stackoverflow.com/questions/13790662/c-read-only-last-line-of-a-file-no-loops)
         static const long max_len = 20;
-        sprintf(file_path, "%sS.txt", load_dir);
+        sprintf(file_path, "%sS.txt", args.load_dir->c_str());
         shift_file = fopen(file_path, "rb");
         fseek(shift_file, -max_len, SEEK_END);
         fread(file_path, max_len, 1, shift_file);
@@ -239,11 +208,11 @@ int main(int argc, const char * argv[]) {
         
         sscanf(last_line, "%lf", &en_shift);
     }
-    else if (ini_path) {
-        Matrix<uint8_t> load_dets(max_n_dets, det_size);
+    else if (args.ini_path != nullptr) {
+        Matrix<uint8_t> load_dets(args.max_n_dets, det_size);
         double *load_vals = (double *)sol_vec.values();
         
-        size_t n_dets = load_vec_txt(ini_path, load_dets, load_vals, DOUB);
+        size_t n_dets = load_vec_txt(args.ini_path->c_str(), load_dets, load_vals, DOUB);
         
         for (det_idx = 0; det_idx < n_dets; det_idx++) {
             sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
@@ -259,43 +228,43 @@ int main(int argc, const char * argv[]) {
     sol_vec.perform_add();
     loc_norm = sol_vec.local_norm();
     glob_norm = sum_mpi(loc_norm, proc_rank, n_procs);
-    if (load_dir) {
+    if (args.load_dir != nullptr) {
         last_norm = glob_norm;
     }
     
     if (proc_rank == hf_proc) {
         // Setup output files
-        strcpy(file_path, result_dir);
+        strcpy(file_path, args.result_dir.c_str());
         strcat(file_path, "projnum.txt");
         num_file = fopen(file_path, "a");
         if (!num_file) {
-            fprintf(stderr, "Could not open file for writing in directory %s\n", result_dir);
+            fprintf(stderr, "Could not open file for writing in directory %s\n", args.result_dir.c_str());
         }
-        strcpy(file_path, result_dir);
+        strcpy(file_path, args.result_dir.c_str());
         strcat(file_path, "projden.txt");
         den_file = fopen(file_path, "a");
-        strcpy(file_path, result_dir);
+        strcpy(file_path, args.result_dir.c_str());
         strcat(file_path, "S.txt");
         shift_file = fopen(file_path, "a");
-        strcpy(file_path, result_dir);
+        strcpy(file_path, args.result_dir.c_str());
         strcat(file_path, "norm.txt");
         norm_file = fopen(file_path, "a");
-        strcpy(file_path, result_dir);
+        strcpy(file_path, args.result_dir.c_str());
         strcat(file_path, "nkept.txt");
         nkept_file = fopen(file_path, "a");
-        strcpy(file_path, result_dir);
+        strcpy(file_path, args.result_dir.c_str());
         strcat(file_path, "probs.txt");
         prob_file = fopen(file_path, "a");
         
-        strcpy(file_path, result_dir);
+        strcpy(file_path, args.result_dir.c_str());
         strcat(file_path, "params.txt");
         FILE *param_f = fopen(file_path, "w");
-        fprintf(param_f, "FRI calculation\nHF path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nVector nonzero: %u\n", hf_path, eps, target_norm, target_nonz);
-        if (load_dir) {
-            fprintf(param_f, "Restarting calculation from %s\n", load_dir);
+        fprintf(param_f, "FRI calculation\nHF path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nVector nonzero: %u\n", args.hf_path.c_str(), eps, target_norm, args.target_nonz);
+        if (args.load_dir != nullptr) {
+            fprintf(param_f, "Restarting calculation from %s\n", args.load_dir->c_str());
         }
-        else if (ini_path) {
-            fprintf(param_f, "Initializing calculation from vector files with prefix %s\n", ini_path);
+        else if (args.ini_path != nullptr) {
+            fprintf(param_f, "Initializing calculation from vector files with prefix %s\n", args.ini_path->c_str());
         }
         else {
             fprintf(param_f, "Initializing calculation from HF unit vector\n");
@@ -308,17 +277,17 @@ int main(int argc, const char * argv[]) {
     // Parameters for systematic sampling
     double rn_sys = 0;
     double loc_norms[n_procs];
-    max_n_dets = (unsigned int)sol_vec.max_size();
+    size_t max_n_dets = sol_vec.max_size();
     size_t *srt_arr = (size_t *)malloc(sizeof(size_t) * max_n_dets);
     for (det_idx = 0; det_idx < max_n_dets; det_idx++) {
         srt_arr[det_idx] = det_idx;
     }
     std::vector<bool> keep_exact(max_n_dets, false);
-    size_t num_rn_obs = rdm_path ? 5 : 0;
+    size_t num_rn_obs = (args.rdm_path != nullptr) ? 5 : 0;
     Matrix<double> obs_vals(num_rn_obs, n_orb);
     std::vector<double> obs_probs(num_rn_obs);
     
-    for (unsigned int iterat = 0; iterat < max_iter; iterat++) {
+    for (unsigned int iterat = 0; iterat < args.max_iter; iterat++) {
         h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, orb_indices, n_frz, n_elec_unf, 1, -eps);
         sol_vec.set_curr_vec_idx(0);
         h_op_diag(sol_vec, 0, 1 + eps * en_shift, -eps);
@@ -334,16 +303,16 @@ int main(int argc, const char * argv[]) {
         }
         
 #pragma mark Vector compression step
-        unsigned int n_samp = target_nonz;
+        unsigned int n_samp = args.target_nonz;
         loc_norms[proc_rank] = find_preserve(sol_vec.values(), srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
 #ifdef USE_MPI
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
 #endif
         glob_norm += sol_vec.dense_norm();
         if (proc_rank == hf_proc) {
-            fprintf(nkept_file, "%u\n", target_nonz - n_samp);
+            fprintf(nkept_file, "%u\n", args.target_nonz - n_samp);
         }
-        if (rdm_path) {
+        if (args.rdm_path != nullptr) {
             sys_obs(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rdm_obs, obs_vals);
             double two_norm = sol_vec.two_norm();
             two_norm = sum_mpi(two_norm, proc_rank, n_procs);
@@ -354,7 +323,7 @@ int main(int argc, const char * argv[]) {
                     double obs = sum_mpi(obs_vals(rn_idx, obs_idx), proc_rank, n_procs) / two_norm;
                     obs_probs[rn_idx] += (obs - rdm_diag[obs_idx]) * (obs - rdm_diag[obs_idx]);
                 }
-                obs_probs[rn_idx] = exp(-obs_probs[rn_idx] / rdm_confidence / rdm_confidence);
+                obs_probs[rn_idx] = exp(-obs_probs[rn_idx] / args.rdm_confidence / args.rdm_confidence);
                 prob_norm += obs_probs[rn_idx];
             }
             for (size_t rn_idx = 0; rn_idx < num_rn_obs; rn_idx++) {
@@ -389,7 +358,7 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-        if (rdm_path) {
+        if (args.rdm_path != nullptr) {
             sys_comp_nonuni(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, obs_probs.data(), num_rn_obs, rn_sys);
         }
         else {
@@ -403,7 +372,7 @@ int main(int argc, const char * argv[]) {
         }
         
         if ((iterat + 1) % save_interval == 0) {
-            sol_vec.save(result_dir);
+            sol_vec.save(args.result_dir.c_str());
             if (proc_rank == hf_proc) {
                 fflush(num_file);
                 fflush(den_file);
@@ -413,7 +382,7 @@ int main(int argc, const char * argv[]) {
             }
         }
     }
-    sol_vec.save(result_dir);
+    sol_vec.save(args.result_dir.c_str());
     if (proc_rank == hf_proc) {
         fclose(num_file);
         fclose(den_file);
