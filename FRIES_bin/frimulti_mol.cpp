@@ -268,12 +268,12 @@ int main(int argc, char * argv[]) {
         strcpy(file_path, result_dir);
         strcat(file_path, "params.txt");
         FILE *param_f = fopen(file_path, "w");
-        fprintf(param_f, "FRI calculation\nHF path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nInitiator threshold: %u\nMatrix nonzero: %u\nVector nonzero: %u\n", args.hf_path.c_str(), eps, target_norm, args.init_thresh, args.matr_samp, args.target_nonz);
+        fprintf(param_f, "FRI calculation\nHF path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nInitiator threshold: %lf\nMatrix nonzero: %u\nVector nonzero: %u\n", args.hf_path.c_str(), eps, target_norm, args.init_thresh, args.matr_samp, args.target_nonz);
         if (args.load_dir != nullptr) {
             fprintf(param_f, "Restarting calculation from %s\n", args.load_dir->c_str());
         }
         else if (args.ini_path != nullptr) {
-            fprintf(param_f, "Initializing calculation from vector files with prefix %s\n", ini_path);
+            fprintf(param_f, "Initializing calculation from vector files with prefix %s\n", args.ini_path->c_str());
         }
         else {
             fprintf(param_f, "Initializing calculation from HF unit vector\n");
@@ -298,15 +298,15 @@ int main(int argc, char * argv[]) {
     double rn_sys = 0;
     double lbound;
     double weight;
-    size_t *srt_arr = (size_t *)malloc(sizeof(size_t) * max_n_dets);
-    for (det_idx = 0; det_idx < max_n_dets; det_idx++) {
+    size_t *srt_arr = (size_t *)malloc(sizeof(size_t) * args.max_n_dets);
+    for (det_idx = 0; det_idx < args.max_n_dets; det_idx++) {
         srt_arr[det_idx] = det_idx;
     }
-    std::vector<bool> keep_exact(max_n_dets, false);
+    std::vector<bool> keep_exact(args.max_n_dets, false);
     
     unsigned int iterat;
     size_t n_ini;
-    for (iterat = 0; iterat < max_iter; iterat++) {
+    for (iterat = 0; iterat < args.max_iter; iterat++) {
         n_ini = 0;
         
         // Systematic sampling to determine number of samples for each column
@@ -316,7 +316,7 @@ int main(int argc, char * argv[]) {
 #ifdef USE_MPI
         MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
-        unsigned int curr_mat_samp = (iterat < 10) ? matr_samp / 10 : matr_samp;
+        unsigned int curr_mat_samp = (iterat < 10) ? args.matr_samp / 10 : args.matr_samp;
         lbound = seed_sys(loc_norms, &rn_sys, curr_mat_samp);
         for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
             double *curr_el = sol_vec[det_idx];
@@ -336,7 +336,7 @@ int main(int argc, char * argv[]) {
                 colsamp_wt = 1;
             }
             
-            ini_flag = weight > init_thresh;
+            ini_flag = weight > args.init_thresh;
             n_ini += ini_flag;
             
             // spawning step
@@ -388,7 +388,7 @@ int main(int argc, char * argv[]) {
         sol_vec.perform_add();
         
         // Compression step
-        unsigned int n_samp = target_nonz;
+        unsigned int n_samp = args.target_nonz;
         loc_norms[proc_rank] = find_preserve(sol_vec.values(), srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
         
         // Adjust shift
