@@ -41,7 +41,7 @@
 #include <typeindex>
 
 namespace std {
-//    typedef string string_view;
+    typedef string string_view;
 
     struct nullopt_t {} nullopt;
     template<typename T> struct optional { // since we only use optional<string> this is OK
