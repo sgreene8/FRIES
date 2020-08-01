@@ -27,11 +27,11 @@ struct MyArgs : public argparse::Args {
     CONSTRUCTOR(MyArgs);
 };
 
-
 int main(int argc, char * argv[]) {
     MyArgs args(argc, argv);
     
     uint8_t n_trial = args.n_trial;
+    
     
     if (n_trial < 2) {
         fprintf(stderr, "Warning: Only 1 or 0 trial vectors were provided. Consider using the power method instead of Arnoldi in this case.\n");
@@ -122,15 +122,16 @@ int main(int argc, char * argv[]) {
         trial_vecs.emplace_back(glob_n_dets, glob_n_dets, n_orb * 2, n_elec_unf, n_procs, proc_scrambler, vec_scrambler);
         htrial_vecs.emplace_back(glob_n_dets * num_ex / n_procs, glob_n_dets * num_ex / n_procs, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, (double *)NULL, 2, proc_scrambler, vec_scrambler);
         
-        sol_vecs[trial_idx].set_curr_vec_idx(2);
+        curr_sol.set_curr_vec_idx(2);
         for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
             trial_vecs[trial_idx].add(load_dets[0][det_idx], load_vals[det_idx], 1);
             htrial_vecs[trial_idx].add(load_dets[0][det_idx], load_vals[det_idx], 1);
-            sol_vecs[trial_idx].add(load_dets[0][det_idx], load_vals[det_idx], 1);
+            curr_sol.add(load_dets[0][det_idx], load_vals[det_idx], 1);
         }
         loc_n_dets++; // just to be safe
         bzero(load_vals, loc_n_dets * sizeof(double));
-        sol_vecs[trial_idx].perform_add();
+        curr_sol.perform_add();
+        curr_sol.fix_min_del_idx();
     }
     delete load_dets;
     
@@ -164,18 +165,20 @@ int main(int argc, char * argv[]) {
     
     if (proc_rank == 0) {
         // Setup output files
-        strcpy(file_path, args.result_dir.c_str());
-        strcat(file_path, "b_matrix.txt");
-        bmat_file = fopen(file_path, "a");
-        if (!bmat_file) {
-            fprintf(stderr, "Could not open file for writing in directory %s\n", args.result_dir.c_str());
+        if (!use_npy) {
+            strcpy(file_path, result_dir);
+            strcat(file_path, "b_matrix.txt");
+            bmat_file = fopen(file_path, "a");
+            if (!bmat_file) {
+                fprintf(stderr, "Could not open file for writing in directory %s\n", result_dir);
+            }
+            
+            strcpy(file_path, result_dir);
+            strcat(file_path, "d_matrix.txt");
+            dmat_file = fopen(file_path, "a");
         }
         
-        strcpy(file_path, args.result_dir.c_str());
-        strcat(file_path, "d_matrix.txt");
-        dmat_file = fopen(file_path, "a");
-        
-        strcpy(file_path, args.result_dir.c_str());
+        strcpy(file_path, result_dir);
         strcat(file_path, "params.txt");
         FILE *param_f = fopen(file_path, "w");
         fprintf(param_f, "Arnoldi calculation\nHF path: %s\nepsilon (imaginary time step): %lf\nVector nonzero: %u\n", args.hf_path.c_str(), eps, args.target_nonz);
@@ -199,7 +202,14 @@ int main(int argc, char * argv[]) {
     }
     std::vector<bool> keep_exact(max_n_dets, false);
     
-    for (uint32_t iteration = 0; iteration < args.max_iter; iteration++) {
+    Matrix<double> d_mat(n_trial, n_trial);
+    Matrix<double> b_mat(n_trial, n_trial);
+    std::string dnpy_path(result_dir);
+    dnpy_path.append("d_matrix.npy");
+    std::string bnpy_path(result_dir);
+    bnpy_path.append("b_matrix.npy");
+    
+    for (uint32_t iteration = 0; iteration < max_iter; iteration++) {
         // Initialize the solution vectors
         for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
             sol_vecs[vec_idx].copy_vec(2, 0);
@@ -216,22 +226,28 @@ int main(int argc, char * argv[]) {
                 for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                     double d_prod = sol_vecs[vec_idx].dot(curr_trial.indices(), curr_trial.values(), curr_trial.curr_size(), trial_hashes[trial_idx].data());
                     d_prod = sum_mpi(d_prod, proc_rank, n_procs);
-                    if (proc_rank == 0) {
-                        fprintf(dmat_file, "%.9lf,", d_prod);
-                    }
+                    d_mat(trial_idx, vec_idx) = d_prod;
                     
                     d_prod = sol_vecs[vec_idx].dot(curr_htrial.indices(), curr_htrial.values(), curr_htrial.curr_size(), htrial_hashes[trial_idx].data());
                     d_prod = sum_mpi(d_prod, proc_rank, n_procs);
-                    if (proc_rank == 0) {
-                        fprintf(bmat_file, "%.9lf,", d_prod);
-                    }
-                }
-                if (proc_rank == 0) {
-                    fprintf(dmat_file, "\n");
-                    fprintf(bmat_file, "\n");
+                    b_mat(trial_idx, vec_idx) = d_prod;
                 }
             }
             if (proc_rank == 0) {
+                if (use_npy) {
+                    cnpy::npy_save(bnpy_path, b_mat.data(), {1, n_trial, n_trial}, "a");
+                    cnpy::npy_save(dnpy_path, d_mat.data(), {1, n_trial, n_trial}, "a");
+                }
+                else {
+                    for (uint16_t row_idx = 0; row_idx < n_trial; row_idx++) {
+                        for (uint16_t col_idx = 0; col_idx < n_trial - 1; col_idx++) {
+                            fprintf(bmat_file, "%.14lf,", b_mat(row_idx, col_idx));
+                            fprintf(dmat_file, "%.14lf,", d_mat(row_idx, col_idx));
+                        }
+                        fprintf(bmat_file, "%.14lf\n", b_mat(row_idx, n_trial - 1));
+                        fprintf(dmat_file, "%.14lf\n", d_mat(row_idx, n_trial - 1));
+                    }
+                }
                 printf("Krylov iteration %u\n", krylov_idx);
                 fflush(dmat_file);
                 fflush(bmat_file);
@@ -281,7 +297,7 @@ int main(int argc, char * argv[]) {
         //        LAPACKE_dgeev(LAPACK_ROW_MAJOR, 'N', 'N', n_trial, krylov_mat.data(), n_trial, energies_r, energies_i, NULL, n_trial, NULL, n_trial);
     }
     
-    if (proc_rank == 0) {
+    if (proc_rank == 0 && !use_npy) {
         fclose(bmat_file);
         fclose(dmat_file);
     }

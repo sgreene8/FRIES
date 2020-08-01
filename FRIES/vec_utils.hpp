@@ -153,6 +153,7 @@ private:
     int n_nonz_; ///< Current number of nonzero elements in vector, including all in the dense subspace
     double *curr_shift_; ///< If nonnull, used to calculate perturbative corrections from unsuccessful additions to the vector (see Ghanem et al., JCP 151, 224108, 2019)
     Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
+    size_t min_del_idx_; ///< Elements in \p values with indices less than this index will not be deleted when \p del_at_pos() is called
 protected:
     Matrix<uint8_t> indices_; ///< Array of indices of vector elements
     size_t max_size_; ///< Maximum number of vector elements that can be stored
@@ -313,11 +314,11 @@ public:
     double internal_dot(uint8_t idx1, uint8_t idx2) {
         double dprod = 0;
         if (idx1 >= values_.rows()) {
-            fprintf(stderr, "Error: idx1 argument to internal_dot (%u) exceeds bounds of value matrix (%u)\n", (unsigned int) idx1, values_.rows());
+            fprintf(stderr, "Error: idx1 argument to internal_dot (%u) exceeds bounds of value matrix (%zu)\n", (unsigned int) idx1, values_.rows());
             return 0;
         }
         if (idx2 >= values_.rows()) {
-            fprintf(stderr, "Error: idx2 argument to internal_dot (%u) exceeds bounds of value matrix (%u)\n", (unsigned int) idx2, values_.rows());
+            fprintf(stderr, "Error: idx2 argument to internal_dot (%u) exceeds bounds of value matrix (%zu)\n", (unsigned int) idx2, values_.rows());
             return 0;
         }
         for (size_t el_idx = 0; el_idx < curr_size_; el_idx++) {
@@ -453,11 +454,19 @@ public:
      * \param [in] pos          The position of the element to be deleted in \p indices_
      */
     void del_at_pos(size_t pos) {
-        uint8_t *idx = indices_[pos];
-        uintmax_t hash_val = idx_to_hash(idx, occ_orbs_[pos]);
-        push_stack(pos);
-        vec_hash_.del_entry(idx, hash_val);
-        n_nonz_--;
+        if (pos >= min_del_idx_) {
+            uint8_t *idx = indices_[pos];
+            uintmax_t hash_val = idx_to_hash(idx, occ_orbs_[pos]);
+            push_stack(pos);
+            vec_hash_.del_entry(idx, hash_val);
+            n_nonz_--;
+        }
+    }
+    
+    /*! \brief Set the \p min_del_idx parameter at \p curr_size_
+     */
+    void fix_min_del_idx() {
+        min_del_idx_ = curr_size_;
     }
     
     /*! \returns The array used to store values in the DistVec object */
