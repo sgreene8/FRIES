@@ -11,7 +11,8 @@
 #include <FRIES/compress_utils.hpp>
 #include <FRIES/Ext_Libs/argparse.hpp>
 #include <FRIES/Hamiltonians/molecule.hpp>
-#include <FRIES/Ext_Libs/LAPACK/lapacke.h>
+//#include <FRIES/Ext_Libs/LAPACK/lapacke.h>
+#include <FRIES/Ext_Libs/cnpy/cnpy.h>
 #include <stdexcept>
 
 struct MyArgs : public argparse::Args {
@@ -23,6 +24,7 @@ struct MyArgs : public argparse::Args {
     std::string trial_path = kwarg("trial_vecs", "Prefix for files containing the vectors with which to calculate the energy and initialize the calculation. Files must have names <trial_vecs>dets<xx> and <trial_vecs>vals<xx>, where xx is a 2-digit number ranging from 0 to (num_trial - 1), and be text files");
     uint8_t n_trial = kwarg("num_trial", "Number of trial vectors to use to calculate dot products with the iterates");
     uint16_t n_krylov = kwarg("n_krylov", "Number of multiplications by (1 - \eps H) to include in each iteration").set_default(1000);
+    bool use_npy = flag("use_numpy", "If set, output files will be in numpy (.npy) format. Otherwise, will be in text (.txt) format");
 
     CONSTRUCTOR(MyArgs);
 };
@@ -31,7 +33,6 @@ int main(int argc, char * argv[]) {
     MyArgs args(argc, argv);
     
     uint8_t n_trial = args.n_trial;
-    
     
     if (n_trial < 2) {
         fprintf(stderr, "Warning: Only 1 or 0 trial vectors were provided. Consider using the power method instead of Arnoldi in this case.\n");
@@ -98,7 +99,6 @@ int main(int argc, char * argv[]) {
     }
     size_t det_size = CEILING(2 * n_orb, 8);
     
-    uint8_t tmp_orbs[n_elec_unf];
     uint8_t (*orb_indices1)[4] = (uint8_t (*)[4])malloc(sizeof(char) * 4 * num_ex);
     
 # pragma mark Set up trial vectors
@@ -138,6 +138,7 @@ int main(int argc, char * argv[]) {
     std::vector<std::vector<uintmax_t>> trial_hashes(n_trial);
     std::vector<std::vector<uintmax_t>> htrial_hashes(n_trial);
     for (uint8_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
+        uint8_t tmp_orbs[n_elec_unf];
         DistVec<double> &curr_trial = trial_vecs[trial_idx];
         curr_trial.perform_add();
         curr_trial.collect_procs();
@@ -165,20 +166,20 @@ int main(int argc, char * argv[]) {
     
     if (proc_rank == 0) {
         // Setup output files
-        if (!use_npy) {
-            strcpy(file_path, result_dir);
+        if (!args.use_npy) {
+            strcpy(file_path, args.result_dir.c_str());
             strcat(file_path, "b_matrix.txt");
             bmat_file = fopen(file_path, "a");
             if (!bmat_file) {
-                fprintf(stderr, "Could not open file for writing in directory %s\n", result_dir);
+                fprintf(stderr, "Could not open file for writing in directory %s\n", args.result_dir.c_str());
             }
             
-            strcpy(file_path, result_dir);
+            strcpy(file_path, args.result_dir.c_str());
             strcat(file_path, "d_matrix.txt");
             dmat_file = fopen(file_path, "a");
         }
         
-        strcpy(file_path, result_dir);
+        strcpy(file_path, args.result_dir.c_str());
         strcat(file_path, "params.txt");
         FILE *param_f = fopen(file_path, "w");
         fprintf(param_f, "Arnoldi calculation\nHF path: %s\nepsilon (imaginary time step): %lf\nVector nonzero: %u\n", args.hf_path.c_str(), eps, args.target_nonz);
@@ -204,12 +205,12 @@ int main(int argc, char * argv[]) {
     
     Matrix<double> d_mat(n_trial, n_trial);
     Matrix<double> b_mat(n_trial, n_trial);
-    std::string dnpy_path(result_dir);
-    dnpy_path.append("d_matrix.npy");
-    std::string bnpy_path(result_dir);
-    bnpy_path.append("b_matrix.npy");
+    std::stringstream dnpy_path;
+    dnpy_path << args.result_dir << "d_matrix.npy";
+    std::stringstream bnpy_path;
+    bnpy_path << args.result_dir << "b_matrix.npy";
     
-    for (uint32_t iteration = 0; iteration < max_iter; iteration++) {
+    for (uint32_t iteration = 0; iteration < args.max_iter; iteration++) {
         // Initialize the solution vectors
         for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
             sol_vecs[vec_idx].copy_vec(2, 0);
@@ -234,9 +235,9 @@ int main(int argc, char * argv[]) {
                 }
             }
             if (proc_rank == 0) {
-                if (use_npy) {
-                    cnpy::npy_save(bnpy_path, b_mat.data(), {1, n_trial, n_trial}, "a");
-                    cnpy::npy_save(dnpy_path, d_mat.data(), {1, n_trial, n_trial}, "a");
+                if (args.use_npy) {
+                    cnpy::npy_save(bnpy_path.str(), b_mat.data(), {1, n_trial, n_trial}, "a");
+                    cnpy::npy_save(dnpy_path.str(), d_mat.data(), {1, n_trial, n_trial}, "a");
                 }
                 else {
                     for (uint16_t row_idx = 0; row_idx < n_trial; row_idx++) {
@@ -297,7 +298,7 @@ int main(int argc, char * argv[]) {
         //        LAPACKE_dgeev(LAPACK_ROW_MAJOR, 'N', 'N', n_trial, krylov_mat.data(), n_trial, energies_r, energies_i, NULL, n_trial, NULL, n_trial);
     }
     
-    if (proc_rank == 0 && !use_npy) {
+    if (proc_rank == 0 && !args.use_npy) {
         fclose(bmat_file);
         fclose(dmat_file);
     }

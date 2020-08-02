@@ -12,6 +12,7 @@
 #include <FRIES/compress_utils.hpp>
 #include <FRIES/Ext_Libs/argparse.hpp>
 #include <FRIES/Hamiltonians/molecule.hpp>
+#include <FRIES/Ext_Libs/cnpy/cnpy.h>
 #include <stdexcept>
 
 struct MyArgs : public argparse::Args {
@@ -21,8 +22,9 @@ struct MyArgs : public argparse::Args {
     std::string result_dir = kwarg("result_dir", "Directory in which to save output files").set_default<std::string>("./");
     uint32_t max_n_dets = kwarg("max_dets", "Maximum number of determinants on a single MPI process");
     std::string ini_path = kwarg("ini_vecs", "Prefix for files containing the vectors with which to initialize the calculation. Files must have names <ini_vecs>dets<xx> and <ini_vecs>vals<xx>, where xx is a 2-digit number ranging from 0 to (num_states - 1), and be text files");
-    uint8_t n_states = kwarg("num_states", "Number of states whose energies will be computed");
+    uint32_t n_states = kwarg("num_states", "Number of states whose energies will be computed");
     uint16_t n_krylov = kwarg("n_krylov", "Number of multiplications by (1 - \eps H) to include in each iteration").set_default(1000);
+    bool use_npy = flag("use_numpy", "If set, output files will be in numpy (.npy) format. Otherwise, will be in text (.txt) format");
 
     CONSTRUCTOR(MyArgs);
 };
@@ -96,11 +98,10 @@ int main(int argc, char * argv[]) {
     // vector 2: temporary vector for off-diagonal multiplication
     // vector 3: initial vector
     for (uint8_t vec_idx = 0; vec_idx < n_states; vec_idx++) {
-        sol_vecs.emplace_back(max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, nullptr, 4, proc_scrambler, vec_scrambler);
+        sol_vecs.emplace_back(args.max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, nullptr, 4, proc_scrambler, vec_scrambler);
     }
     size_t det_size = CEILING(2 * n_orb, 8);
     
-    uint8_t tmp_orbs[n_elec_unf];
     uint8_t (*orb_indices1)[4] = (uint8_t (*)[4])malloc(sizeof(char) * 4 * spawn_length);
     
 # pragma mark Set up vectors
@@ -128,17 +129,19 @@ int main(int argc, char * argv[]) {
     FILE *dmat_file = NULL;
     
     if (proc_rank == 0) {
-        // Setup output files
-        strcpy(file_path, args.result_dir.c_str());
-        strcat(file_path, "b_matrix.txt");
-        bmat_file = fopen(file_path, "a");
-        if (!bmat_file) {
-            fprintf(stderr, "Could not open file for writing in directory %s\n", args.result_dir.c_str());
+        // Setup output filess
+        if (!args.use_npy) {
+            strcpy(file_path, args.result_dir.c_str());
+            strcat(file_path, "b_matrix.txt");
+            bmat_file = fopen(file_path, "a");
+            if (!bmat_file) {
+                fprintf(stderr, "Could not open file for writing in directory %s\n", args.result_dir.c_str());
+            }
+            
+            strcpy(file_path, args.result_dir.c_str());
+            strcat(file_path, "d_matrix.txt");
+            dmat_file = fopen(file_path, "a");
         }
-        
-        strcpy(file_path, args.result_dir.c_str());
-        strcat(file_path, "d_matrix.txt");
-        dmat_file = fopen(file_path, "a");
         
         strcpy(file_path, args.result_dir.c_str());
         strcat(file_path, "params.txt");
@@ -164,6 +167,13 @@ int main(int argc, char * argv[]) {
     }
     std::vector<bool> keep_exact(max_n_dets, false);
     
+    Matrix<double> d_mat(n_states, n_states);
+    Matrix<double> b_mat(n_states, n_states);
+    std::stringstream dnpy_path;
+    dnpy_path << args.result_dir << "d_matrix.npy";
+    std::stringstream bnpy_path;
+    bnpy_path << args.result_dir << "b_matrix.npy";
+    
     for (uint32_t iteration = 0; iteration < args.max_iter; iteration++) {
         // Initialize the solution vectors
         for (uint16_t vec_idx = 0; vec_idx < n_states; vec_idx++) {
@@ -176,8 +186,6 @@ int main(int argc, char * argv[]) {
         for (uint16_t krylov_idx = 0; krylov_idx < args.n_krylov; krylov_idx++) {
             if (proc_rank == 0) {
                 printf("Krylov iteration %u\n", krylov_idx);
-                fflush(dmat_file);
-                fflush(bmat_file);
             }
             
 # pragma mark Matrix multiplication
@@ -215,15 +223,27 @@ int main(int argc, char * argv[]) {
                     }
                     // <v|(1 - \eps H)|v> = <v|v> - \eps <v|H|v>
                     vec_H_ovlp = -(vec_H_ovlp - vec_ovlp) / eps;
-                    if (proc_rank == 0) {
-                        fprintf(dmat_file, "%.9lf,", vec_ovlp);
-                        fprintf(bmat_file, "%.9lf,", vec_H_ovlp);
+                    b_mat(vecl_idx, vecr_idx) = vec_H_ovlp;
+                    d_mat(vecl_idx, vecr_idx) = vec_ovlp;
+                }
+            }
+            if (proc_rank == 0) {
+                if (args.use_npy) {
+                    cnpy::npy_save(bnpy_path.str(), b_mat.data(), {1, n_states, n_states}, "a");
+                    cnpy::npy_save(dnpy_path.str(), d_mat.data(), {1, n_states, n_states}, "a");
+                }
+                else {
+                    for (uint16_t row_idx = 0; row_idx < n_states; row_idx++) {
+                        for (uint16_t col_idx = 0; col_idx < n_states - 1; col_idx++) {
+                            fprintf(bmat_file, "%.14lf,", b_mat(row_idx, col_idx));
+                            fprintf(dmat_file, "%.14lf,", d_mat(row_idx, col_idx));
+                        }
+                        fprintf(bmat_file, "%.14lf\n", b_mat(row_idx, n_states - 1));
+                        fprintf(dmat_file, "%.14lf\n", d_mat(row_idx, n_states - 1));
                     }
                 }
-                if (proc_rank == 0) {
-                    fprintf(dmat_file, "\n");
-                    fprintf(bmat_file, "\n");
-                }
+                fflush(dmat_file);
+                fflush(bmat_file);
             }
             
             size_t new_max_dets = max_n_dets;
@@ -234,10 +254,37 @@ int main(int argc, char * argv[]) {
                     new_max_dets = curr_vec.max_size();
                 }
             }
+                        
+            if (new_max_dets > max_n_dets) {
+                keep_exact.resize(new_max_dets, false);
+                srt_arr.resize(new_max_dets);
+            }
+#pragma mark Vector compression
+            for (uint16_t vec_idx = 0; vec_idx < n_states; vec_idx++) {
+                unsigned int n_samp = args.target_nonz;
+                double glob_norm;
+                for (size_t det_idx = 0; det_idx < sol_vecs[vec_idx].curr_size(); det_idx++) {
+                    srt_arr[det_idx] = det_idx;
+                }
+                loc_norms[proc_rank] = find_preserve(sol_vecs[vec_idx].values(), srt_arr.data(), keep_exact, sol_vecs[vec_idx].curr_size(), &n_samp, &glob_norm);
+                if (proc_rank == 0) {
+                    rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
+                }
+#ifdef USE_MPI
+                MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+#endif
+                sys_comp(sol_vecs[vec_idx].values(), sol_vecs[vec_idx].curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
+                for (size_t det_idx = 0; det_idx < sol_vecs[vec_idx].curr_size(); det_idx++) {
+                    if (keep_exact[det_idx]) {
+                        sol_vecs[vec_idx].del_at_pos(det_idx);
+                        keep_exact[det_idx] = 0;
+                    }
+                }
+            }
         }
     }
     
-    if (proc_rank == 0) {
+    if (proc_rank == 0 && !args.use_npy) {
         fclose(bmat_file);
         fclose(dmat_file);
     }
