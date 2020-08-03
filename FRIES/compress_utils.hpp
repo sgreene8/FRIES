@@ -18,6 +18,7 @@
 #include <FRIES/ndarr.hpp>
 #include <functional>
 #include <iostream>
+#include <sstream>
 
 /*! \brief Round a non-integral number binomially.
  *

@@ -20,6 +20,7 @@
 #include <vector>
 #include <stack>
 #include <functional>
+#include <sstream>
 
 using namespace std;
 
@@ -314,12 +315,14 @@ public:
     double internal_dot(uint8_t idx1, uint8_t idx2) {
         double dprod = 0;
         if (idx1 >= values_.rows()) {
-            fprintf(stderr, "Error: idx1 argument to internal_dot (%u) exceeds bounds of value matrix (%zu)\n", (unsigned int) idx1, values_.rows());
-            return 0;
+            std::stringstream error;
+            error << "Error: idx1 argument to internal_dot (" << (unsigned int) idx1 << ") exceeds bounds of value matrix (" << values_.rows();
+            throw std::runtime_error(error.str());
         }
         if (idx2 >= values_.rows()) {
-            fprintf(stderr, "Error: idx2 argument to internal_dot (%u) exceeds bounds of value matrix (%zu)\n", (unsigned int) idx2, values_.rows());
-            return 0;
+            std::stringstream error;
+            error << "Error: idx2 argument to internal_dot (" << (unsigned int) idx2 << ") exceeds bounds of value matrix (" << values_.rows();
+            throw std::runtime_error(error.str());
         }
         for (size_t el_idx = 0; el_idx < curr_size_; el_idx++) {
             dprod += values_(idx1, el_idx) * values_(idx2, el_idx);
@@ -390,7 +393,9 @@ public:
             uint8_t n_bytes = indices_.cols();
             char det_txt[n_bytes * 2 + 1];
             print_str(idx, n_bytes, det_txt);
-            fprintf(stderr, "Error: determinant %s created with an incorrect number of electrons.\n", det_txt);
+            std::stringstream error;
+            error << "Determinant " << det_txt << "created with an incorrect number of electrons";
+            throw std::runtime_error(error.str());
         }
         return vec_hash_.hash_fxn(orbs, n_elec, NULL, 0);
     }
@@ -549,7 +554,9 @@ public:
             curr_vec_idx_ = new_idx;
         }
         else {
-            fprintf(stderr, "Error: argument to set_curr_vec_idx is out of bounds.\n");
+            std::stringstream error;
+            error << "Argument to set_curr_vec_idx (" << (unsigned int) new_idx << ") is out of bounds";
+            throw std::runtime_error(error.str());
         }
     }
     
@@ -731,8 +738,9 @@ public:
         sprintf(buffer, "%sdets%d.dat", path, my_rank);
         FILE *file_p = fopen(buffer, "rb");
         if (!file_p) {
-            fprintf(stderr, "Error: could not open saved binary vector file at %s\n", buffer);
-            return n_dense_;
+            std::stringstream msg;
+            msg << "Could not open saved binary vector file at path " << buffer;
+            throw std::runtime_error(msg.str());
         }
         n_dets = fread(indices_.data(), n_bytes, 10000000, file_p);
         fclose(file_p);
@@ -740,8 +748,9 @@ public:
         sprintf(buffer, "%svals%d.dat", path, my_rank);
         file_p = fopen(buffer, "rb");
         if (!file_p) {
-            fprintf(stderr, "Error: could not open saved binary vector file at %s\n", buffer);
-            return n_dense_;
+            std::stringstream msg;
+            msg << "Could not open saved binary vector file at path " << buffer;
+            throw std::runtime_error(msg.str());
         }
         for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
             (void) fread(values_[vec_idx], el_size, n_dets, file_p);
@@ -810,18 +819,20 @@ public:
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, dense_sizes, 1, MPI_INT, MPI_COMM_WORLD);
 #endif
         if (my_rank == 0) {
-            char buf[200];
-            sprintf(buf, "%sdense.txt", save_dir);
-            FILE *dense_f = fopen(buf, "w");
-            if (!dense_f) {
-                fprintf(stderr, "Error opening file at %s\n", buf);
-                return n_dense_;
+            std::stringstream buf;
+            buf << save_dir << "dense.txt";
+            std::ofstream dense_f;
+            dense_f.open(buf.str());
+            if (!dense_f.is_open()) {
+                std::stringstream msg;
+                msg << "Could not load deterministic subspace from file at path " << buf.str();
+                throw std::runtime_error(msg.str());
             }
             for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-                fprintf(dense_f, "%d,", dense_sizes[proc_idx]);
+                dense_f << dense_sizes[proc_idx] << ",";
             }
-            fprintf(dense_f, "\n");
-            fclose(dense_f);
+            dense_f << "\n";
+            dense_f.close();
         }
         return n_dense_;
     }

@@ -80,7 +80,9 @@ public:
             uint8_t n_bytes = DistVec<el_type>::indices_.cols();
             char det_txt[n_bytes * 2 + 1];
             print_str(idx, n_bytes, det_txt);
-            fprintf(stderr, "Error: determinant %s created with an incorrect number of electrons.\n", det_txt);
+            std::stringstream error;
+            error << "Determinant " << det_txt << "created with an incorrect number of electrons";
+            throw std::runtime_error(error.str());
         }
         uint8_t phonons[n_sites_];
         decode_phonons(idx, phonons);
@@ -214,7 +216,7 @@ public:
         uint16_t mask = (1 << ((bit_idx % 8) + ph_bits_)) - (1 << (bit_idx % 8));
         uint16_t ph_num = (det_segment & mask) >> (bit_idx % 8);
         if (change == 1 && ph_num == ((1 << ph_bits_) - 1)) {
-            fprintf(stderr, "Warning: max phonon number reached\n");
+            std::cerr << "Warning: maximum phonon number reached\n";
             return 0;
         }
         if (change == -1 && ph_num == 0) {

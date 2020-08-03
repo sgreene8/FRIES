@@ -83,8 +83,7 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     strcat(buffer, "sys_params.txt");
     FILE *file_p = fopen(buffer, "r");
     if (!file_p) {
-        fprintf(stderr, "Error: could not open file sys_params.txt\n");
-        return -1;
+        throw std::runtime_error("Could not open file sys_params.txt");
     }
     
     char *str_p = fgets(buffer, sizeof(buffer), file_p);
@@ -97,8 +96,7 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
         sscanf(buffer, "%u", &(in_struct->n_elec));
     }
     else {
-        fprintf(stderr, "Error: could not find n_elec parameter in sys_params.txt\n");
-        return -1;
+        throw std::runtime_error("Fould not find n_elec parameter in sys_params.txt");
     }
     
     str_p = fgets(buffer, sizeof(buffer), file_p);
@@ -112,8 +110,7 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
         sscanf(buffer, "%u", &n_frz);
     }
     else {
-        fprintf(stderr, "Error: could not find n_frozen parameter in sys_params.txt\n");
-        return -1;
+        throw std::runtime_error("Fould not find n_frozen parameter in sys_params.txt");
     }
     in_struct->n_frz = n_frz;
     
@@ -127,8 +124,7 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
         sscanf(buffer, "%u", &(in_struct->n_orb));
     }
     else {
-        fprintf(stderr, "Error: could not find n_orb parameter in sys_params.txt\n");
-        return -1;
+        throw std::runtime_error("Fould not find n_orb parameter in sys_params.txt");
     }
     
     str_p = fgets(buffer, sizeof(buffer), file_p);
@@ -141,8 +137,7 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
         sscanf(buffer, "%lf", &(in_struct->eps));
     }
     else {
-        fprintf(stderr, "Error: could not find eps parameter in sys_params.txt\n");
-        return -1;
+        throw std::runtime_error("Fould not find eps parameter in sys_params.txt");
     }
     
     str_p = fgets(buffer, sizeof(buffer), file_p);
@@ -155,8 +150,7 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
         sscanf(buffer, "%lf", &(in_struct->hf_en));
     }
     else {
-        fprintf(stderr, "Error: could not find hf_energy parameter in sys_params.txt\n");
-        return -1;
+        throw std::runtime_error("Fould not find hf_energy parameter in sys_params.txt");
     }
     
     fclose(file_p);
@@ -173,8 +167,9 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     in_struct->hcore = new Matrix<double>(tot_orb, tot_orb);
     size_t n_read = read_csv((*(in_struct->hcore)).data(), buffer);
     if (n_read < tot_orb * tot_orb) {
-        fprintf(stderr, "Error reading values from %s\n", buffer);
-        return -1;
+        std::stringstream msg;
+        msg << "Could not read " << tot_orb * tot_orb << " elements from " << buffer;
+        throw std::runtime_error(msg.str());
     }
     
     strcpy(buffer, hf_dir);
@@ -182,8 +177,9 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     in_struct->eris = new FourDArr(tot_orb, tot_orb, tot_orb, tot_orb);
     n_read = read_csv(in_struct->eris->data(), buffer);
     if (n_read < tot_orb * tot_orb * tot_orb * tot_orb) {
-        fprintf(stderr, "Error reading values from %s\n", buffer);
-        return -1;
+        std::stringstream msg;
+        msg << "Could not read " << tot_orb * tot_orb * tot_orb * tot_orb << " elements from " << buffer;
+        throw std::runtime_error(msg.str());
     }
     
     return 0;

@@ -79,7 +79,7 @@ public:
         if (collisions > 20) {
             char det_str[2 * idx_size_];
             print_str(det, idx_size_, det_str);
-            fprintf(stderr, "Line %zu in the hash table has >20 hash collisions (det: %s, hash: %ju, %s)\n", table_idx, det_str, hash_val, ret_ptr ? "found" : "not found");
+            std::cerr << "Line " << table_idx << " in the hash table has >20 hash collisions (det: " << det_str << ", hash: " << hash_val << ", " << (ret_ptr ? "found" : "not found") << ")\n";
         }
         if (!ret_ptr && create) {
             list.emplace_front(idx_size_);

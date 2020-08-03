@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
+#include <sstream>
 #include <FRIES/Ext_Libs/csvparser.h>
 #include <FRIES/mpi_switch.h>
 #include <FRIES/vec_utils.hpp>

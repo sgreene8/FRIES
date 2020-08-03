@@ -797,7 +797,9 @@ size_t comp_sub(double *values, size_t count, unsigned int *n_div,
     unsigned int tmp_nsamp = n_samp;
     double loc_norms[n_procs];
     if (keep_idx.cols() != sub_weights.cols()) {
-        fprintf(stderr, "Error in comp_sub: column dimension of sub_weights does not equal column dimension of keep_idx.\n");
+        std::stringstream msg;
+        msg << "Error in comp_sub: column dimension of sub_weights (" << sub_weights.cols() << ") does not equal column dimension of keep_idx (" << keep_idx.cols() << "\n";
+        throw std::runtime_error(msg.str());
         return 0;
     }
     
