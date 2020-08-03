@@ -23,8 +23,12 @@ target_link_libraries(frisys_hh PRIVATE fries)
 add_executable(arnoldi_mol arnoldi_mol.cpp)
 target_link_libraries(arnoldi_mol PRIVATE fries)
 target_link_libraries(arnoldi_mol PRIVATE cnpy)
-find_package(LAPACK REQUIRED)
-target_link_libraries(arnoldi_mol PRIVATE ${LAPACK_LIBRARIES})
+#find_package(LAPACK REQUIRED)
+#target_link_libraries(arnoldi_mol PRIVATE ${LAPACK_LIBRARIES})
+
+add_executable(symm_arnoldi_mol symm_arnoldi_mol.cpp)
+target_link_libraries(symm_arnoldi_mol PRIVATE fries)
+target_link_libraries(symm_arnoldi_mol PRIVATE cnpy)
 
 install(
     TARGETS
@@ -35,6 +39,7 @@ install(
         frifull_hh
         frifull_mol
         arnoldi_mol
+        symm_arnoldi_mol
         frisys_hh
     RUNTIME
         DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}
