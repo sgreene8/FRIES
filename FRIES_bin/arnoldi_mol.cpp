@@ -22,7 +22,7 @@ struct MyArgs : public argparse::Args {
     std::string result_dir = kwarg("result_dir", "Directory in which to save output files").set_default<std::string>("./");
     uint32_t max_n_dets = kwarg("max_dets", "Maximum number of determinants on a single MPI process");
     std::string trial_path = kwarg("trial_vecs", "Prefix for files containing the vectors with which to calculate the energy and initialize the calculation. Files must have names <trial_vecs>dets<xx> and <trial_vecs>vals<xx>, where xx is a 2-digit number ranging from 0 to (num_trial - 1), and be text files");
-    uint8_t n_trial = kwarg("num_trial", "Number of trial vectors to use to calculate dot products with the iterates");
+    uint16_t n_trial = kwarg("num_trial", "Number of trial vectors to use to calculate dot products with the iterates");
     uint16_t n_krylov = kwarg("n_krylov", "Number of multiplications by (1 - \eps H) to include in each iteration").set_default(1000);
     bool use_npy = flag("use_numpy", "If set, output files will be in numpy (.npy) format. Otherwise, will be in text (.txt) format");
     
