@@ -93,10 +93,12 @@ int main(int argc, char * argv[]) {
             vec_scrambler[det_idx] = genrand_mt(rngen_ptr);
         }
         
+        Adder<double> shared_adder(adder_size, n_procs, n_orb * 2);
+        
         std::vector<DistVec<double>> sol_vecs;
         sol_vecs.reserve(n_trial);
         for (uint8_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
-            sol_vecs.emplace_back(args.max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, nullptr, 3, proc_scrambler, vec_scrambler);
+            sol_vecs.emplace_back(args.max_n_dets, &shared_adder, n_orb * 2, n_elec_unf, diag_shortcut, nullptr, 3, proc_scrambler, vec_scrambler);
         }
         size_t det_size = CEILING(2 * n_orb, 8);
         
@@ -120,19 +122,25 @@ int main(int argc, char * argv[]) {
 #ifdef USE_MPI
             MPI_Bcast(&glob_n_dets, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 #endif
-            trial_vecs.emplace_back(glob_n_dets, glob_n_dets, n_orb * 2, n_elec_unf, n_procs, proc_scrambler, vec_scrambler);
-            htrial_vecs.emplace_back(glob_n_dets * num_ex / n_procs, glob_n_dets * num_ex / n_procs, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, (double *)NULL, 2, proc_scrambler, vec_scrambler);
+            trial_vecs.emplace_back(glob_n_dets, &shared_adder, n_orb * 2, n_elec_unf, proc_scrambler, vec_scrambler);
+            htrial_vecs.emplace_back(glob_n_dets * num_ex / n_procs, &shared_adder, n_orb * 2, n_elec_unf, diag_shortcut, (double *)NULL, 2, proc_scrambler, vec_scrambler);
             
-            curr_sol.set_curr_vec_idx(2);
             for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
                 trial_vecs[trial_idx].add(load_dets[0][det_idx], load_vals[det_idx], 1);
+            }
+            trial_vecs[trial_idx].perform_add();
+            for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
                 htrial_vecs[trial_idx].add(load_dets[0][det_idx], load_vals[det_idx], 1);
+            }
+            htrial_vecs[trial_idx].perform_add();
+            curr_sol.set_curr_vec_idx(2);
+            for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
                 curr_sol.add(load_dets[0][det_idx], load_vals[det_idx], 1);
             }
-            loc_n_dets++; // just to be safe
-            bzero(load_vals, loc_n_dets * sizeof(double));
             curr_sol.perform_add();
             curr_sol.fix_min_del_idx();
+            loc_n_dets++; // just to be safe
+            bzero(load_vals, loc_n_dets * sizeof(double));
         }
         delete load_dets;
         
@@ -141,7 +149,6 @@ int main(int argc, char * argv[]) {
         for (uint8_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
             uint8_t tmp_orbs[n_elec_unf];
             DistVec<double> &curr_trial = trial_vecs[trial_idx];
-            curr_trial.perform_add();
             curr_trial.collect_procs();
             trial_hashes[trial_idx].reserve(curr_trial.curr_size());
             for (size_t det_idx = 0; det_idx < curr_trial.curr_size(); det_idx++) {
@@ -149,13 +156,12 @@ int main(int argc, char * argv[]) {
             }
             
             DistVec<double> &curr_htrial = htrial_vecs[trial_idx];
-            curr_htrial.perform_add();
             h_op_offdiag(curr_htrial, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, 1, 1);
             curr_htrial.set_curr_vec_idx(0);
             h_op_diag(curr_htrial, 0, 0, 1);
             curr_htrial.add_vecs(0, 1);
             curr_htrial.collect_procs();
-            htrial_hashes[trial_idx].reserve(   curr_htrial.curr_size());
+            htrial_hashes[trial_idx].reserve(curr_htrial.curr_size());
             for (size_t det_idx = 0; det_idx < curr_htrial.curr_size(); det_idx++) {
                 htrial_hashes[trial_idx][det_idx] = sol_vecs[0].idx_to_hash(curr_htrial.indices()[det_idx], tmp_orbs);
             }

@@ -65,9 +65,8 @@ public:
      * Allocates memory for the internal buffers in the class
      * \param [in] size     Maximum number of elements per MPI process in send and receive buffers
      * \param [in] n_procs  The number of processes
-     * \param [in] vec         The vector to which elements will be added
      */
-    Adder(size_t size, int n_procs, uint8_t n_bits, DistVec<el_type> *vec) : n_bytes_(CEILING(n_bits + 1, 8)), send_idx_(n_procs, size * CEILING(n_bits + 1, 8)), send_vals_(n_procs, size), recv_idx_(n_procs, size * CEILING(n_bits + 1, 8)), recv_vals_(n_procs, size), parent_vec_(vec), send_cts_(n_procs), recv_cts_(n_procs), idx_disp_(n_procs), val_disp_(n_procs) {
+    Adder(size_t size, int n_procs, uint8_t n_bits) : n_bytes_(CEILING(n_bits + 1, 8)), send_idx_(n_procs, size * CEILING(n_bits + 1, 8)), send_vals_(n_procs, size), recv_idx_(n_procs, size * CEILING(n_bits + 1, 8)), recv_vals_(n_procs, size), send_cts_(n_procs), recv_cts_(n_procs), idx_disp_(n_procs), val_disp_(n_procs) {
         for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
             val_disp_[proc_idx] = proc_idx * (int)size;
             idx_disp_[proc_idx] = proc_idx * (int)size * n_bytes_;
@@ -76,20 +75,25 @@ public:
     }
     
     /*! \brief Remove the elements from the internal buffers and send them to the DistVec objects on their corresponding MPI processes for addition
+     *
+     * \param [in] parent_vec   Pointer to the DistVec object to which elements will be added
      */
-    void perform_add();
+    void perform_add(DistVec<el_type> *parent_vec);
     
     /*! \brief Remove elements from internal buffers and send them to the DistVec objects on their corresponding MPI processes for taking dot products
+     *
+     * \param [in] parent_vec   Pointer to the DistVec object associated with this dot product operation
      */
-    double perform_dot();
+    double perform_dot(DistVec<el_type> *parent_vec);
     
     /*! \brief Add an element to the internal buffers
      * \param [in] idx      Index of the element to be added
+     * \param [in] idx_bits     Number of bits used to encode the index
      * \param [in] val      Value of the added element
      * \param [in] ini_flag     Either 1 or 0, indicates initiator status of the added element
      * \return The index of the added element in the buffer
      */
-    size_t add(uint8_t *idx, el_type val, int proc_idx, uint8_t ini_flag);
+    size_t add(uint8_t *idx, uint8_t idx_bits, el_type val, int proc_idx, uint8_t ini_flag);
     
     size_t size() const {
         return send_vals_.cols();
@@ -109,13 +113,12 @@ private:
     std::vector<int> recv_cts_; ///< Number of elements in the receive buffer for each process
     std::vector<int> idx_disp_; ///< Displacements for MPI send/receive operations for indices
     std::vector<int> val_disp_; ///< Displacements for MPI send/receive operations for values
-    DistVec<el_type> *parent_vec_; ///<The DistVec object to which elements are added
     uint8_t n_bytes_; ///< Number of bytes used to encode each index in the send and receive buffers
     
 /*! \brief Increase the size of the buffer for temporarily storing added elements
  */
     void enlarge_() {
-        printf("Increasing storage capacity in adder\n");
+        std::cout << "Increasing storage capacity in adder to " << send_vals_.cols() * 2 << " elements per process\n";
         size_t n_proc = send_idx_.rows();
         size_t new_idx_cols = send_idx_.cols() * 2;
         size_t new_val_cols = send_vals_.cols() * 2;
@@ -141,11 +144,15 @@ private:
  * \brief Class for storing and manipulating a sparse vector
  * \tparam el_type Type of elements in the vector
  * Elements of the vector are distributed across many MPI processes, and hashing is used for efficient indexing
+ * This class allows for multiple element values to be associated with each vector index, allowing for the storage
+ * of multiple sparse vectors in a single \p DistVec object. This is useful for manipulating multiple sparse
+ * vectors that are likely to have many nonzero elements in common. The values for all vectors are stored in the
+ * \p values_ matrix, and \p HashTable objects handle the indexing for the elements in all vectors.
  */
 template <class el_type>
 class DistVec {
 private:
-    Matrix<el_type> values_; ///< Values of vector elements
+    Matrix<el_type> values_; ///< Values of elements for each of the sparse vectors stored in this object
     uint8_t curr_vec_idx_; ///< Current vector to consider when adding, accessing elements, etc.
     std::vector<double> ini_success_; ///< Vector used to accumulate the sum of PT2 weights from successful additions to the vector (eq 9 in Ghanem et al., JCP 151, 224108, 2019)
     std::vector<double> ini_fail_; ///< Vector used to accumulate the sum of PT2 weights from unsuccessful additions to the vector (eq 10 in Ghanem et al., JCP 151, 224108, 2019)
@@ -153,7 +160,7 @@ private:
     std::stack<size_t> vec_stack_; ///< Pointer to top of stack for managing available positions in the indices array
     int n_nonz_; ///< Current number of nonzero elements in vector, including all in the dense subspace
     double *curr_shift_; ///< If nonnull, used to calculate perturbative corrections from unsuccessful additions to the vector (see Ghanem et al., JCP 151, 224108, 2019)
-    Adder<el_type> adder_; ///< Pointer to adder struct for buffered addition of elements distributed across MPI processes
+    Adder<el_type> *adder_; ///< Pointer to adder object for buffered addition of elements distributed across MPI processes
     size_t min_del_idx_; ///< Elements in \p values with indices less than this index will not be deleted when \p del_at_pos() is called
 protected:
     Matrix<uint8_t> indices_; ///< Array of indices of vector elements
@@ -178,17 +185,29 @@ protected:
 public:
     
     DistVec(size_t size, size_t add_size, uint8_t n_bits,
-            unsigned int n_elec, int n_procs, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns_distinct), proc_hash_(0, rns_common) { }
+            unsigned int n_elec, int n_procs, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(new Adder<el_type>(add_size, n_procs, n_bits)), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns_distinct), proc_hash_(0, rns_common) { }
+    
+    DistVec(size_t size, Adder<el_type> *adder, uint8_t n_bits,
+            unsigned int n_elec, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(adder), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns_distinct), proc_hash_(0, rns_common) { }
     
     /*! \brief Constructor for DistVec object
-    * \param [in] size         Maximum number of elements to be stored in the vector
-    * \param [in] add_size     Maximum number of elements per processor to use in Adder object
-    * \param [in] n_bits        Number of bits used to encode each index of the vector
-    * \param [in] n_elec       Number of electrons represented in each vector index
-     * \param [in] n_procs Number of MPI processes over which to distribute vector elements
+     * \param [in] size         Maximum number of elements to be stored in the vector
+     * \param [in] add_size     Maximum number of elements per processor to use in Adder object
+     * \param [in] n_bits        Number of bits used to encode each index of the vector
+     * \param [in] n_elec       Number of electrons represented in each vector index
+     * \param [in] n_procs      Number of MPI processes over which to distribute vector elements
+     * \param [in] diag_fxn     Function used to calculate the diagonal matrix element for a vector element
+     * \param [in] shift_ptr        Pointer to a running estimate of the ground-state energy to use for perturbative additions to the vector
+     * \param [in] n_vecs       Number of vectors to store in parallel in this DistVec object
+     * \param [in] rns_common   Vector of random numbers that is the same on all MPI processes
+     * \param [in] rns_distinct A different vector of random numbers that need not be common to
+     * all MPI processes, but should not be the same as \p rns_common
      */
     DistVec(size_t size, size_t add_size, uint8_t n_bits,
-            unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(add_size, n_procs, n_bits, this), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns_distinct), proc_hash_(0, rns_common) { }
+            unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(new Adder<el_type>(add_size, n_procs, n_bits)), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns_distinct), proc_hash_(0, rns_common) { }
+    
+    DistVec(size_t size, Adder<el_type> *adder, uint8_t n_bits,
+            unsigned int n_elec, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(adder), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns_distinct), proc_hash_(0, rns_common) { }
     
     uint8_t n_bits() {
         return n_bits_;
@@ -300,7 +319,7 @@ public:
                 el_idx++;
             }
             num_added = sum_mpi(num_added, proc_rank, n_procs);
-            tot_dprod += adder_.perform_dot();
+            tot_dprod += adder_->perform_dot(this);
         }
         return tot_dprod;
     }
@@ -417,13 +436,13 @@ public:
      */
     void add(uint8_t *idx, el_type val, uint8_t ini_flag) {
         if (val != 0) {
-            adder_.add(idx, val, idx_to_proc(idx), ini_flag);
+            adder_->add(idx, n_bits_, val, idx_to_proc(idx), ini_flag);
         }
     }
     
     size_t add(uint8_t *idx, uint8_t *orbs, el_type val, uint8_t ini_flag, int *proc_idx) {
         *proc_idx = idx_to_proc(idx, orbs);
-        return adder_.add(idx, val, *proc_idx, ini_flag);
+        return adder_->add(idx, n_bits_, val, *proc_idx, ini_flag);
     }
 
     /*! \brief Incorporate elements from the Adder buffer into the vector
@@ -432,7 +451,7 @@ public:
      * flags. Otherwise, only elements with nonzero initiator flags are added
      */
     void perform_add() {
-        adder_.perform_add();
+        adder_->perform_add(this);
     }
     
     /*! \brief Get the index of an unused intermediate index in the \p indices_ array, or -1 if none exists */
@@ -500,7 +519,7 @@ public:
     }
     
     size_t adder_size() const {
-        return adder_.size();
+        return adder_->size();
     }
     
     /*! \brief Get the maximum number of elements the vector can store*/
@@ -914,7 +933,7 @@ public:
      */
     void add_ini_weight(size_t row, size_t col, size_t idx) {
         double weight;
-        bool success = adder_.get_add_result(row, col, &weight);
+        bool success = adder_->get_add_result(row, col, &weight);
         weight = fabs(weight);
         if (success) {
             ini_success_[idx] += weight;
@@ -942,13 +961,12 @@ public:
 
 
 template <class el_type>
-size_t Adder<el_type>::add(uint8_t *idx, el_type val, int proc_idx, uint8_t ini_flag) {
+size_t Adder<el_type>::add(uint8_t *idx, uint8_t idx_bits, el_type val, int proc_idx, uint8_t ini_flag) {
     int *count = &send_cts_[proc_idx];
     if (*count == send_vals_.cols()) {
         enlarge_();
     }
     uint8_t *cpy_idx = &send_idx_[proc_idx][*count * n_bytes_];
-    uint8_t idx_bits = parent_vec_->n_bits();
     cpy_idx[n_bytes_ - 1] = 0; // To prevent buffer overflow in hash function after elements are added
     memcpy(cpy_idx, idx, CEILING(idx_bits, 8));
     if (ini_flag) {
@@ -961,7 +979,7 @@ size_t Adder<el_type>::add(uint8_t *idx, el_type val, int proc_idx, uint8_t ini_
 }
 
 template <class el_type>
-void Adder<el_type>::perform_add() {
+void Adder<el_type>::perform_add(DistVec<el_type> *parent_vec) {
     int n_procs = 1;
     
     size_t el_size = sizeof(el_type);
@@ -988,7 +1006,7 @@ void Adder<el_type>::perform_add() {
 #endif
     // Move elements from receiving buffers to vector
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-        parent_vec_->add_elements(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx], Matrix<bool>::RowReference(recv_idx_[proc_idx]));
+        parent_vec->add_elements(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx], Matrix<bool>::RowReference(recv_idx_[proc_idx]));
     }
 #ifdef USE_MPI
     mpi_atoav(recv_vals_.data(), recv_cts_.data(), val_disp_.data(), send_vals_.data(), send_cts_.data());
@@ -1010,7 +1028,7 @@ void Adder<el_type>::perform_add() {
 
 
 template <class el_type>
-double Adder<el_type>::perform_dot() {
+double Adder<el_type>::perform_dot(DistVec<el_type> *parent_vec) {
     int n_procs = 1;
     int my_rank = 0;
     size_t el_size = sizeof(el_type);
@@ -1038,7 +1056,7 @@ double Adder<el_type>::perform_dot() {
 #endif
     double d_prod = 0;
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-        d_prod += parent_vec_->dot(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx]);
+        d_prod += parent_vec->dot(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx]);
         send_cts_[proc_idx] = 0;
     }
     d_prod = sum_mpi(d_prod, my_rank, n_procs);

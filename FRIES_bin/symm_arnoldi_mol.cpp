@@ -92,6 +92,8 @@ int main(int argc, char * argv[]) {
             vec_scrambler[det_idx] = genrand_mt(rngen_ptr);
         }
         
+        Adder<double> shared_adder(adder_size, n_procs, n_orb * 2);
+        
         std::vector<DistVec<double>> sol_vecs;
         sol_vecs.reserve(n_states);
         // vector 0: current iteration before multiplication
@@ -99,7 +101,7 @@ int main(int argc, char * argv[]) {
         // vector 2: temporary vector for off-diagonal multiplication
         // vector 3: initial vector
         for (uint8_t vec_idx = 0; vec_idx < n_states; vec_idx++) {
-            sol_vecs.emplace_back(args.max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, nullptr, 4, proc_scrambler, vec_scrambler);
+            sol_vecs.emplace_back(args.max_n_dets, &shared_adder, n_orb * 2, n_elec_unf, diag_shortcut, nullptr, 4, proc_scrambler, vec_scrambler);
         }
         size_t det_size = CEILING(2 * n_orb, 8);
         
