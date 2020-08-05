@@ -5,7 +5,7 @@
 
 #include "io_utils.hpp"
 
-size_t read_csv(double *buf, char *fname) {
+size_t read_csv(double *buf, const char *fname) {
     size_t row_idx = 0;
     size_t n_col;
     size_t n_read = 0;
@@ -27,7 +27,7 @@ size_t read_csv(double *buf, char *fname) {
     return n_read;
 }
 
-size_t read_csv(uint8_t *buf, char *fname) {
+size_t read_csv(uint8_t *buf, const char *fname) {
     size_t row_idx = 0;
     size_t n_col;
     size_t n_read = 0;
@@ -52,7 +52,7 @@ size_t read_csv(uint8_t *buf, char *fname) {
 }
 
 
-size_t read_csv(int *buf, char *fname) {
+size_t read_csv(int *buf, const char *fname) {
     size_t row_idx = 0;
     size_t n_col;
     size_t n_read = 0;
@@ -165,7 +165,7 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
     strcpy(buffer, hf_dir);
     strcat(buffer, "hcore.txt");
     in_struct->hcore = new Matrix<double>(tot_orb, tot_orb);
-    size_t n_read = read_csv((*(in_struct->hcore)).data(), buffer);
+    size_t n_read = read_csv((*(in_struct->hcore)).data(), (const char *)buffer);
     if (n_read < tot_orb * tot_orb) {
         std::stringstream msg;
         msg << "Could not read " << tot_orb * tot_orb << " elements from " << buffer;

@@ -21,7 +21,7 @@
  * \param [in] fname    Path of file
  * \returns          Total number of values read from the file
  */
-size_t read_csv(double *buf, char *fname);
+size_t read_csv(double *buf, const char *fname);
 
 /*! \brief Read an array of unsigned integers from a .csv file
  *
@@ -29,7 +29,7 @@ size_t read_csv(double *buf, char *fname);
  * \param [in] fname    Path of file
  * \returns          Total number of values read from the file
  */
-size_t read_csv(int *buf, char *fname);
+size_t read_csv(int *buf, const char *fname);
 
 
 /*! \brief Read an array of unsigned bytes from a .csv file
@@ -38,7 +38,7 @@ size_t read_csv(int *buf, char *fname);
  * \param [in] fname    Path of file
  * \returns          Total number of values read from the file 
  */
-size_t read_csv(uint8_t *buf, char *fname);
+size_t read_csv(uint8_t *buf, const char *fname);
 
 
 /*! \brief Data structure containing the output of a Hartree-Fock calculation */

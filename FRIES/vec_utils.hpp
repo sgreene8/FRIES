@@ -25,7 +25,7 @@
 using namespace std;
 
 // Forward declaration from io_utils.hpp
-size_t read_csv(int *buf, char *fname);
+size_t read_csv(int *buf, const char *fname);
 size_t read_dets(const char *path, Matrix<uint8_t> &dets);
 
 
@@ -351,8 +351,8 @@ public:
     
     /*! \brief Double the maximum number of elements that can be stored */
     virtual void expand() {
-        printf("Increasing storage capacity in vector\n");
         size_t new_max = max_size_ * 2;
+        std::cout << "Increasing storage capacity in vector to " << new_max << "\n";
         indices_.reshape(new_max, indices_.cols());
         matr_el_.resize(new_max);
         occ_orbs_.reshape(new_max, occ_orbs_.cols());
@@ -708,18 +708,19 @@ public:
         
         size_t el_size = sizeof(el_type);
         
-        char buffer[300];
-        sprintf(buffer, "%sdets%d.dat", path, my_rank);
-        FILE *file_p = fopen(buffer, "wb");
-        fwrite(indices_.data(), indices_.cols(), curr_size_, file_p);
-        fclose(file_p);
+        std::stringstream buffer;
+        buffer << path << "dets" << my_rank << ".dat";
+        std::ofstream file_p(buffer.str(), ios::binary);
+        file_p.write((const char *)indices_.data(), curr_size_ * indices_.cols());
+        file_p.close();
         
-        sprintf(buffer, "%svals%d.dat", path, my_rank);
-        file_p = fopen(buffer, "wb");
+        buffer.str("");
+        buffer << path << "vals" << my_rank << ".dat";
+        file_p.open(buffer.str(), ios::binary);
         for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
-            fwrite(values_[vec_idx], el_size, curr_size_, file_p);
+            file_p.write((const char *)values_[vec_idx], el_size * curr_size_);
         }
-        fclose(file_p);
+        file_p.close();
     }
 
     /*! \brief Load a vector from disk in binary format
@@ -738,11 +739,11 @@ public:
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
 #endif
         
-        char buffer[300];
+        std::stringstream buffer;
         int dense_sizes[n_procs];
         if (my_rank == 0) {
-            sprintf(buffer, "%sdense.txt", path);
-            read_csv(dense_sizes, buffer);
+            buffer << path << "dense.txt";
+            read_csv(dense_sizes, buffer.str().c_str());
         }
 #ifdef USE_MPI
         MPI_Scatter(dense_sizes, 1, MPI_INT, &n_dense_, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -754,27 +755,35 @@ public:
         
         size_t n_dets;
         size_t n_bytes = indices_.cols();
-        sprintf(buffer, "%sdets%d.dat", path, my_rank);
-        FILE *file_p = fopen(buffer, "rb");
-        if (!file_p) {
+        buffer.str("");
+        buffer << path << "dets" << my_rank << ".dat";
+        std::ifstream file_p(buffer.str(), ios::binary | ios::ate);
+        if (!file_p.is_open()) {
             std::stringstream msg;
-            msg << "Could not open saved binary vector file at path " << buffer;
+            msg << "Could not open saved binary vector file at path " << buffer.str();
             throw std::runtime_error(msg.str());
         }
-        n_dets = fread(indices_.data(), n_bytes, 10000000, file_p);
-        fclose(file_p);
+        auto f_size = file_p.tellg();
+        n_dets = f_size / n_bytes;
+        while (n_dets > max_size_) {
+            expand();
+        }
+        file_p.seekg(0, ios::beg);
+        file_p.read((char *)indices_.data(), n_dets * n_bytes);
+        file_p.close();
         
-        sprintf(buffer, "%svals%d.dat", path, my_rank);
-        file_p = fopen(buffer, "rb");
-        if (!file_p) {
+        buffer.str("");
+        buffer << path << "vals" << my_rank << ".dat";
+        file_p.open(buffer.str(), ios::binary);
+        if (!file_p.is_open()) {
             std::stringstream msg;
-            msg << "Could not open saved binary vector file at path " << buffer;
+            msg << "Could not open saved binary vector file at path " << buffer.str();
             throw std::runtime_error(msg.str());
         }
         for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
-            (void) fread(values_[vec_idx], el_size, n_dets, file_p);
+            file_p.read((char *)values_[vec_idx], el_size * n_dets);
         }
-        fclose(file_p);
+        file_p.close();
         
         n_nonz_ = 0;
         uint8_t tmp_orbs[occ_orbs_.cols()];
@@ -840,8 +849,7 @@ public:
         if (my_rank == 0) {
             std::stringstream buf;
             buf << save_dir << "dense.txt";
-            std::ofstream dense_f;
-            dense_f.open(buf.str());
+            std::ofstream dense_f(buf.str());
             if (!dense_f.is_open()) {
                 std::stringstream msg;
                 msg << "Could not load deterministic subspace from file at path " << buf.str();
