@@ -223,7 +223,7 @@ int main(int argc, char * argv[]) {
 #else
         dense_sizes[proc_rank] = determ_tmp;
 #endif
-        if (proc_rank == 0) {
+        if (proc_rank == 0 && args.load_dir == nullptr) {
             sprintf(file_path, "%sdense.txt", result_dir);
             FILE *dense_f = fopen(file_path, "w");
             if (!dense_f) {
