@@ -26,7 +26,7 @@ using namespace std;
 
 // Forward declaration from io_utils.hpp
 size_t read_csv(int *buf, const char *fname);
-size_t read_dets(const char *path, Matrix<uint8_t> &dets);
+size_t read_dets(const std::string &path, Matrix<uint8_t> &dets);
 
 
 #ifdef USE_MPI
@@ -700,7 +700,7 @@ public:
      *
      * \param [in] path         Location where the files are to be stored
      */
-    void save(const char *path)  {
+    void save(const std::string &path)  {
         int my_rank = 0;
 #ifdef USE_MPI
         MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
@@ -731,7 +731,7 @@ public:
      * \param [in] path         Location from which to read the files
      * \return Size of the dense subspace
      */
-    size_t load(const char *path) {
+    size_t load(const std::string &path) {
         int my_rank = 0;
         int n_procs = 1;
 #ifdef USE_MPI
@@ -823,7 +823,7 @@ public:
      * \param [in] save_dir      Directory in which to store a file containing the length of the dense subspace on each MPI process
      * \return Size of the dense subspace
      */
-    size_t init_dense(const char *read_path, const char *save_dir) {
+    size_t init_dense(const std::string &read_path, const char *save_dir) {
         size_t n_loaded = read_dets(read_path, indices_);
         for (size_t idx = 0; idx < n_loaded; idx++) {
             add(indices_[idx], 1, 1);

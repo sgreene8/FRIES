@@ -113,10 +113,10 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct);
  *                          [prefix]dets and [prefix]vals
  * \param [out] dets        Matrix in which to store the element indices read in. Currently supports only reading in integers less than 64 bits
  * \param [out] vals        Array of element values read in
- * \param [in] type         Data type of the vector
  * \return total number of elements read in
  */
-size_t load_vec_txt(const char *prefix, Matrix<uint8_t> &dets, void *vals, dtype type);
+size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, int *vals);
+size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, double *vals);
 
 
 /*! \brief Read an array of determinants from disk
@@ -128,7 +128,7 @@ size_t load_vec_txt(const char *prefix, Matrix<uint8_t> &dets, void *vals, dtype
  * \param [out] dets        Matrix in which to store the element indices read in. Currently supports only reading in integers less than 64 bits
  * \return total number of elements read in
  */
-size_t read_dets(const char *path, Matrix<uint8_t> &dets);
+size_t read_dets(const std::string &path, Matrix<uint8_t> &dets);
 
 
 /*! \brief Save to disk the array of random numbers used to assign Slater
@@ -140,7 +140,7 @@ size_t read_dets(const char *path, Matrix<uint8_t> &dets);
  * \param [in] path         File will be saved at the path [path]hash.dat
  * \param [in] proc_hash    Array of random numbers to save (length \p n_hash)
  */
-void save_proc_hash(const char *path, unsigned int *proc_hash, size_t n_hash);
+void save_proc_hash(const std::string &path, unsigned int *proc_hash, size_t n_hash);
 
 
 /*! \brief Load from disk the array of random numbers used to assign Slater
@@ -151,7 +151,7 @@ void save_proc_hash(const char *path, unsigned int *proc_hash, size_t n_hash);
  * \param [in] path         File will be loaded from the path [path]hash.dat
  * \param [out] proc_hash   Numbers loaded from disk
  */
-void load_proc_hash(const char *path, unsigned int *proc_hash);
+void load_proc_hash(const std::string &path, unsigned int *proc_hash);
 
 
 /*! \brief Load from disk the diagonal elements of the 1-RDM
@@ -159,7 +159,7 @@ void load_proc_hash(const char *path, unsigned int *proc_hash);
  * \param [in] path     Path of the file from which to load
  * \param [out] vals        Values loaded from the file
  */
-void load_rdm(const char *path, double *vals);
+void load_rdm(const std::string &path, double *vals);
 
 
 #endif /* io_utils_h */

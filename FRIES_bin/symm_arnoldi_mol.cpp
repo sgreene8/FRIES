@@ -45,6 +45,10 @@ int main(int argc, char * argv[]) {
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
         MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
 #endif
+        double shift_damping = 0.05;
+        uint32_t shift_interval = 10;
+        std::vector<double> en_shift(n_states);
+        std::vector<double> last_one_norm(n_states);
         
         // Read in data files
         hf_input in_data;
@@ -115,7 +119,7 @@ int main(int argc, char * argv[]) {
             double *load_vals = curr_sol.values();
             
             sprintf(vec_path, "%s%02d", args.ini_path.c_str(), trial_idx);
-            unsigned int loc_n_dets = (unsigned int) load_vec_txt(vec_path, *load_dets, load_vals, DOUB);
+            unsigned int loc_n_dets = (unsigned int) load_vec_txt(vec_path, *load_dets, load_vals);
             curr_sol.set_curr_vec_idx(3);
             for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
                 curr_sol.add(load_dets[0][det_idx], load_vals[det_idx], 1);
@@ -198,8 +202,13 @@ int main(int argc, char * argv[]) {
                     curr_vec.set_curr_vec_idx(1);
                     h_op_offdiag(curr_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, 2, -eps);
                     curr_vec.set_curr_vec_idx(1);
-                    h_op_diag(curr_vec, 1, 1, -eps);
+                    h_op_diag(curr_vec, 1, 1 + eps * en_shift[vec_idx], -eps);
                     curr_vec.add_vecs(1, 2);
+                    for (size_t det_idx = 0; det_idx < curr_vec.curr_size(); det_idx++) {
+                        char det_str[2 * det_size + 1];
+                        print_str(curr_vec.indices()[det_idx], det_size, det_str);
+                        std::cout << det_str << ", " << curr_vec.values()[det_idx] << "\n";
+                    }
                 }
                 
 #pragma mark Krylov dot products
@@ -224,8 +233,8 @@ int main(int argc, char * argv[]) {
                             rvec.set_curr_vec_idx(1);
                             vec_H_ovlp = lvec.multi_dot(rvec.indices(), rvec.occ_orbs(), rvec.values(), rvec.curr_size());
                         }
-                        // <v|(1 - \eps H)|v> = <v|v> - \eps <v|H|v>
-                        vec_H_ovlp = -(vec_H_ovlp - vec_ovlp) / eps;
+                        // <v|(1 - \eps H + \eps S)|v> = (1 + \eps S)<v|v> - \eps <v|H|v>
+                        vec_H_ovlp = -(vec_H_ovlp - (1 + eps * en_shift[vecr_idx]) * vec_ovlp) / eps;
                         b_mat(vecl_idx, vecr_idx) = vec_H_ovlp;
                         d_mat(vecl_idx, vecr_idx) = vec_ovlp;
                     }
@@ -270,6 +279,9 @@ int main(int argc, char * argv[]) {
                         srt_arr[det_idx] = det_idx;
                     }
                     loc_norms[proc_rank] = find_preserve(sol_vecs[vec_idx].values(), srt_arr.data(), keep_exact, sol_vecs[vec_idx].curr_size(), &n_samp, &glob_norm);
+                    if ((krylov_idx + 1) % shift_interval == 0) {
+                        adjust_shift(&en_shift[vec_idx], glob_norm, &last_one_norm[vec_idx], 0, shift_damping / shift_interval / eps);
+                    }
                     if (proc_rank == 0) {
                         rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
                     }

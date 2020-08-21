@@ -157,7 +157,7 @@ int main(int argc, char * argv[]) {
         Matrix<uint8_t> &load_dets = sol_vec.indices();
         double *load_vals = (double *)sol_vec.values();
         if (args.trial_path != nullptr) { // load trial vector from file
-            n_trial = load_vec_txt(args.trial_path->c_str(), load_dets, load_vals, DOUB);
+            n_trial = load_vec_txt(*args.trial_path, load_dets, load_vals);
         }
         else {
             n_trial = 1;
@@ -214,7 +214,7 @@ int main(int argc, char * argv[]) {
         
         size_t n_determ = 0; // Number of deterministic determinants on this process
         if (args.load_dir == nullptr && args.determ_path != nullptr) {
-            n_determ = sol_vec.init_dense(args.determ_path->c_str(), result_dir);
+            n_determ = sol_vec.init_dense(*args.determ_path, result_dir);
         }
         int dense_sizes[n_procs];
         int determ_tmp = (int) n_determ;
@@ -260,7 +260,7 @@ int main(int argc, char * argv[]) {
             Matrix<uint8_t> load_dets(max_n_dets, det_size);
             double *load_vals = sol_vec.values();
             
-            size_t n_dets = load_vec_txt(args.ini_path->c_str(), load_dets, load_vals, DOUB);
+            size_t n_dets = load_vec_txt(*args.ini_path, load_dets, load_vals);
             
             for (det_idx = 0; det_idx < n_dets; det_idx++) {
                 sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1);

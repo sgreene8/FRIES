@@ -46,6 +46,10 @@ int main(int argc, char * argv[]) {
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
         MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
 #endif
+        double shift_damping = 0.05;
+        uint32_t shift_interval = 10;
+        std::vector<double> en_shift(n_trial);
+        std::vector<double> last_one_norm(n_trial);
         
         // Read in data files
         hf_input in_data;
@@ -116,8 +120,8 @@ int main(int argc, char * argv[]) {
             DistVec<double> &curr_sol = sol_vecs[trial_idx];
             double *load_vals = curr_sol.values();
             
-            sprintf(vec_path, "%s%02d", args.trial_path.c_str(), trial_idx);
-            unsigned int loc_n_dets = (unsigned int) load_vec_txt(vec_path, *load_dets, load_vals, DOUB);
+            sprintf(vec_path, "%s%02d", args.trial_path.c_str(), trial_idx);;
+            unsigned int loc_n_dets = (unsigned int) load_vec_txt(vec_path, *load_dets, load_vals);
             size_t glob_n_dets = loc_n_dets;
 #ifdef USE_MPI
             MPI_Bcast(&glob_n_dets, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
@@ -268,7 +272,7 @@ int main(int argc, char * argv[]) {
                     curr_vec.set_curr_vec_idx(0);
                     h_op_offdiag(curr_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, 1, -eps);
                     curr_vec.set_curr_vec_idx(0);
-                    h_op_diag(curr_vec, 0, 1, -eps);
+                    h_op_diag(curr_vec, 0, 1 + eps * en_shift[vec_idx], -eps);
                     curr_vec.add_vecs(0, 1);
                     if (curr_vec.max_size() > new_max_dets) {
                         new_max_dets = curr_vec.max_size();
@@ -287,6 +291,9 @@ int main(int argc, char * argv[]) {
                         srt_arr[det_idx] = det_idx;
                     }
                     loc_norms[proc_rank] = find_preserve(sol_vecs[vec_idx].values(), srt_arr.data(), keep_exact, sol_vecs[vec_idx].curr_size(), &n_samp, &glob_norm);
+                    if ((krylov_idx + 1) % shift_interval == 0) {
+                        adjust_shift(&en_shift[vec_idx], glob_norm, &last_one_norm[vec_idx], 0, shift_damping / shift_interval / eps);
+                    }
                     if (proc_rank == 0) {
                         rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
                     }

@@ -11,6 +11,7 @@
 #include <fstream>
 #include <functional>
 #include <FRIES/mpi_switch.h>
+#include <sstream>
 
 
 /*! \brief Hash table used to to index Slater determinant indices in the
@@ -97,10 +98,9 @@ public:
 #ifdef USE_MPI
         MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 #endif
-        FILE *file_p;
-        char buffer[50];
-        sprintf(buffer, "hash%d.txt", my_rank);
-        file_p = fopen(buffer, "w");
+        std::stringstream buffer;
+        buffer << "hash" << my_rank << ".txt";
+        std::ofstream file_p(buffer.str());
         for (size_t table_idx = 0; table_idx < buckets_.size();
              table_idx++) {
             unsigned int collisions = 0;
@@ -110,9 +110,9 @@ public:
                     collisions++;
                 }
             }
-            fprintf(file_p, "%u\n", collisions);
+            file_p << collisions << "\n";
         }
-        fclose(file_p);
+        file_p.close();
     }
     
 

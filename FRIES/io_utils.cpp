@@ -188,8 +188,7 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
 int parse_hh_input(const char *hh_path, hh_input *in_struct) {
     FILE *file_p = fopen(hh_path, "r");
     if (!file_p) {
-        fprintf(stderr, "Error: could not open file containing Hubbard-Holstein parameters\n");
-        return -1;
+        throw std::runtime_error("Could not open file containing Hubbard-Holstein parameters");
     }
     
     char buffer[300];
@@ -203,8 +202,7 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct) {
         sscanf(buffer, "%u", &(in_struct->n_elec));
     }
     else {
-        fprintf(stderr, "Error: could not find n_elec parameter in %s\n", hh_path);
-        return -1;
+        throw std::runtime_error("Could not find n_elec parameter in file containing Hubbard-Holstein parameters");
     }
     
     str_p = fgets(buffer, sizeof(buffer), file_p);
@@ -217,8 +215,7 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct) {
         sscanf(buffer, "%u", &(in_struct->lat_len));
     }
     else {
-        fprintf(stderr, "Error: could not find lat_len parameter in %s\n", hh_path);
-        return -1;
+        throw std::runtime_error("Could not find lat_len parameter in file containing Hubbard-Holstein parameters");
     }
     
     str_p = fgets(buffer, sizeof(buffer), file_p);
@@ -231,8 +228,7 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct) {
         sscanf(buffer, "%u", &(in_struct->n_dim));
     }
     else {
-        fprintf(stderr, "Error: could not find n_dim parameter in %s\n", hh_path);
-        return -1;
+        throw std::runtime_error("Could not find n_dim parameter in file containing Hubbard-Holstein parameters");
     }
     
     str_p = fgets(buffer, sizeof(buffer), file_p);
@@ -245,8 +241,7 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct) {
         sscanf(buffer, "%lf", &(in_struct->eps));
     }
     else {
-        fprintf(stderr, "Error: could not find eps parameter in %s\n", hh_path);
-        return -1;
+        throw std::runtime_error("Could not find eps parameter in file containing Hubbard-Holstein parameters");
     }
     
     str_p = fgets(buffer, sizeof(buffer), file_p);
@@ -259,8 +254,7 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct) {
         sscanf(buffer, "%lf", &(in_struct->elec_int));
     }
     else {
-        fprintf(stderr, "Error: could not find electron interaction parameter (U) in %s\n", hh_path);
-        return -1;
+        throw std::runtime_error("Could not find electron interaction parameter (U) in file containing Hubbard-Holstein parameters");
     }
     
     str_p = fgets(buffer, sizeof(buffer), file_p);
@@ -273,8 +267,7 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct) {
         sscanf(buffer, "%lf", &(in_struct->ph_freq));
     }
     else {
-        fprintf(stderr, "Error: could not find phonon frequency parameter (omega) in %s\n", hh_path);
-        return -1;
+        throw std::runtime_error("Could not find phonon frequency parameter (omega) in file containing Hubbard-Holstein parameters");
     }
     
     str_p = fgets(buffer, sizeof(buffer), file_p);
@@ -287,12 +280,11 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct) {
         sscanf(buffer, "%lf", &(in_struct->elec_ph));
     }
     else {
-        fprintf(stderr, "Error: could not find electron-phonon interaction parameter (g) in %s\n", hh_path);
-        return -1;
+        throw std::runtime_error("Could not find electron-phonon interaction parameter (g) in file containing Hubbard-Holstein parameters");
     }
     
     str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strncmp(buffer, "hf_energy", 9) == 0;
+    success = strncmp(buffer, "gs_energy", 9) == 0;
     if (success) {
         str_p = fgets(buffer, sizeof(buffer), file_p);
         success = !(!str_p);
@@ -301,59 +293,89 @@ int parse_hh_input(const char *hh_path, hh_input *in_struct) {
         sscanf(buffer, "%lf", &(in_struct->hf_en));
     }
     else {
-        fprintf(stderr, "Error: could not find hf_energy parameter in %s\n", hh_path);
-        return -1;
+        throw std::runtime_error("Could not find gs_energy parameter in file containing Hubbard-Holstein parameters");
     }
     
     fclose(file_p);
     return 0;
 }
 
-size_t load_vec_txt(const char *prefix, Matrix<uint8_t> &dets, void *vals, dtype type) {
+size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, int *vals) {
+        int my_rank = 0;
+#ifdef USE_MPI
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+#endif
+    
+    if (my_rank == 0) {
+        std::string buffer(prefix);
+        buffer.append("dets");
+        size_t n_dets = read_dets(buffer, dets);
+        
+        buffer = prefix;
+        buffer.append("vals");
+        FILE *file_v = fopen(buffer.c_str(), "r");
+        if (!file_v) {
+            std::string msg("Could not find file:");
+            msg.append(buffer);
+            throw std::runtime_error(msg);
+        }
+        int num_read_v = 1;
+        size_t n_vals = 0;
+        
+        int *val_arr = (int *) vals;
+        while (num_read_v == 1) {
+            num_read_v = fscanf(file_v, "%d\n", &val_arr[n_vals]);
+            n_vals++;
+        }
+        n_vals--;
+        if (n_vals > n_dets) {
+            std::cerr << "Warning: fewer determinants than values read in\n";
+            return n_dets;
+        }
+        else if (n_vals < n_dets) {
+            std::cerr << "Warning: fewer values than determinants read in\n";
+        }
+        return n_vals;
+    }
+    else {
+        return 0;
+    }
+}
+
+size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, double *vals) {
     int my_rank = 0;
 #ifdef USE_MPI
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 #endif
     
     if (my_rank == 0) {
-        char buffer[300];
-        sprintf(buffer, "%sdets", prefix);
+        std::string buffer(prefix);
+        buffer.append("dets");
         size_t n_dets = read_dets(buffer, dets);
         
-        sprintf(buffer, "%svals", prefix);
-        FILE *file_v = fopen(buffer, "r");
+        buffer = prefix;
+        buffer.append("vals");
+        FILE *file_v = fopen(buffer.c_str(), "r");
         if (!file_v) {
-            fprintf(stderr, "Warning: could not find file: %s\n", buffer);
-            return 0;
+            std::string msg("Could not find file:");
+            msg.append(buffer);
+            throw std::runtime_error(msg);
         }
         int num_read_v = 1;
         size_t n_vals = 0;
         
-        if (type == DOUB) {
-            double *val_arr = (double *)vals;
-            while (num_read_v == 1) {
-                num_read_v = fscanf(file_v, "%lf\n", &val_arr[n_vals]);
-                n_vals++;
-            }
-        }
-        else if (type == INT) {
-            int *val_arr = (int *) vals;
-            while (num_read_v == 1) {
-                num_read_v = fscanf(file_v, "%d\n", &val_arr[n_vals]);
-                n_vals++;
-            }
-        }
-        else {
-            fprintf(stderr, "Error: data type %d not supported in function load_vec_txt.\n", type);
-            return 0;
+        double *val_arr = (double *)vals;
+        while (num_read_v == 1) {
+            num_read_v = fscanf(file_v, "%lf\n", &val_arr[n_vals]);
+            n_vals++;
         }
         n_vals--;
         if (n_vals > n_dets) {
-            fprintf(stderr, "Warning: fewer determinants than values read in\n");
+            std::cerr << "Warning: fewer determinants than values read in\n";
             return n_dets;
         }
         else if (n_vals < n_dets) {
-            fprintf(stderr, "Warning: fewer values than determinants read in\n");
+            std::cerr << "Warning: fewer values than determinants read in\n";
         }
         return n_vals;
     }
@@ -363,17 +385,18 @@ size_t load_vec_txt(const char *prefix, Matrix<uint8_t> &dets, void *vals, dtype
 }
 
 
-size_t read_dets(const char *path, Matrix<uint8_t> &dets) {
+size_t read_dets(const std::string &path, Matrix<uint8_t> &dets) {
     int my_rank = 0;
 #ifdef USE_MPI
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 #endif
     
     if (my_rank == 0) {
-        FILE *file_d = fopen(path, "r");
+        FILE *file_d = fopen(path.c_str(), "r");
         if (!file_d) {
-            fprintf(stderr, "Error: could not find file: %s\n", path);
-            return 0;
+            std::string msg("Could not find file: ");
+            msg.append(path);
+            throw std::runtime_error(msg);
         }
         
         int num_read_d = 1;
@@ -397,40 +420,42 @@ size_t read_dets(const char *path, Matrix<uint8_t> &dets) {
 }
 
 
-void save_proc_hash(const char *path, unsigned int *proc_hash, size_t n_hash) {
+void save_proc_hash(const std::string &path, unsigned int *proc_hash, size_t n_hash) {
     int my_rank = 0;
 #ifdef USE_MPI
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 #endif
     
-    char buffer[300];
+    std::string buffer(path);
+    buffer.append("hash.dat");
     if (my_rank == 0) {
-        sprintf(buffer, "%shash.dat", path);
-        FILE *file_p = fopen(buffer, "wb");
-        if (!file_p) {
-            fprintf(stderr, "Error: could not save file at path %s\n", buffer);
-            return;
+        ofstream file_p(buffer, ios::binary);
+        if (!file_p.is_open()) {
+            std::string error("Could not save file at path ");
+            error.append(buffer);
+            throw std::runtime_error(error);
         }
-        fwrite(proc_hash, sizeof(unsigned int), n_hash, file_p);
-        fclose(file_p);
+        file_p.write((const char *)proc_hash, sizeof(unsigned int) * n_hash);
+        file_p.close();
     }
 }
 
 
-void load_proc_hash(const char *path, unsigned int *proc_hash) {
-    char buffer[300];
-    sprintf(buffer, "%shash.dat", path);
-    FILE *file_p = fopen(buffer, "rb");
-    if (!file_p) {
-        fprintf(stderr, "Error: could not open saved hash scrambler at %s\n", buffer);
-        return;
+void load_proc_hash(const std::string &path, unsigned int *proc_hash) {
+    std::string buffer(path);
+    buffer.append("hash.dat");
+    ifstream file_p(buffer, ios::binary);
+    if (!file_p.is_open()) {
+        std::string error("Could not open saved hash scrambler at ");
+        error.append(buffer);
+        throw std::runtime_error(error);
     }
-    (void) fread(proc_hash, sizeof(unsigned int), 1000, file_p);
-    fclose(file_p);
+    file_p.read((char *)proc_hash, 1000);
+    file_p.close();
 }
 
-void load_rdm(const char *path, double *vals) {
-    FILE *file_p = fopen(path, "r");
+void load_rdm(const std::string &path, double *vals) {
+    FILE *file_p = fopen(path.c_str(), "r");
     if (!file_p) {
         fprintf(stderr, "Error: could not open RDM file.\n");
         return;

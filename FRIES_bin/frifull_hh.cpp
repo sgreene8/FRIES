@@ -84,14 +84,14 @@ int main(int argc, char * argv[]) {
         double last_one_norm = 0;
         
         if (args.load_dir != nullptr) {
-            load_proc_hash(args.load_dir->c_str(), proc_scrambler.data());
+            load_proc_hash(*args.load_dir, proc_scrambler.data());
         }
         else {
             if (proc_rank == 0) {
                 for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
                     proc_scrambler[det_idx] = genrand_mt(rngen_ptr);
                 }
-                save_proc_hash(args.result_dir.c_str(), proc_scrambler.data(), 2 * n_orb);
+                save_proc_hash(args.result_dir, proc_scrambler.data(), 2 * n_orb);
             }
 #ifdef USE_MPI
             MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
@@ -122,7 +122,7 @@ int main(int argc, char * argv[]) {
         
         // Initialize solution vector
         if (args.load_dir != nullptr) {
-            sol_vec.load(args.load_dir->c_str());
+            sol_vec.load(*args.load_dir);
         }
         else {
             if (ref_proc == proc_rank) {
