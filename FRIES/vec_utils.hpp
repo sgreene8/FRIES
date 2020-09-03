@@ -335,12 +335,12 @@ public:
         double dprod = 0;
         if (idx1 >= values_.rows()) {
             std::stringstream error;
-            error << "Error: idx1 argument to internal_dot (" << (unsigned int) idx1 << ") exceeds bounds of value matrix (" << values_.rows();
+            error << "Error: idx1 argument to internal_dot (" << (unsigned int) idx1 << ") exceeds bounds of value matrix (" << values_.rows() << ")";
             throw std::runtime_error(error.str());
         }
         if (idx2 >= values_.rows()) {
             std::stringstream error;
-            error << "Error: idx2 argument to internal_dot (" << (unsigned int) idx2 << ") exceeds bounds of value matrix (" << values_.rows();
+            error << "Error: idx2 argument to internal_dot (" << (unsigned int) idx2 << ") exceeds bounds of value matrix (" << values_.rows() << ")";
             throw std::runtime_error(error.str());
         }
         for (size_t el_idx = 0; el_idx < curr_size_; el_idx++) {
@@ -484,6 +484,23 @@ public:
             push_stack(pos);
             vec_hash_.del_entry(idx, hash_val);
             n_nonz_--;
+        }
+    }
+    
+    
+    /*! \brief Remove zero elements from vector (if zero in all internal vectors)
+     */
+    void cleanup() {
+        for (size_t pos = min_del_idx_; pos < curr_size_; pos++) {
+            bool all_zero = true;
+            for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
+                if (values_(vec_idx, pos) != 0) {
+                    all_zero = false;
+                }
+            }
+            if (all_zero) {
+                del_at_pos(pos);
+            }
         }
     }
     

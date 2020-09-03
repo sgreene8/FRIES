@@ -1,12 +1,15 @@
 add_executable(unit_tests unit_tests.cpp)
 
 target_link_libraries(unit_tests PRIVATE fries)
+target_link_libraries(unit_tests PRIVATE my_lapack)
 
 target_sources(unit_tests
   PRIVATE
     test_compression.cpp
     test_hamiltonian.cpp
     test_vector.cpp
+    test_matrix.cpp
+    test_linalg.cpp
 )
 
 set(NUMPROC 2)

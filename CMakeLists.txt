@@ -16,6 +16,7 @@ include(GNUInstallDirs)
 
 add_subdirectory(FRIES)
 add_subdirectory(FRIES_bin)
+add_subdirectory(LAPACK)
 
 message(STATUS "Project will be installed to ${CMAKE_INSTALL_PREFIX}")
 

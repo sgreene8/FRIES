@@ -11,6 +11,7 @@
 #include <string.h>
 
 #define CEILING(x,y) ((x + y - 1) / y)
+#define SIGN(x) ((x > 0) - (x < 0))
 
 #ifdef __cplusplus
 extern "C" {

@@ -234,7 +234,7 @@ int main(int argc, char * argv[]) {
                             vec_H_ovlp = lvec.multi_dot(rvec.indices(), rvec.occ_orbs(), rvec.values(), rvec.curr_size());
                         }
                         // <v|(1 - \eps H + \eps S)|v> = (1 + \eps S)<v|v> - \eps <v|H|v>
-                        vec_H_ovlp = -(vec_H_ovlp - (1 + eps * en_shift[vecr_idx]) * vec_ovlp) / eps;
+//                        vec_H_ovlp = -(vec_H_ovlp - (1 + eps * en_shift[vecr_idx]) * vec_ovlp) / eps; \\ here's the problem
                         b_mat(vecl_idx, vecr_idx) = vec_H_ovlp;
                         d_mat(vecl_idx, vecr_idx) = vec_ovlp;
                     }
