@@ -3,12 +3,15 @@ cmake_minimum_required(VERSION 3.6)
 project(FRIES LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 14)
-SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -Wno-unused-result")
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wno-unused-result")
+
+if(NOT ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Intel"))
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -Wno-unused-result")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wno-unused-result")
+endif()
 
 if(NOT (("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang") OR ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")))
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -restrict -xavx")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -xavx")
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -restrict -xavx -Wno-unknown-pragmas")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -xavx -Wno-unknown-pragmas")
 endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
