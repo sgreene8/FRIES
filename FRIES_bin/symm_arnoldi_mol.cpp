@@ -52,7 +52,7 @@ int main(int argc, char * argv[]) {
         
         // Read in data files
         hf_input in_data;
-        parse_hf_input(args.hf_path.c_str(), &in_data);
+        parse_hf_input(args.hf_path, &in_data);
         double eps = in_data.eps;
         unsigned int n_elec = in_data.n_elec;
         unsigned int n_frz = in_data.n_frz;

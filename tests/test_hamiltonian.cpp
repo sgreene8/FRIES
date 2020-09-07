@@ -15,7 +15,7 @@
 TEST_CASE("Test diagonal matrix element evaluation", "[molec_diag]") {
     using namespace test_inputs;
     hf_input in_data;
-    parse_hf_input(hf_path.c_str(), &in_data);
+    parse_hf_input(hf_path, &in_data);
     unsigned int n_elec = in_data.n_elec;
     unsigned int n_frz = in_data.n_frz;
     unsigned int n_orb = in_data.n_orb;

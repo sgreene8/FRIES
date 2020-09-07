@@ -30,7 +30,7 @@ void idx_to_orbs(unsigned int chosen_idx, unsigned int n_elec,
         orbs[1] = neighbors[n_elec + 1 + chosen_idx + 1] - 1;
     }
     else {
-        fprintf(stderr, "Error: Excitation index selected for a Hubbard determinant exceeds the possible number of excitations from that determinant.");
+        throw std::runtime_error("Excitation index selected for a Hubbard determinant exceeds the possible number of excitations from that determinant");
     }
 }
 

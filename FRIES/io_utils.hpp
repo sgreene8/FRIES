@@ -81,9 +81,8 @@ struct hh_input {
  * \param [in] hf_dir       Path to directory where the files sys_params.txt,
  *                          eris.txt, hcore.txt, and symm.txt are stored
  * \param [in] in_struct    Structure where the data will be stored
- * \return 0 if successful, -1 if unsuccessful
  */
-int parse_hf_input(const char *hf_dir, hf_input *in_struct);
+void parse_hf_input(const std::string &hf_dir, hf_input *in_struct);
 
 
 /*! \brief Read in the following parameters for a Hubbard-Holstein calculation
@@ -99,9 +98,8 @@ int parse_hf_input(const char *hf_dir, hf_input *in_struct);
  * \param [in] hh_path      Path to the file containing the Hubbard-Holstein
  *                          parameters
  * \param [in] in_struct    Structure where the data will be stored
- * \return 0 if successful, -1 if unsuccessful
  */
-int parse_hh_input(const char *hh_path, hh_input *in_struct);
+void parse_hh_input(const std::string &hh_path, hh_input *in_struct);
 
 
 /*! \brief Load a sparse vector in .txt format from disk

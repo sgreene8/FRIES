@@ -55,7 +55,7 @@ int main(int argc, char * argv[]) {
         
         // Read in data files
         hh_input in_data;
-        parse_hh_input(args.params_path.c_str(), &in_data);
+        parse_hh_input(args.params_path, &in_data);
         double eps = in_data.eps;
         unsigned int hub_len = in_data.lat_len;
         unsigned int hub_dim = in_data.n_dim;

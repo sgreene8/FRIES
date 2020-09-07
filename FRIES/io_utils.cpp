@@ -77,227 +77,185 @@ size_t read_csv(int *buf, const char *fname) {
 }
 
 
-int parse_hf_input(const char *hf_dir, hf_input *in_struct) {
-    char buffer[200];
-    strcpy(buffer, hf_dir);
-    strcat(buffer, "sys_params.txt");
-    FILE *file_p = fopen(buffer, "r");
-    if (!file_p) {
+void parse_hf_input(const std::string &hf_dir, hf_input *in_struct) {
+    std::string path(hf_dir);
+    path.append("sys_params.txt");
+    std::ifstream in_file(path);
+    if (!in_file.is_open()) {
         throw std::runtime_error("Could not open file sys_params.txt");
     }
     
-    char *str_p = fgets(buffer, sizeof(buffer), file_p);
-    int success = strncmp(buffer, "n_elec", 5) == 0;
+    std::string keyword;
+    std::getline(in_file, keyword);
+    bool success = keyword == "n_elec";
+    
     if (success) {
-        str_p = fgets(buffer, sizeof(buffer), file_p);
-        success = !(!str_p);
-    }
-    if (success) {
-        sscanf(buffer, "%u", &(in_struct->n_elec));
+        in_file >> in_struct->n_elec;
     }
     else {
         throw std::runtime_error("Fould not find n_elec parameter in sys_params.txt");
     }
     
-    str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strncmp(buffer, "n_frozen", 8) == 0;
     unsigned int n_frz;
+    std::getline(in_file, keyword);
+    std::getline(in_file, keyword);
+    success = keyword == "n_frozen";
     if (success) {
-        str_p = fgets(buffer, sizeof(buffer), file_p);
-        success = !(!str_p);
-    }
-    if (success) {
-        sscanf(buffer, "%u", &n_frz);
+        in_file >> n_frz;
     }
     else {
         throw std::runtime_error("Fould not find n_frozen parameter in sys_params.txt");
     }
     in_struct->n_frz = n_frz;
     
-    str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strncmp(buffer, "n_orb", 5) == 0;
+    std::getline(in_file, keyword);
+    std::getline(in_file, keyword);
+    success = keyword == "n_orb";
     if (success) {
-        str_p = fgets(buffer, sizeof(buffer), file_p);
-        success = !(!str_p);
-    }
-    if (success) {
-        sscanf(buffer, "%u", &(in_struct->n_orb));
+        in_file >> in_struct->n_orb;
     }
     else {
         throw std::runtime_error("Fould not find n_orb parameter in sys_params.txt");
     }
     
-    str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strncmp(buffer, "eps", 3) == 0;
+    std::getline(in_file, keyword);
+    std::getline(in_file, keyword);
+    success = keyword == "eps";
     if (success) {
-        str_p = fgets(buffer, sizeof(buffer), file_p);
-        success = !(!str_p);
-    }
-    if (success) {
-        sscanf(buffer, "%lf", &(in_struct->eps));
+        in_file >> in_struct->eps;
     }
     else {
         throw std::runtime_error("Fould not find eps parameter in sys_params.txt");
     }
     
-    str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strncmp(buffer, "hf_energy", 9) == 0;
+    std::getline(in_file, keyword);
+    std::getline(in_file, keyword);
+    success = keyword == "hf_energy";
     if (success) {
-        str_p = fgets(buffer, sizeof(buffer), file_p);
-        success = !(!str_p);
-    }
-    if (success) {
-        sscanf(buffer, "%lf", &(in_struct->hf_en));
+        in_file >> in_struct->hf_en;
     }
     else {
         throw std::runtime_error("Fould not find hf_energy parameter in sys_params.txt");
     }
     
-    fclose(file_p);
+    in_file.close();
     
     unsigned int tot_orb = in_struct->n_orb + n_frz / 2;
-    strcpy(buffer, hf_dir);
-    strcat(buffer, "symm.txt");
+    path = hf_dir;
+    path.append("symm.txt");
     in_struct->symm = (uint8_t *)malloc(sizeof(uint8_t) * tot_orb);
-    read_csv(in_struct->symm, buffer);
+    read_csv(in_struct->symm, path.c_str());
     in_struct->symm = &(in_struct->symm[n_frz / 2]);
     
-    strcpy(buffer, hf_dir);
-    strcat(buffer, "hcore.txt");
+    path = hf_dir;
+    path.append("hcore.txt");
     in_struct->hcore = new Matrix<double>(tot_orb, tot_orb);
-    size_t n_read = read_csv((*(in_struct->hcore)).data(), (const char *)buffer);
+    size_t n_read = read_csv((*(in_struct->hcore)).data(), path.c_str());
     if (n_read < tot_orb * tot_orb) {
         std::stringstream msg;
-        msg << "Could not read " << tot_orb * tot_orb << " elements from " << buffer;
+        msg << "Could not read " << tot_orb * tot_orb << " elements from " << path;
         throw std::runtime_error(msg.str());
     }
     
-    strcpy(buffer, hf_dir);
-    strcat(buffer, "eris.txt");
+    path = hf_dir;
+    path.append("eris.txt");
     in_struct->eris = new FourDArr(tot_orb, tot_orb, tot_orb, tot_orb);
-    n_read = read_csv(in_struct->eris->data(), buffer);
+    n_read = read_csv(in_struct->eris->data(), path.c_str());
     if (n_read < tot_orb * tot_orb * tot_orb * tot_orb) {
         std::stringstream msg;
-        msg << "Could not read " << tot_orb * tot_orb * tot_orb * tot_orb << " elements from " << buffer;
+        msg << "Could not read " << tot_orb * tot_orb * tot_orb * tot_orb << " elements from " << path;
         throw std::runtime_error(msg.str());
     }
-    
-    return 0;
 }
 
-int parse_hh_input(const char *hh_path, hh_input *in_struct) {
-    FILE *file_p = fopen(hh_path, "r");
-    if (!file_p) {
+void parse_hh_input(const std::string &hh_path, hh_input *in_struct) {
+    std::ifstream file_p(hh_path);
+    if (!file_p.is_open()) {
         throw std::runtime_error("Could not open file containing Hubbard-Holstein parameters");
     }
     
-    char buffer[300];
-    char *str_p = fgets(buffer, sizeof(buffer), file_p);
-    int success = strncmp(buffer, "n_elec", 6) == 0;
+    std::string keyword;
+    std::getline(file_p, keyword);
+    bool success = keyword == "n_elec";
+    
     if (success) {
-        str_p = fgets(buffer, sizeof(buffer), file_p);
-        success = !(!str_p);
-    }
-    if (success) {
-        sscanf(buffer, "%u", &(in_struct->n_elec));
+        file_p >> in_struct->n_elec;
     }
     else {
         throw std::runtime_error("Could not find n_elec parameter in file containing Hubbard-Holstein parameters");
     }
     
-    str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strncmp(buffer, "lat_len", 7) == 0;
+    std::getline(file_p, keyword);
+    std::getline(file_p, keyword);
+    success = keyword == "lat_len";
     if (success) {
-        str_p = fgets(buffer, sizeof(buffer), file_p);
-        success = !(!str_p);
-    }
-    if (success) {
-        sscanf(buffer, "%u", &(in_struct->lat_len));
+        file_p >> in_struct->lat_len;
     }
     else {
         throw std::runtime_error("Could not find lat_len parameter in file containing Hubbard-Holstein parameters");
     }
     
-    str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strncmp(buffer, "n_dim", 5) == 0;
+    std::getline(file_p, keyword);
+    std::getline(file_p, keyword);
+    success = keyword == "n_dim";
     if (success) {
-        str_p = fgets(buffer, sizeof(buffer), file_p);
-        success = !(!str_p);
-    }
-    if (success) {
-        sscanf(buffer, "%u", &(in_struct->n_dim));
+        file_p >> in_struct->n_dim;
     }
     else {
         throw std::runtime_error("Could not find n_dim parameter in file containing Hubbard-Holstein parameters");
     }
     
-    str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strncmp(buffer, "eps", 3) == 0;
+    std::getline(file_p, keyword);
+    std::getline(file_p, keyword);
+    success = keyword == "eps";
     if (success) {
-        str_p = fgets(buffer, sizeof(buffer), file_p);
-        success = !(!str_p);
-    }
-    if (success) {
-        sscanf(buffer, "%lf", &(in_struct->eps));
+        file_p >> in_struct->eps;
     }
     else {
         throw std::runtime_error("Could not find eps parameter in file containing Hubbard-Holstein parameters");
     }
     
-    str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strncmp(buffer, "U", 1) == 0;
+    std::getline(file_p, keyword);
+    std::getline(file_p, keyword);
+    success = keyword == "U";
     if (success) {
-        str_p = fgets(buffer, sizeof(buffer), file_p);
-        success = !(!str_p);
-    }
-    if (success) {
-        sscanf(buffer, "%lf", &(in_struct->elec_int));
+        file_p >> in_struct->elec_int;
     }
     else {
         throw std::runtime_error("Could not find electron interaction parameter (U) in file containing Hubbard-Holstein parameters");
     }
     
-    str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strncmp(buffer, "omega", 5) == 0;
+    std::getline(file_p, keyword);
+    std::getline(file_p, keyword);
+    success = keyword == "omega";
     if (success) {
-        str_p = fgets(buffer, sizeof(buffer), file_p);
-        success = !(!str_p);
-    }
-    if (success) {
-        sscanf(buffer, "%lf", &(in_struct->ph_freq));
+        file_p >> in_struct->ph_freq;
     }
     else {
         throw std::runtime_error("Could not find phonon frequency parameter (omega) in file containing Hubbard-Holstein parameters");
     }
     
-    str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strncmp(buffer, "g", 1) == 0;
+    std::getline(file_p, keyword);
+    std::getline(file_p, keyword);
+    success = keyword == "g";
     if (success) {
-        str_p = fgets(buffer, sizeof(buffer), file_p);
-        success = !(!str_p);
-    }
-    if (success) {
-        sscanf(buffer, "%lf", &(in_struct->elec_ph));
+        file_p >> in_struct->elec_ph;
     }
     else {
         throw std::runtime_error("Could not find electron-phonon interaction parameter (g) in file containing Hubbard-Holstein parameters");
     }
     
-    str_p = fgets(buffer, sizeof(buffer), file_p);
-    success = strncmp(buffer, "gs_energy", 9) == 0;
+    std::getline(file_p, keyword);
+    std::getline(file_p, keyword);
+    success = keyword == "gs_energy";
     if (success) {
-        str_p = fgets(buffer, sizeof(buffer), file_p);
-        success = !(!str_p);
-    }
-    if (success) {
-        sscanf(buffer, "%lf", &(in_struct->hf_en));
+        file_p >> in_struct->hf_en;
     }
     else {
         throw std::runtime_error("Could not find gs_energy parameter in file containing Hubbard-Holstein parameters");
     }
     
-    fclose(file_p);
-    return 0;
+    file_p.close();
 }
 
 size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, int *vals) {
