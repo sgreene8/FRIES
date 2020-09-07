@@ -14,6 +14,7 @@
 #include <FRIES/mpi_switch.h>
 #include <FRIES/vec_utils.hpp>
 #include <FRIES/ndarr.hpp>
+#include <stdexcept>
 
 /*! \brief Read an array of floating-point numbers from a .csv file
  *
