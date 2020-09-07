@@ -13,6 +13,7 @@
 #include <FRIES/ndarr.hpp>
 #include <FRIES/math_utils.h>
 #include <iostream>
+#include <stdexcept>
 
 #ifndef MIN
 #define MIN(a, b) (((a)<(b))?(a):(b))

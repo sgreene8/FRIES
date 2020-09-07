@@ -25,7 +25,7 @@ struct MyArgs : public argparse::Args {
     uint32_t max_krylov = kwarg("max_krylov", "Maximum number of multiplications by (1 - \eps H) to do in between restarts").set_default(10);
     std::string mat_output = kwarg("out_format", "A flag controlling the format for outputting the Hamiltonian and overlap matrices. Must be either 'none', in which case these matrices are not written to disk, 'txt', in which case they are outputted in text format, or 'npy', in which case they are outputted in numpy format").set_default<std::string>("none");
     uint32_t n_sample = kwarg("n_sample", "The number of independent vectors to simulate in parallel").set_default(1);
-    uint32_t shift_interval = kwarg("shift_int", "The interval at which to adjust the energy shifts for each vector to control normalization").set_default(UINT32_MAX);
+    uint32_t shift_interval = kwarg("shift_int", "The interval at which to adjust the energy shifts for each vector to control normalization").set_default(10);
     
     CONSTRUCTOR(MyArgs);
 };
@@ -209,7 +209,7 @@ int main(int argc, char * argv[]) {
         std::ofstream bmat_file;
         std::ofstream dmat_file;
         std::ofstream evals_file;
-        std::ofstream restart_file;
+//        std::ofstream restart_file;
         
         if (proc_rank == 0) {
             // Setup output files
@@ -238,7 +238,7 @@ int main(int argc, char * argv[]) {
                 msg.append(args.result_dir);
                 throw std::runtime_error(msg);
             }
-            param_f << "Arnoldi calculation\nHF path: " << args.hf_path << "\nepsilon (imaginary time step): " << eps << "Vector nonzero: " << args.target_nonz << "\n";
+            param_f << "Arnoldi calculation\nHF path: " << args.hf_path << "\nepsilon (imaginary time step): " << eps << "\nVector nonzero: " << args.target_nonz << "\n";
             param_f << "Path for trial vectors: " << args.trial_path << "\n";
             param_f << "Max. number of Krylov iterations: " << args.max_krylov << "\n";
             param_f.close();
@@ -247,9 +247,9 @@ int main(int argc, char * argv[]) {
             file_path.append("energies.txt");
             evals_file.open(file_path);
             
-            file_path = args.result_dir;
-            file_path.append("restart.txt");
-            restart_file.open(file_path);
+//            file_path = args.result_dir;
+//            file_path.append("restart.txt");
+//            restart_file.open(file_path);
         }
         
         // Parameters for systematic sampling
@@ -271,7 +271,7 @@ int main(int argc, char * argv[]) {
         std::string dnpy_path(args.result_dir);
         dnpy_path.append("d_matrix.npy");
         std::string bnpy_path(args.result_dir);
-        dnpy_path.append("b_matrix.npy");
+        bnpy_path.append("b_matrix.npy");
         Matrix<double> d_cum(n_trial, n_trial);
         Matrix<double> b_cum(n_trial, n_trial);
         Matrix<double> d_ave(n_trial, n_trial);
@@ -282,7 +282,7 @@ int main(int argc, char * argv[]) {
         std::vector<double> evals(n_trial);
         
         int vec_half = 0; // controls whether the current iterates are stored in the first or second half of the values_ matrix
-        uint32_t since_last_restart = 0;
+//        uint32_t since_last_restart = 0;
         std::vector<uint8_t> eigen_sort(n_trial);
         for (uint8_t idx = 0; idx < n_trial; idx++) {
             eigen_sort[idx] = idx;
@@ -315,38 +315,18 @@ int main(int argc, char * argv[]) {
                     b_ave(trial_idx, vec_idx) = b_cum(trial_idx, vec_idx) / (iteration + 1);
                 }
             }
-            if (proc_rank == 0) {
-                if (mat_fmt == npy_out) {
-                    cnpy::npy_save(bnpy_path, b_mat.data(), {1, n_trial, n_trial}, "a");
-                    cnpy::npy_save(dnpy_path, d_mat.data(), {1, n_trial, n_trial}, "a");
-                }
-                else if (mat_fmt == txt_out) {
-                    for (uint16_t row_idx = 0; row_idx < n_trial; row_idx++) {
-                        for (uint16_t col_idx = 0; col_idx < n_trial - 1; col_idx++) {
-                            bmat_file << b_mat(row_idx, col_idx) << ",";
-                            dmat_file << d_mat(row_idx, col_idx) << ",";
-                        }
-                        bmat_file << b_mat(row_idx, n_trial - 1) << "\n";
-                        dmat_file << d_mat(row_idx, n_trial - 1) << "\n";
-                    }
-                }
-                dmat_file << "\n";
-                bmat_file << "\n";
-                dmat_file.flush();
-                bmat_file.flush();
-            }
-            since_last_restart++;
+//            since_last_restart++;
             
             // get singular values of D
             get_svals(d_ave, s_vals, lapack_scratch.data());
             // if any are < threshold, restart
-            bool restart = false; //s_vals[n_trial - 1] < 1e-6;
+            bool restart = true; //s_vals[n_trial - 1] < 1e-6;
             if (s_vals[n_trial - 1] < 1e-8) {
                 throw std::runtime_error("The overlap matrix is not full-rank");
             }
-            if (since_last_restart >= args.max_krylov) {
-                restart = true;
-            }
+//            if (since_last_restart >= args.max_krylov) {
+//                restart = true;
+//            }
             
             // Get eigenvalues
             get_real_gevals_vecs(b_ave, d_ave, evals, evecs, lapack_scratch.data());
@@ -355,9 +335,28 @@ int main(int argc, char * argv[]) {
                 evals_file << evals[eigen_sort[trial_idx]] << ",";
             }
             evals_file << evals[eigen_sort[n_trial - 1]] << "\n";
+            evals_file.flush();
             
             if (restart) {
-                restart_file << iteration << "\n";
+                if (proc_rank == 0) {
+                    if (mat_fmt == npy_out) {
+                        cnpy::npy_save(bnpy_path, b_mat.data(), {1, n_trial, n_trial}, "a");
+                        cnpy::npy_save(dnpy_path, d_mat.data(), {1, n_trial, n_trial}, "a");
+                    }
+                    else if (mat_fmt == txt_out) {
+                        for (uint16_t row_idx = 0; row_idx < n_trial; row_idx++) {
+                            for (uint16_t col_idx = 0; col_idx < n_trial - 1; col_idx++) {
+                                bmat_file << b_mat(row_idx, col_idx) << ",";
+                                dmat_file << d_mat(row_idx, col_idx) << ",";
+                            }
+                            bmat_file << b_mat(row_idx, n_trial - 1) << "\n";
+                            dmat_file << d_mat(row_idx, n_trial - 1) << "\n";
+                        }
+                        dmat_file.flush();
+                        bmat_file.flush();
+                    }
+//                    restart_file << iteration << "\n";
+                }
                 
                 // Fix signs of eigenvectors according to largest-magnitude element
                 for (uint8_t eigen_idx = 0; eigen_idx < n_trial; eigen_idx++) {
@@ -386,70 +385,72 @@ int main(int argc, char * argv[]) {
                     }
                 }
                 vec_half = !vec_half;
-                since_last_restart = 0;
+//                since_last_restart = 0;
             }
 //            for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
 //                sol_vecs[vec_idx].copy_vec(2, 0);
 //            }
-            
+            for (uint32_t mult_idx = 0; mult_idx < args.max_krylov; mult_idx++) {
+                std::cout << "multiplying\n";
 # pragma mark Matrix multiplication
-            for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
-                int curr_idx = vec_half * n_trial + vec_idx;
-                int next_idx = (1 - vec_half) * n_trial + vec_idx;
-                sol_vec.set_curr_vec_idx(curr_idx);
-                h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, next_idx, -eps);
-                sol_vec.set_curr_vec_idx(curr_idx);
-                h_op_diag(sol_vec, curr_idx, 1 + eps * en_shift[vec_idx], -eps);
-                sol_vec.add_vecs(curr_idx, next_idx);
-            }
-            size_t new_max_dets = max_n_dets;
-            if (sol_vec.max_size() > new_max_dets) {
-                new_max_dets = sol_vec.max_size();
-                keep_exact.resize(new_max_dets, false);
-                del_all.resize(new_max_dets, true);
-                srt_arr.resize(new_max_dets);
-                for (size_t idx = max_n_dets; idx < new_max_dets; idx++) {
-                    srt_arr[idx] = idx;
+                for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
+                    int curr_idx = vec_half * n_trial + vec_idx;
+                    int next_idx = (1 - vec_half) * n_trial + vec_idx;
+                    sol_vec.set_curr_vec_idx(curr_idx);
+                    h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, next_idx, -eps);
+                    sol_vec.set_curr_vec_idx(curr_idx);
+                    h_op_diag(sol_vec, curr_idx, 1 + eps * en_shift[vec_idx], -eps);
+                    sol_vec.add_vecs(curr_idx, next_idx);
                 }
-                max_n_dets = new_max_dets;
-            }
+                size_t new_max_dets = max_n_dets;
+                if (sol_vec.max_size() > new_max_dets) {
+                    new_max_dets = sol_vec.max_size();
+                    keep_exact.resize(new_max_dets, false);
+                    del_all.resize(new_max_dets, true);
+                    srt_arr.resize(new_max_dets);
+                    for (size_t idx = max_n_dets; idx < new_max_dets; idx++) {
+                        srt_arr[idx] = idx;
+                    }
+                    max_n_dets = new_max_dets;
+                }
 #pragma mark Vector compression
-            for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
-                unsigned int n_samp = args.target_nonz;
-                double glob_norm;
-                sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
-                loc_norms[proc_rank] = find_preserve(sol_vec.values(), srt_arr.data(), keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
-                if ((iteration + 1) % shift_interval == 0) {
-                    adjust_shift(&en_shift[vec_idx], glob_norm, &last_one_norm[vec_idx], 0, shift_damping / shift_interval / eps);
-                }
-                if (proc_rank == 0) {
-                    rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
-                }
+                for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
+                    unsigned int n_samp = args.target_nonz;
+                    double glob_norm;
+                    sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
+                    loc_norms[proc_rank] = find_preserve(sol_vec.values(), srt_arr.data(), keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
+                    if ((iteration * args.max_krylov + mult_idx + 1) % shift_interval == 0) {
+                        adjust_shift(&en_shift[vec_idx], glob_norm, &last_one_norm[vec_idx], 0, shift_damping / shift_interval / eps);
+                    }
+                    if (proc_rank == 0) {
+                        rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
+                    }
 #ifdef USE_MPI
-                MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+                    MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
 #endif
-                sys_comp(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
+                    sys_comp(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
+                    for (size_t det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
+                        if (keep_exact[det_idx]) {
+                            keep_exact[det_idx] = 0;
+                        }
+                        else {
+                            del_all[det_idx] = false;
+                        }
+                    }
+                }
                 for (size_t det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
-                    if (keep_exact[det_idx]) {
-                        keep_exact[det_idx] = 0;
+                    if (del_all[det_idx]) {
+                        sol_vec.del_at_pos(det_idx);
                     }
-                    else {
-                        del_all[det_idx] = false;
-                    }
+                    del_all[det_idx] = true;
                 }
-            }
-            for (size_t det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
-                if (del_all[det_idx]) {
-                    sol_vec.del_at_pos(det_idx);
-                }
-                del_all[det_idx] = true;
             }
         }
         if (proc_rank == 0) {
             evals_file.close();
             bmat_file.close();
             dmat_file.close();
-            restart_file.close();
+//            restart_file.close();
         }
 #ifdef USE_MPI
 //        MPI_Comm_free(&samp_comm);
