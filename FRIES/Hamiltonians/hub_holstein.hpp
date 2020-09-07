@@ -13,6 +13,7 @@
 #include <FRIES/math_utils.h>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/ndarr.hpp>
+#include <stdexcept>
 
 
 /*! \brief Uniformly chooses num_sampl excitations from a column of the
