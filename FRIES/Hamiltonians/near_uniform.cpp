@@ -9,6 +9,7 @@
  */
 
 #include "near_uniform.hpp"
+#include <FRIES/Hamiltonians/molecule.hpp>
 
 void count_symm_virt(unsigned int counts[][2], uint8_t *occ_orbs,
                      unsigned int n_elec, unsigned int n_orb, unsigned int n_symm,

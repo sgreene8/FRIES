@@ -6,8 +6,6 @@
 #ifndef math_utils_h
 #define math_utils_h
 
-#include <stdlib.h>
-#include <stdint.h>
 #include <string.h>
 
 #define CEILING(x,y) ((x + y - 1) / y)

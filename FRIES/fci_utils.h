@@ -6,9 +6,7 @@
 #ifndef fci_utils_h
 #define fci_utils_h
 
-#include <stdio.h>
 #include <stdlib.h>
-#include <FRIES/det_store.h>
 
 
 #ifdef __cplusplus

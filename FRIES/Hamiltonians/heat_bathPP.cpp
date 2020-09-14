@@ -8,6 +8,7 @@
  */
 
 #include "heat_bathPP.hpp"
+#include <FRIES/det_store.h>
 
 #define TRI_N(n)((n) * (n + 1) / 2)
 #define I_J_TO_TRI(i, j)(TRI_N(j - 1) + i)

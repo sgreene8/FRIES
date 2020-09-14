@@ -7,18 +7,9 @@
 #ifndef compress_utils_h
 #define compress_utils_h
 
-#include <cstdio>
-#include <cstdint>
-#include <climits>
 #include <cmath>
-#include <algorithm>
-#include <FRIES/mpi_switch.h>
-#include <FRIES/det_store.h>
-#include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/ndarr.hpp>
-#include <functional>
-#include <iostream>
-#include <sstream>
+#include <FRIES/Ext_Libs/dcmt/dc.h>
 
 /*! \brief Round a non-integral number binomially.
  *

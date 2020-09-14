@@ -7,10 +7,6 @@
 #ifndef det_store_h
 #define det_store_h
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/math_utils.h>
 
 #ifdef __cplusplus

@@ -5,6 +5,16 @@
  */
 
 #include "compress_utils.hpp"
+#include <cstdio>
+#include <cstdint>
+#include <climits>
+#include <algorithm>
+#include <FRIES/mpi_switch.h>
+#include <FRIES/det_store.h>
+#include <functional>
+#include <iostream>
+#include <sstream>
+#include <FRIES/Ext_Libs/dcmt/dc.h>
 
 
 int round_binomially(double p, unsigned int n, mt_struct *mt_ptr) {

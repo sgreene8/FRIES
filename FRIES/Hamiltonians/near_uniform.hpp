@@ -11,11 +11,8 @@
 #ifndef near_uniform_h
 #define near_uniform_h
 
-#include <cmath>
-#include <cstdint>
 #include <FRIES/ndarr.hpp>
-#include <FRIES/det_store.h>
-#include <FRIES/Hamiltonians/molecule.hpp>
+#include <FRIES/Ext_Libs/dcmt/dc.h>
 
 
 /*! \brief A pair of orbitals involved in a double excitation */

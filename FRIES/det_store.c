@@ -5,6 +5,7 @@
  */
 
 #include "det_store.h"
+#include <stdio.h>
 
 
 int bit_str_equ(uint8_t *str1, uint8_t *str2, uint8_t n_bytes) {

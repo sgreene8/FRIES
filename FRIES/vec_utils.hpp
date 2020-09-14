@@ -13,20 +13,14 @@
 #include <cstring>
 #include <FRIES/det_hash.hpp>
 #include <FRIES/Hamiltonians/hub_holstein.hpp>
-#include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/mpi_switch.h>
 #include <FRIES/ndarr.hpp>
 #include <FRIES/compress_utils.hpp>
+#include <FRIES/io_utils.hpp>
 #include <vector>
 #include <stack>
 #include <functional>
 #include <sstream>
-
-using namespace std;
-
-// Forward declaration from io_utils.hpp
-size_t read_csv(int *buf, const char *fname);
-size_t read_dets(const std::string &path, Matrix<uint8_t> &dets);
 
 
 #ifdef USE_MPI

@@ -4,6 +4,7 @@
  */
 
 #include "fci_utils.h"
+#include <FRIES/det_store.h>
 
 void gen_hf_bitstring(unsigned int n_orb, unsigned int n_elec, uint8_t *det) {
     uint8_t byte_idx;
