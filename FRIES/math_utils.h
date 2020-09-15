@@ -7,6 +7,7 @@
 #define math_utils_h
 
 #include <string.h>
+#include <stdint.h>
 
 #define CEILING(x,y) ((x + y - 1) / y)
 #define SIGN(x) ((x > 0) - (x < 0))
