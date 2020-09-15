@@ -280,6 +280,7 @@ int main(int argc, char * argv[]) {
         std::vector<double> lapack_scratch((3 + n_trial + 32 * 2) * n_trial - 1);
         Matrix<double> evecs(n_trial, n_trial);
         std::vector<double> evals(n_trial);
+        std::vector<uint8_t> ovlp_idx(n_trial);
         
         int vec_half = 0; // controls whether the current iterates are stored in the first or second half of the values_ matrix
 //        uint32_t since_last_restart = 0;
@@ -287,8 +288,8 @@ int main(int argc, char * argv[]) {
         for (uint8_t idx = 0; idx < n_trial; idx++) {
             eigen_sort[idx] = idx;
         }
-        auto eigen_cmp = [&evals](uint8_t idx1, uint8_t idx2) {
-            return evals[idx1] < evals[idx2];
+        auto eigen_cmp = [&ovlp_idx](uint8_t idx1, uint8_t idx2) {
+            return ovlp_idx[idx1] < ovlp_idx[idx2];
         };
         
         for (uint32_t iteration = 0; iteration < args.max_iter; iteration++) {
@@ -330,6 +331,25 @@ int main(int argc, char * argv[]) {
             
             // Get eigenvalues
             get_real_gevals_vecs(b_ave, d_ave, evals, evecs, lapack_scratch.data());
+            
+            // Calculate which trial vector each eigenvector overlaps with the most
+            for (uint8_t eigen_idx = 0; eigen_idx < n_trial; eigen_idx++) {
+                double max = 0;
+                uint8_t argmax = 255;
+                for (uint8_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
+                    double overlap = 0;
+                    for (uint8_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
+                        overlap += d_mat(trial_idx, vec_idx) * evecs(eigen_idx, vec_idx);
+                    }
+                    
+                    if (fabs(overlap) > max) {
+                        max = fabs(overlap);
+                        argmax = trial_idx;
+                    }
+                }
+                ovlp_idx[eigen_idx] = argmax;
+            }
+            
             std::sort(eigen_sort.begin(), eigen_sort.end(), eigen_cmp);
             for (uint8_t trial_idx = 0; trial_idx < n_trial - 1; trial_idx++) {
                 evals_file << evals[eigen_sort[trial_idx]] << ",";
@@ -391,7 +411,9 @@ int main(int argc, char * argv[]) {
 //                sol_vecs[vec_idx].copy_vec(2, 0);
 //            }
             for (uint32_t mult_idx = 0; mult_idx < args.max_krylov; mult_idx++) {
-                std::cout << "multiplying\n";
+                if (proc_rank == 0) {
+                    std::cout << "multiplying\n";
+                }
 # pragma mark Matrix multiplication
                 for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                     int curr_idx = vec_half * n_trial + vec_idx;
@@ -419,9 +441,12 @@ int main(int argc, char * argv[]) {
                     double glob_norm;
                     sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
                     loc_norms[proc_rank] = find_preserve(sol_vec.values(), srt_arr.data(), keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
-                    if ((iteration * args.max_krylov + mult_idx + 1) % shift_interval == 0) {
-                        adjust_shift(&en_shift[vec_idx], glob_norm, &last_one_norm[vec_idx], 0, shift_damping / shift_interval / eps);
-                    }
+//                    for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
+//                        *sol_vec[el_idx] /= glob_norm;
+//                    }
+//                    if ((iteration * args.max_krylov + mult_idx + 1) % shift_interval == 0) {
+//                        adjust_shift(&en_shift[vec_idx], glob_norm, &last_one_norm[vec_idx], 0, shift_damping / shift_interval / eps);
+//                    }
                     if (proc_rank == 0) {
                         rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
                     }
