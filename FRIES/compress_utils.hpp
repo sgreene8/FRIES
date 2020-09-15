@@ -8,6 +8,7 @@
 #define compress_utils_h
 
 #include <cmath>
+#include <functional>
 #include <FRIES/ndarr.hpp>
 #include <FRIES/Ext_Libs/dcmt/dc.h>
 
