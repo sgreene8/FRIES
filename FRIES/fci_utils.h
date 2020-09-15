@@ -7,7 +7,7 @@
 #define fci_utils_h
 
 #include <stdlib.h>
-
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
