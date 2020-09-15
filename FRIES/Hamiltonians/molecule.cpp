@@ -185,8 +185,9 @@ void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
     uint8_t (*doub_ex_orbs)[4] = (uint8_t (*)[4])orbs_scratch;
     
     if (vec.num_vecs() <= dest_idx) {
-        fprintf(stderr, "Error: DistVec argument to h_op must allow for the storage of at least 2 simultaneous vectors\n");
-        return;
+        std::stringstream msg;
+        msg << "The dest_idx argument (" << dest_idx << ") exceeds the number of vectors stored in this object.";
+        throw std::runtime_error(msg.str());
     }
     
     double *vals_before_mult = vec.values();
@@ -214,7 +215,7 @@ void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
             size_t n_sing = sing_ex_symm(curr_det, occ_orbs, n_elec, unf_orbs, sing_ex_orbs, symm);
             for (ex_idx = 0; ex_idx < n_sing; ex_idx++) {
                 double matr_el = sing_matr_el_nosgn(sing_ex_orbs[ex_idx], occ_orbs, n_orbs, eris, h_core, n_frozen, n_elec);
-                memcpy(new_det, curr_det, n_bytes);
+                std::copy(curr_det, curr_det + n_bytes, new_det);
                 matr_el *= sing_det_parity(new_det, sing_ex_orbs[ex_idx]);
                 matr_el *= curr_el * h_fac;
                 vec.add(new_det, matr_el, 1);
@@ -224,13 +225,15 @@ void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
             size_t n_doub = doub_ex_symm(curr_det, occ_orbs, n_elec, unf_orbs, doub_ex_orbs, symm);
             for (ex_idx = 0; ex_idx < n_doub; ex_idx++) {
                 double matr_el = doub_matr_el_nosgn(doub_ex_orbs[ex_idx], n_orbs, eris, n_frozen);
-                memcpy(new_det, curr_det, n_bytes);
+                std::copy(curr_det, curr_det + n_bytes, new_det);
                 matr_el *= doub_det_parity(new_det, doub_ex_orbs[ex_idx]);
                 matr_el *= curr_el * h_fac;
                 vec.add(new_det, matr_el, 1);
             }
             if (n_doub > n_ex) {
-                fprintf(stderr, "Error: out of bounds in h_op_offdiag\n");
+                std::stringstream msg;
+                msg << "The number of symmetry-allowed double excitations from a determinant (" << n_doub << ") exceeds the maximum number of allowed double excitations";
+                throw std::runtime_error(msg.str());
             }
             num_added += n_doub;
             det_idx++;
@@ -244,7 +247,7 @@ void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
 size_t count_doub_nosymm(unsigned int num_elec, unsigned int num_orb) {
     unsigned int num_unocc = num_orb - num_elec / 2;
     return num_elec * (num_elec / 2 - 1) * num_unocc * (num_unocc - 1) / 2 +
-    num_elec / 2 * num_elec / 2 * num_unocc * num_unocc;
+        num_elec / 2 * num_elec / 2 * num_unocc * num_unocc;
 }
 
 
@@ -375,10 +378,10 @@ void gen_symm_lookup(uint8_t *orb_symm,
 void print_symm_lookup(Matrix<uint8_t> &lookup_tabl) {
     size_t n_symm = lookup_tabl.rows();
     for (unsigned int idx = 0; idx < n_symm; idx++) {
-        printf("%u: ", idx);
+        std::cout << idx << ": ";
         for (unsigned int orb_idx = 0; orb_idx < lookup_tabl(idx, 0); orb_idx++) {
-            printf("%u, ", lookup_tabl(idx, 1 + orb_idx));
+            std::cout << lookup_tabl(idx, 1 + orb_idx) << ", ";
         }
-        printf("\n");
+        std::cout << "\n";
     }
 }

@@ -216,7 +216,7 @@ int main(int argc, char * argv[]) {
             if (mat_fmt == txt_out) {
                 file_path = args.result_dir;
                 file_path.append("b_matrix.txt");
-                bmat_file.open(file_path, ios::app);
+                bmat_file.open(file_path, std::ios::app);
                 if (!bmat_file.is_open()) {
                     std::string msg("Could not open file for writing in directory ");
                     msg.append(args.result_dir);
@@ -226,7 +226,7 @@ int main(int argc, char * argv[]) {
                 
                 file_path = args.result_dir;
                 file_path.append("d_matrix.txt");
-                dmat_file.open(file_path, ios::app);
+                dmat_file.open(file_path, std::ios::app);
                 dmat_file << std::setprecision(14);
             }
             

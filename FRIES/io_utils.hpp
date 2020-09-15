@@ -10,36 +10,22 @@
 #include <cstring>
 #include <cstdlib>
 #include <sstream>
-#include <FRIES/Ext_Libs/csvparser.h>
 #include <FRIES/mpi_switch.h>
-#include <FRIES/vec_utils.hpp>
+#include <fstream>
+#include <iostream>
 #include <FRIES/ndarr.hpp>
 #include <stdexcept>
 
-/*! \brief Read an array of floating-point numbers from a .csv file
+
+/*! \brief Read an array of numbers from a .csv file
  *
- * \param [out] buf     Array in which read-in numbers are stored
+ * \param [out] data     Array in which read-in numbers are stored
  * \param [in] fname    Path of file
  * \returns          Total number of values read from the file
  */
-size_t read_csv(double *buf, const char *fname);
-
-/*! \brief Read an array of unsigned integers from a .csv file
- *
- * \param [out] buf     Array in which read-in numbers are stored
- * \param [in] fname    Path of file
- * \returns          Total number of values read from the file
- */
-size_t read_csv(int *buf, const char *fname);
-
-
-/*! \brief Read an array of unsigned bytes from a .csv file
- *
- * \param [out] buf     Array in which read-in numbers are stored
- * \param [in] fname    Path of file
- * \returns          Total number of values read from the file 
- */
-size_t read_csv(uint8_t *buf, const char *fname);
+size_t read_csv(double *data, const std::string &fname);
+size_t read_csv(uint8_t *data, const std::string &fname);
+size_t read_csv(int *data, const std::string &fname);
 
 
 /*! \brief Data structure containing the output of a Hartree-Fock calculation */

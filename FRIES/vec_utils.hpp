@@ -721,13 +721,13 @@ public:
         
         std::stringstream buffer;
         buffer << path << "dets" << my_rank << ".dat";
-        std::ofstream file_p(buffer.str(), ios::binary);
+        std::ofstream file_p(buffer.str(), std::ios::binary);
         file_p.write((const char *)indices_.data(), curr_size_ * indices_.cols());
         file_p.close();
         
         buffer.str("");
         buffer << path << "vals" << my_rank << ".dat";
-        file_p.open(buffer.str(), ios::binary);
+        file_p.open(buffer.str(), std::ios::binary);
         for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
             file_p.write((const char *)values_[vec_idx], el_size * curr_size_);
         }
@@ -754,7 +754,7 @@ public:
         int dense_sizes[n_procs];
         if (my_rank == 0) {
             buffer << path << "dense.txt";
-            read_csv(dense_sizes, buffer.str().c_str());
+            read_csv(dense_sizes, buffer.str());
         }
 #ifdef USE_MPI
         MPI_Scatter(dense_sizes, 1, MPI_INT, &n_dense_, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -768,7 +768,7 @@ public:
         size_t n_bytes = indices_.cols();
         buffer.str("");
         buffer << path << "dets" << my_rank << ".dat";
-        std::ifstream file_p(buffer.str(), ios::binary | ios::ate);
+        std::ifstream file_p(buffer.str(), std::ios::binary | std::ios::ate);
         if (!file_p.is_open()) {
             std::stringstream msg;
             msg << "Could not open saved binary vector file at path " << buffer.str();
@@ -779,13 +779,13 @@ public:
         while (n_dets > max_size_) {
             expand();
         }
-        file_p.seekg(0, ios::beg);
+        file_p.seekg(0, std::ios::beg);
         file_p.read((char *)indices_.data(), n_dets * n_bytes);
         file_p.close();
         
         buffer.str("");
         buffer << path << "vals" << my_rank << ".dat";
-        file_p.open(buffer.str(), ios::binary);
+        file_p.open(buffer.str(), std::ios::binary);
         if (!file_p.is_open()) {
             std::stringstream msg;
             msg << "Could not open saved binary vector file at path " << buffer.str();

@@ -46,7 +46,9 @@ uint8_t idx_of_doub(unsigned int chosen_idx, unsigned int n_elec,
             n_doub++;
         }
     }
-    fprintf(stderr, "Error in idx_of_doub: index %u not found\n", chosen_idx);
+    std::stringstream msg;
+    msg << "The doubly occupied site with index " << chosen_idx << " was requested, but there are only " << n_doub << " doubly occupied sites in this Hubbard state";
+    throw std::runtime_error(msg.str());
     return 255;
 }
 
@@ -70,7 +72,9 @@ uint8_t idx_of_sing(unsigned int chosen_idx, unsigned int n_elec,
             n_sing++;
         }
     }
-    fprintf(stderr, "Error in idx_of_doub: index %u not found\n", chosen_idx);
+    std::stringstream msg;
+    msg << "The singly occupied site with index " << chosen_idx << " was requested, but there are only " << n_sing << " singly occupied sites in this Hubbard state";
+    throw std::runtime_error(msg.str());
     return 255;
 }
 

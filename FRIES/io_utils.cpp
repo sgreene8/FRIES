@@ -5,77 +5,59 @@
 
 #include "io_utils.hpp"
 
-size_t read_csv(double *buf, const char *fname) {
-    size_t row_idx = 0;
-    size_t n_col;
+size_t read_csv(double *data, const std::string &fname) {
+    std::ifstream in_f(fname);
+    std::string line;
     size_t n_read = 0;
-    //                                   file, delimiter, first_line_is_header?
-    CsvParser *csvparser = CsvParser_new(fname, ",", 0);
-    CsvRow *row;
-    
-    while ((row = CsvParser_getRow(csvparser)) ) {
-        const char **rowFields = CsvParser_getFields(row);
-        n_col = CsvParser_getNumFields(row);
-        n_read += n_col;
-        for (int i = 0 ; i < n_col ; i++) {
-            sscanf(rowFields[i], "%lf", &buf[n_col * row_idx + i]);
+    while (std::getline(in_f, line)) {
+        std::stringstream ss_line(line);
+        while (ss_line.good()) {
+            std::string substr;
+            std::getline(ss_line, substr, ',');
+            std::stringstream number(substr);
+            number << std::scientific;
+            number >> data[n_read];
+            n_read++;
         }
-        CsvParser_destroy_row(row);
-        row_idx++;
     }
-    CsvParser_destroy(csvparser);
     return n_read;
 }
 
-size_t read_csv(uint8_t *buf, const char *fname) {
-    size_t row_idx = 0;
-    size_t n_col;
+size_t read_csv(uint8_t *data, const std::string &fname) {
+    std::ifstream in_f(fname);
+    std::string line;
     size_t n_read = 0;
-    //                                   file, delimiter, first_line_is_header?
-    CsvParser *csvparser = CsvParser_new(fname, " ", 0);
-    CsvRow *row;
-    unsigned int scan_val;
-    
-    while ((row = CsvParser_getRow(csvparser)) ) {
-        const char **rowFields = CsvParser_getFields(row);
-        n_col = CsvParser_getNumFields(row);
-        n_read += n_col;
-        for (int i = 0 ; i < n_col ; i++) {
-            sscanf(rowFields[i], "%u", &scan_val);
-            buf[n_col * row_idx + i] = scan_val;
+    while (std::getline(in_f, line)) {
+        std::stringstream ss_line(line);
+        while (ss_line.good()) {
+            std::string substr;
+            std::getline(ss_line, substr, ',');
+            std::stringstream number(substr);
+            uint16_t inp;
+            number >> inp;
+            data[n_read] = inp;
+            n_read++;
         }
-        CsvParser_destroy_row(row);
-        row_idx++;
     }
-    CsvParser_destroy(csvparser);
     return n_read;
 }
 
-
-size_t read_csv(int *buf, const char *fname) {
-    size_t row_idx = 0;
-    size_t n_col;
+size_t read_csv(int *data, const std::string &fname) {
+    std::ifstream in_f(fname);
+    std::string line;
     size_t n_read = 0;
-    
-    CsvParser *csvparser = CsvParser_new(fname, " ", 0);
-    CsvRow *row;
-    int scan_val;
-    
-    while ((row = CsvParser_getRow(csvparser)) ) {
-        const char **rowFields = CsvParser_getFields(row);
-        n_col = CsvParser_getNumFields(row);
-        n_read += n_col;
-        for (int i = 0 ; i < n_col ; i++) {
-            sscanf(rowFields[i], "%d", &scan_val);
-            buf[n_col * row_idx + i] = scan_val;
+    while (std::getline(in_f, line)) {
+        std::stringstream ss_line(line);
+        while (ss_line.good()) {
+            std::string substr;
+            std::getline(ss_line, substr, ',');
+            std::stringstream number(substr);
+            number >> data[n_read];
+            n_read++;
         }
-        CsvParser_destroy_row(row);
-        row_idx++;
     }
-    CsvParser_destroy(csvparser);
     return n_read;
 }
-
 
 void parse_hf_input(const std::string &hf_dir, hf_input *in_struct) {
     std::string path(hf_dir);
@@ -271,21 +253,17 @@ size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, int *vals)
         
         buffer = prefix;
         buffer.append("vals");
-        FILE *file_v = fopen(buffer.c_str(), "r");
-        if (!file_v) {
-            std::string msg("Could not find file:");
+        std::ifstream file_v(buffer);
+        if (!file_v.is_open()) {
+            std::string msg("Could not find file: ");
             msg.append(buffer);
             throw std::runtime_error(msg);
         }
-        int num_read_v = 1;
         size_t n_vals = 0;
         
-        int *val_arr = (int *) vals;
-        while (num_read_v == 1) {
-            num_read_v = fscanf(file_v, "%d\n", &val_arr[n_vals]);
+        while (file_v >> vals[n_vals]) {
             n_vals++;
         }
-        n_vals--;
         if (n_vals > n_dets) {
             std::cerr << "Warning: fewer determinants than values read in\n";
             return n_dets;
@@ -293,6 +271,7 @@ size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, int *vals)
         else if (n_vals < n_dets) {
             std::cerr << "Warning: fewer values than determinants read in\n";
         }
+        file_v.close();
         return n_vals;
     }
     else {
@@ -313,21 +292,17 @@ size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, double *va
         
         buffer = prefix;
         buffer.append("vals");
-        FILE *file_v = fopen(buffer.c_str(), "r");
-        if (!file_v) {
-            std::string msg("Could not find file:");
+        std::ifstream file_v(buffer);
+        if (!file_v.is_open()) {
+            std::string msg("Could not open file: ");
             msg.append(buffer);
             throw std::runtime_error(msg);
         }
-        int num_read_v = 1;
         size_t n_vals = 0;
         
-        double *val_arr = (double *)vals;
-        while (num_read_v == 1) {
-            num_read_v = fscanf(file_v, "%lf\n", &val_arr[n_vals]);
+        while (file_v >> vals[n_vals]) {
             n_vals++;
         }
-        n_vals--;
         if (n_vals > n_dets) {
             std::cerr << "Warning: fewer determinants than values read in\n";
             return n_dets;
@@ -335,6 +310,7 @@ size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, double *va
         else if (n_vals < n_dets) {
             std::cerr << "Warning: fewer values than determinants read in\n";
         }
+        file_v.close();
         return n_vals;
     }
     else {
@@ -350,27 +326,26 @@ size_t read_dets(const std::string &path, Matrix<uint8_t> &dets) {
 #endif
     
     if (my_rank == 0) {
-        FILE *file_d = fopen(path.c_str(), "r");
-        if (!file_d) {
-            std::string msg("Could not find file: ");
+        std::ifstream file_d(path);
+        if (!file_d.is_open()) {
+            std::string msg("Could not open file: ");
             msg.append(path);
             throw std::runtime_error(msg);
         }
         
-        int num_read_d = 1;
         size_t n_dets = 0;
         long long in_det;
         size_t max_size = dets.cols();
         
-        while (num_read_d == 1) {
-            num_read_d = fscanf(file_d, "%lld\n", &in_det);
+        while (file_d >> in_det) {
             for (size_t byte_idx = 0; byte_idx < 8 && byte_idx < max_size; byte_idx++) {
                 dets(n_dets, byte_idx) = in_det & 255;
                 in_det >>= 8;
             }
             n_dets++;
         }
-        return n_dets - 1;
+        file_d.close();
+        return n_dets;
     }
     else {
         return 0;
@@ -387,7 +362,7 @@ void save_proc_hash(const std::string &path, unsigned int *proc_hash, size_t n_h
     std::string buffer(path);
     buffer.append("hash.dat");
     if (my_rank == 0) {
-        ofstream file_p(buffer, ios::binary);
+        std::ofstream file_p(buffer, std::ios::binary);
         if (!file_p.is_open()) {
             std::string error("Could not save file at path ");
             error.append(buffer);
@@ -402,7 +377,7 @@ void save_proc_hash(const std::string &path, unsigned int *proc_hash, size_t n_h
 void load_proc_hash(const std::string &path, unsigned int *proc_hash) {
     std::string buffer(path);
     buffer.append("hash.dat");
-    ifstream file_p(buffer, ios::binary);
+    std::ifstream file_p(buffer, std::ios::binary);
     if (!file_p.is_open()) {
         std::string error("Could not open saved hash scrambler at ");
         error.append(buffer);
@@ -413,16 +388,15 @@ void load_proc_hash(const std::string &path, unsigned int *proc_hash) {
 }
 
 void load_rdm(const std::string &path, double *vals) {
-    FILE *file_p = fopen(path.c_str(), "r");
-    if (!file_p) {
-        fprintf(stderr, "Error: could not open RDM file.\n");
-        return;
+    std::ifstream file_p(path);
+    if (!file_p.is_open()) {
+        std::string msg("Could not open file: ");
+        msg.append(path);
+        throw std::runtime_error(msg);
     }
-    int num_read = 1;
     size_t n_vals = 0;
-    while (num_read == 1) {
-        num_read = fscanf(file_p, "%lf\n", &vals[n_vals]);
+    while (file_p >> vals[n_vals]) {
         n_vals++;
     }
-    fclose(file_p);
+    file_p.close();
 }
