@@ -3,6 +3,11 @@
 */
 
 #include "lapack_wrappers.hpp"
+#if __APPLE__
+#include <Accelerate/Accelerate.h>
+#else
+#include "LAPACK/lapacke.h"
+#endif
 
 void get_svals(Matrix<double> mat, std::vector<double> &s_vals, double *scratch) {
     int rows = (int) mat.rows();

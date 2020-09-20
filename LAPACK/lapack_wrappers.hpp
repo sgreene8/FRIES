@@ -5,11 +5,6 @@
 #ifndef lapack_wrappers_hpp
 #define lapack_wrappers_hpp
 
-#if __APPLE__
-#include <Accelerate/Accelerate.h>
-#else
-#include "LAPACK/lapacke.h"
-#endif
 #include <FRIES/ndarr.hpp>
 #include <FRIES/math_utils.h>
 #include <iostream>
