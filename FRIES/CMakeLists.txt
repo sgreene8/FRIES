@@ -15,7 +15,7 @@ add_library(fries SHARED ${FRIES_FILELIST})
 
 set_target_properties(fries
   PROPERTIES
-PUBLIC_HEADER "compress_utils.hpp;det_store.h;fci_utils.h;io_utils.hpp;math_utils.h;mpi_switch.h;vec_utils.hpp")
+PUBLIC_HEADER "compress_utils.hpp;det_store.h;fci_utils.h;io_utils.hpp;math_utils.h;mpi_switch.h;vec_utils.hpp;hh_vec.hpp;det_hash.hpp;ndarr.hpp")
 
 add_subdirectory(Ext_Libs)
 add_subdirectory(Hamiltonians)
