@@ -25,7 +25,7 @@ script:
 - cd build_examples
 - cmake ../examples -DCMAKE_INSTALL_PREFIX=~/local
 - make
-- ./compress_1D
+- ./fries_test
 - cd ..
   
 
