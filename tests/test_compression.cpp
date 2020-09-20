@@ -13,15 +13,14 @@ TEST_CASE("Test alias method", "[alias]") {
     double probs[] = {0.10125, 0.05625, 0.0875 , 0.03   , 0.095  , 0.05375, 0.095  ,
         0.0875 , 0.0625 , 0.33125};
     unsigned int n_states = 10;
-    unsigned int n_samp = 10;
+    unsigned int n_samp = 30;
     unsigned int n_iter = 10000;
 
     double alias_probs[n_states];
     unsigned int aliases[n_states];
     setup_alias(probs, aliases, alias_probs, n_states);
 
-    auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
-    std::mt19937 mt_obj((unsigned int)seed);
+    std::mt19937 mt_obj(0);
     uint8_t samples[n_samp];
 
     unsigned int cumu_samp[n_states];
