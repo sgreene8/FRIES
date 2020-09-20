@@ -5,7 +5,7 @@
 
 #include <iostream>
 #include <chrono>
-#include <FRIES/compress_utils.hpp
+#include <FRIES/compress_utils.hpp>
 
 int main(int argc, const char * argv[]) {
     auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
