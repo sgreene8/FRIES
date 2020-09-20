@@ -4,9 +4,8 @@
  */
 
 #include <iostream>
-#include <ctime>
+#include <chrono>
 #include <FRIES/io_utils.hpp>
-#include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/compress_utils.hpp>
 #include <FRIES/Ext_Libs/argparse.hpp>
 #include <FRIES/Hamiltonians/molecule.hpp>
@@ -109,8 +108,8 @@ int main(int argc, char * argv[]) {
         FourDArr *eris = in_data.eris;
         
         // Rn generator
-        mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, proc_rank, (unsigned int) time(NULL));
-        sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
+        auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        std::mt19937 mt_obj((unsigned int)seed);
         
         // Solution vector
         unsigned int num_ex = n_elec_unf * n_elec_unf * (n_orb - n_elec_unf / 2) * (n_orb - n_elec_unf / 2);
@@ -125,7 +124,7 @@ int main(int argc, char * argv[]) {
         
         if (proc_rank == 0) {
             for (size_t det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
-                proc_scrambler[det_idx] = genrand_mt(rngen_ptr);
+                proc_scrambler[det_idx] = mt_obj();
             }
             save_proc_hash(args.result_dir.c_str(), proc_scrambler.data(), 2 * n_orb);
         }
@@ -135,7 +134,7 @@ int main(int argc, char * argv[]) {
         
         std::vector<uint32_t> vec_scrambler(2 * n_orb);
         for (size_t det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
-            vec_scrambler[det_idx] = genrand_mt(rngen_ptr);
+            vec_scrambler[det_idx] = mt_obj();
         }
         
         Adder<double> shared_adder(adder_size, n_procs, n_orb * 2);
@@ -441,14 +440,14 @@ int main(int argc, char * argv[]) {
                     double glob_norm;
                     sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
                     loc_norms[proc_rank] = find_preserve(sol_vec.values(), srt_arr.data(), keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
-//                    for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
-//                        *sol_vec[el_idx] /= glob_norm;
-//                    }
+                    for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
+                        *sol_vec[el_idx] /= glob_norm;
+                    }
 //                    if ((iteration * args.max_krylov + mult_idx + 1) % shift_interval == 0) {
 //                        adjust_shift(&en_shift[vec_idx], glob_norm, &last_one_norm[vec_idx], 0, shift_damping / shift_interval / eps);
 //                    }
                     if (proc_rank == 0) {
-                        rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
+                        rn_sys = mt_obj() / (1. + UINT32_MAX);
                     }
 #ifdef USE_MPI
                     MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);

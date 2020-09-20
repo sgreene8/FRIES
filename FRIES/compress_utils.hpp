@@ -10,7 +10,8 @@
 #include <cmath>
 #include <functional>
 #include <FRIES/ndarr.hpp>
-#include <FRIES/Ext_Libs/dcmt/dc.h>
+#include <random>
+#include <FRIES/mpi_switch.h>
 
 /*! \brief Round a non-integral number binomially.
  *
@@ -21,10 +22,10 @@
  * \f]
  * \param [in] p        The non-integral parameter p of the rounding operation
  * \param [in] n        The positive integral parameter n of the rounding oper.
- * \param [in] mt_ptr   Address to MT state object to use for RN generation
+ * \param [in] mt_obj   Reference to initialized MT object to use for RN generation
  * \return Integer result r of the operation
  */
-int round_binomially(double p, unsigned int n, mt_struct *mt_ptr);
+int round_binomially(double p, unsigned int n, std::mt19937 &mt_obj);
 
 
 /*! \brief Identify the greatest-magnitude elements of a vector
@@ -97,10 +98,10 @@ void sys_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
  * \param [in, out] keep_exact Array indicating elements to be preserved exactly
  *                      in compression; upon return, 1's indicate elements
  *                      zeroed in the compression
- * \param [in] rngen_ptr   A pointer to a mt_struct object to use for random number generation
+ * \param [in] mt_obj   A reference to an initialized MT object to use for random number generation
  */
 void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double sampl_val,
-                     uint32_t n_samp, std::vector<bool> &keep_exact, mt_struct *rngen_ptr);
+                     uint32_t n_samp, std::vector<bool> &keep_exact, std::mt19937 &mt_obj);
 
 
 
@@ -408,11 +409,11 @@ void setup_alias(double *probs, unsigned int *aliases, double *alias_probs,
  * \param [in] n_samp       Number of samples to draw multinomially
  * \param [in] samp_int     The interval at which to save samples in the
  *                          samples array
- * \param [in] mt_ptr   Address to MT state object to use for RN generation
+ * \param [in] mt_obj   Reference to initialized MT object to use for RN generation
  */
 void sample_alias(unsigned int *aliases, double *alias_probs, size_t n_states,
                   uint8_t *samples, unsigned int n_samp, size_t samp_int,
-                  mt_struct *mt_ptr);
+                  std::mt19937 &mt_obj);
 
 
 #endif /* compress_utils_h */

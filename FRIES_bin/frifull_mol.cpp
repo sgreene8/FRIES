@@ -7,11 +7,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
+#include <chrono>
 #include <math.h>
 #include <cinttypes>
 #include <FRIES/io_utils.hpp>
-#include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/compress_utils.hpp>
 #include <FRIES/Ext_Libs/argparse.hpp>
 #include <FRIES/Hamiltonians/molecule.hpp>
@@ -77,8 +76,8 @@ int main(int argc, char * argv[]) {
         }
         
         // Rn generator
-        mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, proc_rank, (unsigned int) time(NULL));
-        sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
+        auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        std::mt19937 mt_obj((unsigned int)seed);
         
         // Solution vector
         unsigned int num_ex = n_elec_unf * n_elec_unf * (n_orb - n_elec_unf / 2) * (n_orb - n_elec_unf / 2);
@@ -110,7 +109,7 @@ int main(int argc, char * argv[]) {
         else {
             if (proc_rank == 0) {
                 for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
-                    proc_scrambler[det_idx] = genrand_mt(rngen_ptr);
+                    proc_scrambler[det_idx] = mt_obj();
                 }
                 save_proc_hash(args.result_dir.c_str(), proc_scrambler.data(), 2 * n_orb);
             }
@@ -120,7 +119,7 @@ int main(int argc, char * argv[]) {
         }
         std::vector<uint32_t> vec_scrambler(2 * n_orb);
         for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
-            vec_scrambler[det_idx] = genrand_mt(rngen_ptr);
+            vec_scrambler[det_idx] = mt_obj();
         }
         DistVec<double> sol_vec(args.max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2, proc_scrambler, vec_scrambler);
         
@@ -357,7 +356,7 @@ int main(int argc, char * argv[]) {
             }
             
             if (proc_rank == 0) {
-                rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
+                rn_sys = mt_obj() / (1. + UINT32_MAX);
             }
             if (args.rdm_path != nullptr) {
                 sys_comp_nonuni(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, obs_probs.data(), num_rn_obs, rn_sys);

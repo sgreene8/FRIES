@@ -20,7 +20,6 @@ PUBLIC_HEADER "compress_utils.hpp;det_store.h;fci_utils.h;io_utils.hpp;math_util
 add_subdirectory(Ext_Libs)
 add_subdirectory(Hamiltonians)
 
-target_link_libraries(fries PUBLIC dcmt)
 target_link_libraries(fries PUBLIC m)
 
 option(USE_MPI "Enable MPI" ON)

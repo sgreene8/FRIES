@@ -12,7 +12,7 @@
 #define near_uniform_h
 
 #include <FRIES/ndarr.hpp>
-#include <FRIES/Ext_Libs/dcmt/dc.h>
+#include <random>
 
 
 /*! \brief A pair of orbitals involved in a double excitation */
@@ -50,10 +50,10 @@ void count_symm_virt(unsigned int counts[][2], uint8_t *occ_orbs,
  *
  * \param [in] n            Number of samples to draw
  * \param [in] p            Probability of a successful event for each sample
- * \param [in] rn_ptr       Pointer to an mt_struct object for RN generation
+ * \param [in] mt_obj       Reference to an initialized MT object for RN generation
  * \return number of successes
  */
-unsigned int bin_sample(unsigned int n, double p, mt_struct *rn_ptr);
+unsigned int bin_sample(unsigned int n, double p, std::mt19937 &mt_obj);
 
 
 /*! \brief Perform multinomial sampling on the double excitation part of the
@@ -77,7 +77,7 @@ unsigned int bin_sample(unsigned int n, double p, mt_struct *rn_ptr);
  *                          dimensions (n_irreps x 2)
  * \param [in] num_sampl    number of double excitations to sample from the
  *                          column
- * \param [in] rn_ptr       Pointer to an mt_struct object for RN generation
+ * \param [in] mt_obj       Reference to an initialized MT object for RN generation
  * \param [out] chosen_orbs Contains occupied (0th and 1st columns) and
  *                          unoccupied (2nd and 3rd columns) orbitals for each
  *                          excitation (dimensions num_sampl x 4)
@@ -92,7 +92,7 @@ unsigned int doub_multin(uint8_t *det, uint8_t *occ_orbs,
                          const Matrix<uint8_t> &lookup_tabl,
                          unsigned int (* unocc_sym_counts)[2],
                          unsigned int num_sampl,
-                         mt_struct *rn_ptr, uint8_t (* chosen_orbs)[4],
+                         std::mt19937 &mt_obj, uint8_t (* chosen_orbs)[4],
                          double *prob_vec);
 
 
@@ -117,7 +117,7 @@ unsigned int doub_multin(uint8_t *det, uint8_t *occ_orbs,
  *                          dimensions (n_irreps x 2)
  * \param [in] num_sampl    number of double excitations to sample from the
  *                          column
- * \param [in] rn_ptr       Pointer to an mt_struct object for RN generation
+ * \param [in] mt_obj       Reference to an initialized MT object for RN generation
  * \param [out] chosen_orbs Contains occupied (0th column) and unoccupied
  *                          (1st column) orbitals for each excitation
  *                          (dimensions \p num_sampl x 2)
@@ -129,7 +129,7 @@ unsigned int doub_multin(uint8_t *det, uint8_t *occ_orbs,
 unsigned int sing_multin(uint8_t *det, uint8_t *occ_orbs, unsigned int num_elec,
                          uint8_t *orb_symm, unsigned int num_orb, const Matrix<uint8_t> &lookup_tabl,
                          unsigned int (* unocc_sym_counts)[2], unsigned int num_sampl,
-                         mt_struct *rn_ptr, uint8_t (* chosen_orbs)[2], double *prob_vec);
+                         std::mt19937 &mt_obj, uint8_t (* chosen_orbs)[2], double *prob_vec);
 
 
 /*! \brief Determine the number of symmetry-allowed occupied orbitals that can

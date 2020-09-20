@@ -20,8 +20,8 @@ TEST_CASE("Test alias method", "[alias]") {
     unsigned int aliases[n_states];
     setup_alias(probs, aliases, alias_probs, n_states);
 
-    mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, 0);
-    sgenrand_mt(0, rngen_ptr);
+    auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+    std::mt19937 mt_obj((unsigned int)seed);
     uint8_t samples[n_samp];
 
     unsigned int cumu_samp[n_states];
@@ -35,7 +35,7 @@ TEST_CASE("Test alias method", "[alias]") {
     }
 
     for (iter_idx = 0; iter_idx < n_iter; iter_idx++) {
-        sample_alias(aliases, alias_probs, n_states, samples, n_samp, 1, rngen_ptr);
+        sample_alias(aliases, alias_probs, n_states, samples, n_samp, 1, mt_obj);
         for (samp_idx = 0; samp_idx < n_samp; samp_idx++) {
             cumu_samp[samples[samp_idx]]++;
         }
@@ -60,8 +60,8 @@ TEST_CASE("Test alias method", "[alias]") {
 
 
 TEST_CASE("Test calculation of observables from systematic sampling", "[sys_obs]") {
-    mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, (unsigned int) time(NULL));
-    sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
+    auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+    std::mt19937 mt_obj((unsigned int)seed);
     
     unsigned int input_len = 10;
     size_t num_rns = 10;
@@ -91,7 +91,7 @@ TEST_CASE("Test calculation of observables from systematic sampling", "[sys_obs]
         unsigned int n_samp = (test_idx % (input_len / 2)) + 1;
         double tot_norm;
         for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
-            input_vec[el_idx] = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
+            input_vec[el_idx] = mt_obj() / (1. + UINT32_MAX);
             vec_keep1[el_idx] = false;
         }
         norms[proc_rank] = find_preserve(input_vec, vec_srt, vec_keep1, input_len, &n_samp, &tot_norm);
@@ -128,8 +128,8 @@ TEST_CASE("Test calculation of observables from systematic sampling", "[sys_obs]
 
 
 TEST_CASE("Test systematic sampling with arbitrary distribution", "[sys_arbitrary]") {
-    mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, 0);
-    sgenrand_mt(0, rngen_ptr);
+    auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+    std::mt19937 mt_obj((unsigned int)seed);
     
     unsigned int input_len = 10;
     double input_vec[input_len];

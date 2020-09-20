@@ -27,20 +27,12 @@ public:
     /*! \brief Constructor for abstract class
      */
     Sampler(size_t size, unsigned int n_samp) : accum_(size, 0), n_samp_(n_samp) {
-        int proc_rank = 0;
-#ifdef USE_MPI
-        MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
-#endif
-        rngen_ptr_ = get_mt_parameter_id_st(32, 607, proc_rank, (unsigned int) time(NULL));
-        sgenrand_mt((uint32_t) time(NULL), rngen_ptr_);
-    }
-    
-    ~Sampler() {
-        free(rngen_ptr_);
+        auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        mt_obj.seed((unsigned int)seed);
     }
     
 protected:
-    mt_struct *rngen_ptr_; ///< Pointer to a struct for generating random numbers
+    std::mt19937 mt_obj; ///< MT object for generating random numbers
     std::vector<double> accum_; ///< Vector in which to accumulate the cumulative mean
     unsigned int n_samp_; ///< Number of samples to use for compression
     uint32_t n_times_; ///< Total number of times the compression or sampling operation has been performed
@@ -48,7 +40,7 @@ protected:
     /*! \brief Generate a random number from the uniform distribution on [0, 1)
      */
     double gen_rn() {
-        return genrand_mt(rngen_ptr_) / (1. * UINT32_MAX);
+        return mt_obj() / (1. * UINT32_MAX);
     }
     
     void resize(size_t new_size) {
@@ -83,7 +75,7 @@ public:
         }
         for (size_t row_idx = 1; row_idx < rows; row_idx += 2) {
             row_wts_[row_idx] = gen_rn() * 10;
-            counts_[row_idx] = (genrand_mt(rngen_ptr_) % cols) + 1;
+            counts_[row_idx] = (mt_obj() % cols) + 1;
         }
         loc_norm_ = find_keep_sub(row_wts_.data(), counts_.data(), sub_wts_, keep_idx1_, NULL, rows, &(Sampler::n_samp_), wt_remain_.data());
     }
@@ -358,7 +350,7 @@ public:
         Sampler::sample();
         std::copy(keep_idx1_.begin(), keep_idx1_.end(), keep_idx2_.begin());
         std::copy(orig_vec_.begin(), orig_vec_.end(), tmp_vec_.begin());
-        piv_comp_serial(tmp_vec_.data(), tmp_vec_.size(), one_norm_, one_norm_ / n_samp_, n_samp_, keep_idx2_, rngen_ptr_);
+        piv_comp_serial(tmp_vec_.data(), tmp_vec_.size(), one_norm_, one_norm_ / n_samp_, n_samp_, keep_idx2_, mt_obj);
         for (size_t el_idx = 0; el_idx < tmp_vec_.size(); el_idx++) {
             accum_[el_idx] += tmp_vec_[el_idx];
         }

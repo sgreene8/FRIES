@@ -4,15 +4,16 @@
  */
 
 #include "hub_holstein.hpp"
+#include <sstream>
 
 
 void hub_multin(unsigned int n_elec, const uint8_t *neighbors,
-                unsigned int num_sampl, mt_struct *rn_ptr, uint8_t (* chosen_orbs)[2]) {
+                unsigned int num_sampl, std::mt19937 &mt_obj, uint8_t (* chosen_orbs)[2]) {
     unsigned int samp_idx, orb_idx;
     unsigned int n_choices;
     for (samp_idx = 0; samp_idx < num_sampl; samp_idx++) {
         n_choices = neighbors[0] + neighbors[n_elec + 1];
-        orb_idx = genrand_mt(rn_ptr) / (1. + UINT32_MAX) * n_choices;
+        orb_idx = mt_obj() / (1. + UINT32_MAX) * n_choices;
         idx_to_orbs(orb_idx, n_elec, neighbors, chosen_orbs[samp_idx]);
     }
 }

@@ -512,7 +512,7 @@ double calc_norm_wt(hb_info *tens, uint8_t *orbs, uint8_t *occ,
 unsigned int hb_doub_multi(uint8_t *det, uint8_t *occ_orbs,
                            unsigned int num_elec, uint8_t *orb_symm,
                            hb_info *tens, const Matrix<uint8_t> &lookup_tabl,
-                           unsigned int num_sampl, mt_struct *rn_ptr,
+                           unsigned int num_sampl, std::mt19937 &mt_obj,
                            uint8_t (* chosen_orbs)[4], double *prob_vec) {
     unsigned int num_orb = (unsigned int) tens->n_orb;
     unsigned int n_virt = num_orb - num_elec / 2;
@@ -524,7 +524,7 @@ unsigned int hb_doub_multi(uint8_t *det, uint8_t *occ_orbs,
     // Choose first occupied orbital
     calc_o1_probs(tens, probs, num_elec, occ_orbs, 0);
     setup_alias(probs, alias_idx, alias_probs, num_elec);
-    sample_alias(alias_idx, alias_probs, num_elec, chosen_orbs[0], num_sampl, 4, rn_ptr);
+    sample_alias(alias_idx, alias_probs, num_elec, chosen_orbs[0], num_sampl, 4, mt_obj);
     
     unsigned int o1_samples[num_elec];
     for (unsigned int elec_idx = 0; elec_idx < num_elec; elec_idx++) {
@@ -547,12 +547,12 @@ unsigned int hb_doub_multi(uint8_t *det, uint8_t *occ_orbs,
         calc_o2_probs(tens, probs, num_elec, occ_orbs, o1);
         o1 = occ_orbs[o1];
         setup_alias(probs, alias_idx, alias_probs, num_elec);
-        sample_alias(alias_idx, alias_probs, num_elec, &chosen_orbs[samp_begin][1], loc_n_samp, 4, rn_ptr);
+        sample_alias(alias_idx, alias_probs, num_elec, &chosen_orbs[samp_begin][1], loc_n_samp, 4, mt_obj);
         
         // Choose first virtual orbital
         calc_u1_probs(tens, probs, o1, occ_orbs, num_elec, 0);
         setup_alias(probs, alias_idx, alias_probs, n_virt);
-        sample_alias(alias_idx, alias_probs, n_virt, &chosen_orbs[samp_begin][2], loc_n_samp, 4, rn_ptr);
+        sample_alias(alias_idx, alias_probs, n_virt, &chosen_orbs[samp_begin][2], loc_n_samp, 4, mt_obj);
         
         for (unsigned int samp_idx = samp_begin; samp_idx < samp_begin + loc_n_samp; samp_idx++) {
             uint8_t o2 = occ_orbs[chosen_orbs[samp_idx][1]];
@@ -563,7 +563,7 @@ unsigned int hb_doub_multi(uint8_t *det, uint8_t *occ_orbs,
             if (u2_norm != 0) {
                 setup_alias(probs, alias_idx, alias_probs, num_u2);
                 uint8_t u2;
-                sample_alias(alias_idx, alias_probs, num_u2, &u2, 1, 1, rn_ptr);
+                sample_alias(alias_idx, alias_probs, num_u2, &u2, 1, 1, mt_obj);
                 u2 = lookup_tabl(u2_symm, u2 + 1) + num_orb * (o2 / num_orb);
                 if (read_bit(det, u2)) {
                     continue;

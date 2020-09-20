@@ -384,8 +384,8 @@ TEST_CASE("Test generation of phonon excitations/de-excitations in the Holstein 
 
 
 TEST_CASE("Test evaluation of sampling weights for the new heat-bath distribution", "[new_hb]") {
-    mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, 0, (unsigned int) time(NULL));
-    sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
+    auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+    std::mt19937 mt_obj((unsigned int)seed);
     unsigned int n_orb = 5;
     unsigned int n_elec = 4;
     size_t i, j, a, b;
@@ -396,7 +396,7 @@ TEST_CASE("Test evaluation of sampling weights for the new heat-bath distributio
         for (j = 0; j < n_orb; j++) {
             for (a = 0; a < n_orb; a++) {
                 for (b = 0; b < n_orb; b++) {
-                    eris(i, j, a, b) = genrand_mt(rngen_ptr) / (1. + UINT32_MAX) - 0.5;
+                    eris(i, j, a, b) = mt_obj() / (1. + UINT32_MAX) - 0.5;
                 }
             }
         }

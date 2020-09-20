@@ -14,15 +14,14 @@
 #include <functional>
 #include <iostream>
 #include <sstream>
-#include <FRIES/Ext_Libs/dcmt/dc.h>
 
 
-int round_binomially(double p, unsigned int n, mt_struct *mt_ptr) {
+int round_binomially(double p, unsigned int n, std::mt19937 &mt_obj) {
     int flr = floor(p);
     double prob = p - flr;
     int ret_val = flr * n;
     for (unsigned int i = 0; i < n; i++) {
-        ret_val += (genrand_mt(mt_ptr) / (1. + UINT32_MAX)) < prob;
+        ret_val += (mt_obj() / (1. + UINT32_MAX)) < prob;
     }
     return ret_val;
 }
@@ -339,7 +338,7 @@ void sys_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
 
 
 void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double sampl_val,
-                     uint32_t n_samp, std::vector<bool> &keep_exact, mt_struct *rngen_ptr) {
+                     uint32_t n_samp, std::vector<bool> &keep_exact, std::mt19937 &mt_obj) {
     double sampl_unit = seg_norm / n_samp;
     size_t vec_idx = 0;
     std::vector<double> sampl_el(2 * vec_len / n_samp);
@@ -374,7 +373,7 @@ void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
         double an = sampl_unit - cum_prob;
         
         // sample H_n from among the units before the cross-border unit
-        double rn = genrand_mt(rngen_ptr) / (1. + UINT32_MAX) * cum_prob;
+        double rn = mt_obj() / (1. + UINT32_MAX) * cum_prob;
         cum_prob = 0;
         size_t Hn = 0;
         while (cum_prob < rn) {
@@ -394,7 +393,7 @@ void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
         if (vec_offset + vec_idx == vec_len) {
             pass_Hn_prob = 0;
         }
-        rn = genrand_mt(rngen_ptr) / (1. + UINT32_MAX); // [0, 1) random number
+        rn = mt_obj() / (1. + UINT32_MAX); // [0, 1) random number
         if (rn < pass_Hn_prob) { // cross-border unit is sampled and H_n is passed on
             prob_idx = 1;
             for (vec_offset = 0; vec_offset < vec_max_offset; vec_offset++) {
@@ -858,11 +857,11 @@ void setup_alias(double *probs, unsigned int *aliases, double *alias_probs,
 
 void sample_alias(unsigned int *aliases, double *alias_probs, size_t n_states,
                   uint8_t *samples, unsigned int n_samp, size_t samp_int,
-                  mt_struct *mt_ptr) {
+                  std::mt19937 &mt_obj) {
     uint8_t chosen_idx;
     for (unsigned int samp_idx = 0; samp_idx < n_samp; samp_idx++) {
-        chosen_idx = genrand_mt(mt_ptr) / (1. + UINT32_MAX) * n_states;
-        if (genrand_mt(mt_ptr) / (1. + UINT32_MAX) < alias_probs[chosen_idx]) {
+        chosen_idx = mt_obj() / (1. + UINT32_MAX) * n_states;
+        if (mt_obj() / (1. + UINT32_MAX) < alias_probs[chosen_idx]) {
             samples[samp_idx * samp_int] = chosen_idx;
         }
         else {

@@ -13,7 +13,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <ctime>
+#include <chrono>
 #include <FRIES/Hamiltonians/near_uniform.hpp>
 #include <FRIES/io_utils.hpp>
 #include <FRIES/compress_utils.hpp>
@@ -95,8 +95,8 @@ int main(int argc, char * argv[]) {
         FourDArr *eris = in_data.eris;
         
         // Rn generator
-        mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, proc_rank, (unsigned int) time(NULL));
-        sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
+        auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        std::mt19937 mt_obj((unsigned int)seed);
         
         // Solution vector
         unsigned int spawn_length = args.target_walkers / n_procs / n_procs * 2;
@@ -121,7 +121,7 @@ int main(int argc, char * argv[]) {
         else {
             if (proc_rank == 0) {
                 for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
-                    proc_scrambler[det_idx] = genrand_mt(rngen_ptr);
+                    proc_scrambler[det_idx] = mt_obj();
                 }
                 save_proc_hash(args.result_dir.c_str(), proc_scrambler.data(), 2 * n_orb);
             }
@@ -131,7 +131,7 @@ int main(int argc, char * argv[]) {
         }
         std::vector<uint32_t> vec_scrambler(2 * n_orb);
         for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
-            vec_scrambler[det_idx] = genrand_mt(rngen_ptr);
+            vec_scrambler[det_idx] = mt_obj();
         }
         
         DistVec<int> sol_vec(max_n_dets, spawn_length, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 1, proc_scrambler, vec_scrambler);
@@ -339,7 +339,7 @@ int main(int argc, char * argv[]) {
                 uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
                 count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf,
                                 n_orb, n_irreps, symm_lookup, symm);
-                n_doub = bin_sample(n_walk, p_doub, rngen_ptr);
+                n_doub = bin_sample(n_walk, p_doub, mt_obj);
                 n_sing = n_walk - n_doub;
                 
                 if (n_doub > max_spawn) {
@@ -361,16 +361,16 @@ int main(int argc, char * argv[]) {
                 }
                 
                 if (qmc_dist == near_uni) {
-                    n_doub = doub_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_doub, rngen_ptr, doub_orbs, spawn_probs);
+                    n_doub = doub_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_doub, mt_obj, doub_orbs, spawn_probs);
                 }
                 else if (qmc_dist == heat_bath) {
-                    n_doub = hb_doub_multi(curr_det, occ_orbs, n_elec_unf, symm, hb_probs, symm_lookup, n_doub, rngen_ptr, doub_orbs, spawn_probs);
+                    n_doub = hb_doub_multi(curr_det, occ_orbs, n_elec_unf, symm, hb_probs, symm_lookup, n_doub, mt_obj, doub_orbs, spawn_probs);
                 }
                 
                 for (walker_idx = 0; walker_idx < n_doub; walker_idx++) {
                     matr_el = doub_matr_el_nosgn(doub_orbs[walker_idx], tot_orb, *eris, n_frz);
                     matr_el *= eps / spawn_probs[walker_idx] / p_doub;
-                    spawn_walker = round_binomially(matr_el, 1, rngen_ptr);
+                    spawn_walker = round_binomially(matr_el, 1, mt_obj);
                     
                     if (spawn_walker != 0) {
                         memcpy(new_det, curr_det, det_size);
@@ -379,12 +379,12 @@ int main(int argc, char * argv[]) {
                     }
                 }
                 
-                n_sing = sing_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_sing, rngen_ptr, sing_orbs, spawn_probs);
+                n_sing = sing_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_sing, mt_obj, sing_orbs, spawn_probs);
                 
                 for (walker_idx = 0; walker_idx < n_sing; walker_idx++) {
                     matr_el = sing_matr_el_nosgn(sing_orbs[walker_idx], occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec_unf);
                     matr_el *= eps / spawn_probs[walker_idx] / (1 - p_doub);
-                    spawn_walker = round_binomially(matr_el, 1, rngen_ptr);
+                    spawn_walker = round_binomially(matr_el, 1, mt_obj);
                     
                     if (spawn_walker != 0) {
                         memcpy(new_det, curr_det, det_size);
@@ -396,7 +396,7 @@ int main(int argc, char * argv[]) {
                 // Death/cloning step
                 double diag_el = sol_vec.matr_el_at_pos(det_idx);
                 matr_el = (1 - eps * (diag_el - en_shift)) * walk_sign;
-                new_val = round_binomially(matr_el, n_walk, rngen_ptr);
+                new_val = round_binomially(matr_el, n_walk, mt_obj);
                 if (new_val == 0 && sol_vec.indices()[det_idx] != hf_det) {
                     sol_vec.del_at_pos(det_idx);
                 }

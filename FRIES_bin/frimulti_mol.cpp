@@ -7,10 +7,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <ctime>
 #include <FRIES/Hamiltonians/near_uniform.hpp>
 #include <FRIES/io_utils.hpp>
-#include <FRIES/Ext_Libs/dcmt/dc.h>
+#include <chrono>
 #include <FRIES/compress_utils.hpp>
 #include <FRIES/Ext_Libs/argparse.hpp>
 #include <FRIES/Hamiltonians/heat_bathPP.hpp>
@@ -92,8 +91,8 @@ int main(int argc, char * argv[]) {
         FourDArr *eris = in_data.eris;
         
         // Rn generator
-        mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 607, proc_rank, (unsigned int) time(NULL));
-        sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
+        auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        std::mt19937 mt_obj((unsigned int)seed);
         
         // Solution vector
         unsigned int spawn_length = args.matr_samp * 2 / n_procs / n_procs;
@@ -118,7 +117,7 @@ int main(int argc, char * argv[]) {
         else {
             if (proc_rank == 0) {
                 for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
-                    proc_scrambler[det_idx] = genrand_mt(rngen_ptr);
+                    proc_scrambler[det_idx] = mt_obj();
                 }
                 save_proc_hash(args.result_dir.c_str(), proc_scrambler.data(), 2 * n_orb);
             }
@@ -128,7 +127,7 @@ int main(int argc, char * argv[]) {
         }
         std::vector<uint32_t> vec_scrambler(2 * n_orb);
         for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
-            vec_scrambler[det_idx] = genrand_mt(rngen_ptr);
+            vec_scrambler[det_idx] = mt_obj();
         }
         DistVec<double> sol_vec(args.max_n_dets, spawn_length, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 1, proc_scrambler, vec_scrambler);
         
@@ -311,7 +310,7 @@ int main(int argc, char * argv[]) {
             
             // Systematic sampling to determine number of samples for each column
             if (proc_rank == 0) {
-                rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
+                rn_sys = mt_obj() / (1. + UINT32_MAX);
             }
 #ifdef USE_MPI
             MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -343,7 +342,7 @@ int main(int argc, char * argv[]) {
                 uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
                 count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf,
                                 n_orb, n_irreps, symm_lookup, symm);
-                n_doub = bin_sample(n_walk, p_doub, rngen_ptr);
+                n_doub = bin_sample(n_walk, p_doub, mt_obj);
                 n_sing = n_walk - n_doub;
                 
                 if (n_doub > max_spawn || n_sing / 2 > max_spawn) {
@@ -354,10 +353,10 @@ int main(int argc, char * argv[]) {
                 }
                 
                 if (fri_dist == near_uni) {
-                    n_doub = doub_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_doub, rngen_ptr, doub_orbs, spawn_probs);
+                    n_doub = doub_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_doub, mt_obj, doub_orbs, spawn_probs);
                 }
                 else if (fri_dist == heat_bath) {
-                    n_doub = hb_doub_multi(curr_det, occ_orbs, n_elec_unf, symm, hb_probs, symm_lookup, n_doub, rngen_ptr, doub_orbs, spawn_probs);
+                    n_doub = hb_doub_multi(curr_det, occ_orbs, n_elec_unf, symm, hb_probs, symm_lookup, n_doub, mt_obj, doub_orbs, spawn_probs);
                 }
                 
                 size_t walker_idx;
@@ -370,7 +369,7 @@ int main(int argc, char * argv[]) {
                     }
                 }
                 
-                n_sing = sing_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_sing, rngen_ptr, sing_orbs, spawn_probs);
+                n_sing = sing_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_sing, mt_obj, sing_orbs, spawn_probs);
                 
                 for (walker_idx = 0; walker_idx < n_sing; walker_idx++) {
                     matr_el = sing_matr_el_nosgn(sing_orbs[walker_idx], occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec_unf);
@@ -422,7 +421,7 @@ int main(int argc, char * argv[]) {
             }
             
             if (proc_rank == 0) {
-                rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
+                rn_sys = mt_obj() / (1. + UINT32_MAX);
             }
 #ifdef USE_MPI
             MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);

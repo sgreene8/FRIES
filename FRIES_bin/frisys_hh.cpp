@@ -3,9 +3,8 @@
  * \brief Perform FRI with systematic matrix compression on the Hubbard-Holstein model
  */
 
-#include <ctime>
+#include <chrono>
 #include <FRIES/io_utils.hpp>
-#include <FRIES/Ext_Libs/dcmt/dc.h>
 #include <FRIES/compress_utils.hpp>
 #include <FRIES/Ext_Libs/argparse.hpp>
 #include <FRIES/Hamiltonians/hub_holstein.hpp>
@@ -68,8 +67,8 @@ int main(int argc, char * argv[]) {
         unsigned int n_orb = hub_len;
         
         // Rn generator
-        mt_struct *rngen_ptr = get_mt_parameter_id_st(32, 521, proc_rank, (unsigned int) time(NULL));
-        sgenrand_mt((uint32_t) time(NULL), rngen_ptr);
+        auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        std::mt19937 mt_obj((unsigned int)seed);
         size_t det_idx;
         
         // Initialize hash function for processors and vector
@@ -83,7 +82,7 @@ int main(int argc, char * argv[]) {
         else {
             if (proc_rank == 0) {
                 for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
-                    proc_scrambler[det_idx] = genrand_mt(rngen_ptr);
+                    proc_scrambler[det_idx] = mt_obj();
                 }
                 save_proc_hash(args.result_dir.c_str(), proc_scrambler.data(), 2 * n_orb);
             }
@@ -93,7 +92,7 @@ int main(int argc, char * argv[]) {
         }
         std::vector<uint32_t> vec_scrambler(2 * n_orb);
         for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
-            vec_scrambler[det_idx] = genrand_mt(rngen_ptr);
+            vec_scrambler[det_idx] = mt_obj();
         }
         
         // Solution vector
@@ -202,7 +201,7 @@ int main(int argc, char * argv[]) {
                 }
             }
             if (proc_rank == 0) {
-                rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
+                rn_sys = mt_obj() / (1. + UINT32_MAX);
             }
             comp_len = comp_sub(comp_vec1, sol_vec.curr_size(), ndiv_vec, subwt_mem, keep_idx, NULL, args.target_nonz, wt_remain.data(), rn_sys, comp_vec2, comp_idx);
             if (comp_len > spawn_length) {
@@ -222,7 +221,7 @@ int main(int argc, char * argv[]) {
                 comp_vec2[samp_idx] *= ndiv_vec[samp_idx];
             }
             if (proc_rank == 0) {
-                rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
+                rn_sys = mt_obj() / (1. + UINT32_MAX);
             }
             comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, subwt_mem, keep_idx, NULL, args.target_nonz, wt_remain.data(), rn_sys, comp_vec1, comp_idx);
             if (comp_len > spawn_length) {
@@ -353,7 +352,7 @@ int main(int argc, char * argv[]) {
             }
             
             if (proc_rank == 0) {
-                rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
+                rn_sys = mt_obj() / (1. + UINT32_MAX);
             }
 #ifdef USE_MPI
             MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
