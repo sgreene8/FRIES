@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.6)
 
 project(FRIES LANGUAGES C CXX)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 if(NOT ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Intel"))
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -Wno-unused-result")
