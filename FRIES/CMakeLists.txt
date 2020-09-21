@@ -8,8 +8,7 @@ list(APPEND FRIES_FILELIST
         Hamiltonians/near_uniform.cpp
         Hamiltonians/molecule.cpp
         io_utils.cpp
-        math_utils.c
-        Ext_Libs/csvparser.c)
+        math_utils.c)
 
 add_library(fries SHARED ${FRIES_FILELIST})
 
