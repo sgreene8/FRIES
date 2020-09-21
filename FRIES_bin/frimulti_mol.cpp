@@ -60,11 +60,10 @@ int main(int argc, char * argv[]) {
     int n_procs = 1;
     int proc_rank = 0;
     unsigned int proc_idx, hf_proc;
-#ifdef USE_MPI
+
     MPI_Init(NULL, NULL);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
-#endif
     try {
         const char *result_dir = args.result_dir.c_str();
         
@@ -121,9 +120,8 @@ int main(int argc, char * argv[]) {
                 }
                 save_proc_hash(args.result_dir.c_str(), proc_scrambler.data(), 2 * n_orb);
             }
-#ifdef USE_MPI
+
             MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-#endif
         }
         std::vector<uint32_t> vec_scrambler(2 * n_orb);
         for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
@@ -235,9 +233,8 @@ int main(int argc, char * argv[]) {
         }
         sol_vec.perform_add();
         loc_norms[proc_rank] = sol_vec.local_norm();
-#ifdef USE_MPI
+
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-#endif
         glob_norm = 0;
         for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
             glob_norm += loc_norms[proc_idx];
@@ -312,9 +309,8 @@ int main(int argc, char * argv[]) {
             if (proc_rank == 0) {
                 rn_sys = mt_obj() / (1. + UINT32_MAX);
             }
-#ifdef USE_MPI
+
             MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-#endif
             unsigned int curr_mat_samp = (iterat < 10) ? args.matr_samp / 10 : args.matr_samp;
             lbound = seed_sys(loc_norms, &rn_sys, curr_mat_samp);
             for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
@@ -400,13 +396,9 @@ int main(int argc, char * argv[]) {
             }
             matr_el = sol_vec.dot(htrial_vec.indices(), htrial_vec.values(), htrial_vec.curr_size(), htrial_hashes);
             double denom = sol_vec.dot(trial_vec.indices(), trial_vec.values(), trial_vec.curr_size(), trial_hashes);
-#ifdef USE_MPI
+
             MPI_Gather(&matr_el, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
             MPI_Gather(&denom, 1, MPI_DOUBLE, recv_dens, 1, MPI_DOUBLE, hf_proc, MPI_COMM_WORLD);
-#else
-            recv_nums[0] = matr_el;
-            recv_dens[0] = denom;
-#endif
             if (proc_rank == hf_proc) {
                 matr_el = 0;
                 denom = 0;
@@ -423,9 +415,8 @@ int main(int argc, char * argv[]) {
             if (proc_rank == 0) {
                 rn_sys = mt_obj() / (1. + UINT32_MAX);
             }
-#ifdef USE_MPI
+
             MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-#endif
             sys_comp(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
             for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
                 if (keep_exact[det_idx] && sol_vec.indices()[det_idx] != hf_det) {
@@ -449,9 +440,8 @@ int main(int argc, char * argv[]) {
             fclose(den_file);
             fclose(shift_file);
         }
-#ifdef USE_MPI
+
         MPI_Finalize();
-#endif
     } catch (std::exception &ex) {
         std::cerr << "\nException : " << ex.what() << "\n\nPlease report this error to the developers through our GitHub repository: https://github.com/sgreene8/FRIES/ \n\n";
     }

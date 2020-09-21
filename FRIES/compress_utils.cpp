@@ -9,7 +9,6 @@
 #include <cstdint>
 #include <climits>
 #include <algorithm>
-#include <FRIES/mpi_switch.h>
 #include <FRIES/det_store.h>
 #include <functional>
 #include <iostream>
@@ -36,10 +35,8 @@ double find_preserve(double *values, size_t *srt_idx, std::vector<bool> &keep_id
     }
     int proc_rank = 0;
     int n_procs = 1;
-#ifdef USE_MPI
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-#endif
     
     auto val_compare = [values](size_t i, size_t j){return fabs(values[i]) < fabs(values[j]); };
     std::make_heap(srt_idx, srt_idx + heap_count, val_compare);
@@ -95,10 +92,8 @@ double seed_sys(double *norms, double *rn, unsigned int n_samp) {
     double lbound = 0;
     int n_procs = 1;
     int my_rank = 0;
-#ifdef USE_MPI
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-#endif
     double global_norm;
     for (int proc_idx = 0; proc_idx < my_rank; proc_idx++) {
         lbound += norms[proc_idx];
@@ -128,10 +123,8 @@ double find_keep_sub(double *values, unsigned int *n_div,
     }
     int proc_rank = 0;
     int n_procs = 1;
-#ifdef USE_MPI
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-#endif
     
     int loc_sampled, glob_sampled = 1;
     double sub_magn, sub_remain;
@@ -268,11 +261,9 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
     int n_procs = 1;
     int proc_rank = 0;
     double rn_sys = rand_num;
-#ifdef USE_MPI
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
     MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-#endif
     double tmp_glob_norm = 0;
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         tmp_glob_norm += loc_norms[proc_idx];
@@ -307,9 +298,7 @@ void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
             }
         }
     }
-#ifdef USE_MPI
     MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-#endif
 }
 
 void sys_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double sampl_val,
@@ -455,10 +444,8 @@ void sys_comp_nonuni(double *vec_vals, size_t vec_len, double *loc_norms,
                      double *probs, size_t n_probs, double rand_num) {
     int n_procs = 1;
     int proc_rank = 0;
-#ifdef USE_MPI
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
-#endif
     double rn_sys = 0;
     if (proc_rank == 0) {
         double cum_prob = probs[0];
@@ -469,9 +456,7 @@ void sys_comp_nonuni(double *vec_vals, size_t vec_len, double *loc_norms,
         prob_idx--;
         rn_sys = (prob_idx + 1 - (cum_prob - rand_num) / probs[prob_idx]) / n_probs;
     }
-#ifdef USE_MPI
     MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-#endif
     double tmp_glob_norm = 0;
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         tmp_glob_norm += loc_norms[proc_idx];
@@ -523,9 +508,7 @@ void sys_comp_nonuni(double *vec_vals, size_t vec_len, double *loc_norms,
             }
         }
     }
-#ifdef USE_MPI
     MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-#endif
 }
 
 
@@ -534,10 +517,8 @@ void sys_obs(double *vec_vals, size_t vec_len, double *loc_norms, unsigned int n
              Matrix<double> &obs_vals) {
     int n_procs = 1;
     int proc_rank = 0;
-#ifdef USE_MPI
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
-#endif
     double glob_norm = 0;
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         glob_norm += loc_norms[proc_idx];
@@ -591,11 +572,9 @@ uint32_t sys_budget(double *loc_norms, uint32_t n_samp, double rand_num) {
     int n_procs = 1;
     int proc_rank = 0;
     double rn_sys = rand_num;
-#ifdef USE_MPI
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
     MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-#endif
     double tmp_glob_norm = 0;
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         tmp_glob_norm += loc_norms[proc_idx];
@@ -703,11 +682,9 @@ size_t sys_sub(double *values, unsigned int *n_div,
     int n_procs = 1;
     int proc_rank = 0;
     double rn_sys = rand_num;
-#ifdef USE_MPI
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
     MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-#endif
     double tmp_glob_norm = 0;
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         tmp_glob_norm += loc_norms[proc_idx];
@@ -798,11 +775,10 @@ size_t comp_sub(double *values, size_t count, unsigned int *n_div,
                 double *new_vals, size_t new_idx[][2]) {
     int proc_rank = 0;
     int n_procs = 1;
-#ifdef USE_MPI
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     MPI_Bcast(&rand_num, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-#endif
+    
     unsigned int tmp_nsamp = n_samp;
     double loc_norms[n_procs];
     if (keep_idx.cols() != sub_weights.cols()) {
@@ -813,9 +789,7 @@ size_t comp_sub(double *values, size_t count, unsigned int *n_div,
     }
     
     loc_norms[proc_rank] = find_keep_sub(values, n_div, sub_weights, keep_idx, sub_sizes, count, &tmp_nsamp, wt_remain);
-#ifdef USE_MPI
     MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-#endif
     return sys_sub(values, n_div, sub_weights, keep_idx, sub_sizes, count, tmp_nsamp, wt_remain, loc_norms, rand_num, new_vals, new_idx);
 }
 

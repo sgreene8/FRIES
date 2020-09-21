@@ -172,10 +172,8 @@ void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
                   unsigned int n_elec, uint8_t dest_idx, double h_fac) {
     int n_procs = 1;
     int proc_rank = 0;
-#ifdef USE_MPI
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
-#endif
     size_t ex_idx;
     unsigned int unf_orbs = n_orbs - n_frozen / 2;
     size_t n_ex = (unf_orbs - n_elec / 2) * (unf_orbs - n_elec / 2) * n_elec * n_elec;

@@ -79,10 +79,9 @@ TEST_CASE("Test calculation of observables from systematic sampling", "[sys_obs]
     
     int n_procs = 1;
     int proc_rank = 0;
-#ifdef USE_MPI
+
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
-#endif
     double norms[n_procs];
     double norms2[n_procs];
     
@@ -94,9 +93,8 @@ TEST_CASE("Test calculation of observables from systematic sampling", "[sys_obs]
             vec_keep1[el_idx] = false;
         }
         norms[proc_rank] = find_preserve(input_vec, vec_srt, vec_keep1, input_len, &n_samp, &tot_norm);
-#ifdef USE_MPI
+
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-#endif
         sys_obs(input_vec, input_len, norms, n_samp, vec_keep1, obs_fxn, obs_vals);
         
         for (size_t rn_idx = 0; rn_idx < num_rns; rn_idx++) {

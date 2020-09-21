@@ -31,11 +31,9 @@ int main(int argc, char * argv[]) {
         int n_procs = 1;
         int proc_rank = 0;
         unsigned int proc_idx, ref_proc;
-#ifdef USE_MPI
         MPI_Init(NULL, NULL);
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
         MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
-#endif
         
         double target_norm = args.target_norm;
         uint32_t max_n_dets = args.max_n_dets;
@@ -86,9 +84,7 @@ int main(int argc, char * argv[]) {
                 }
                 save_proc_hash(args.result_dir.c_str(), proc_scrambler.data(), 2 * n_orb);
             }
-#ifdef USE_MPI
             MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-#endif
         }
         std::vector<uint32_t> vec_scrambler(2 * n_orb);
         for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
@@ -334,11 +330,7 @@ int main(int argc, char * argv[]) {
             
             // Calculate energy estimate
             double numer = calc_ref_ovlp(sol_vec.indices(), sol_vec.values(), sol_vec.phonon_nums(), sol_vec.curr_size(), neel_det, neel_occ, n_elec, hub_len, elec_ph / hub_t);
-#ifdef USE_MPI
             MPI_Gather(&numer, 1, MPI_DOUBLE, recv_nums, 1, MPI_DOUBLE, ref_proc, MPI_COMM_WORLD);
-#else
-            recv_nums[0] = numer;
-#endif
             if (proc_rank == ref_proc) {
                 double diag_el = sol_vec.matr_el_at_pos(0);
                 double ref_element = *(sol_vec[0]);
@@ -354,9 +346,7 @@ int main(int argc, char * argv[]) {
             if (proc_rank == 0) {
                 rn_sys = mt_obj() / (1. + UINT32_MAX);
             }
-#ifdef USE_MPI
             MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-#endif
             sys_comp(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
             for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
                 if (keep_exact[det_idx] && !(proc_rank == 0 && det_idx == 0)) {
@@ -381,9 +371,7 @@ int main(int argc, char * argv[]) {
             fclose(den_file);
             fclose(shift_file);
         }
-#ifdef USE_MPI
         MPI_Finalize();
-#endif
     } catch (std::exception &ex) {
         std::cerr << "\nException : " << ex.what() << "\n\nPlease report this error to the developers through our GitHub repository: https://github.com/sgreene8/FRIES/ \n\n";
     }

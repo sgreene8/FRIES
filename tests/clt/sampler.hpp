@@ -177,16 +177,14 @@ public:
     ParBudget(unsigned int n_samp) : Sampler(1, n_samp) {
         int n_procs = 1;
         int proc_rank = 0;
-#ifdef USE_MPI
+
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
         MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
-#endif
         norms_.reserve(n_procs);
         loc_norm_ = gen_rn();
         norms_[proc_rank] = loc_norm_;
-#ifdef USE_MPI
+
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, norms_.data(), 1, MPI_DOUBLE, MPI_COMM_WORLD);
-#endif
         for (size_t el_idx = 0; el_idx < n_procs; el_idx++) {
             tot_norm_ += norms_[el_idx];
         }
@@ -201,14 +199,12 @@ public:
     double calc_max_diff() override {
         int n_procs = 1;
         int proc_rank = 0;
-#ifdef USE_MPI
+
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
         MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
-#endif
         double all_results[n_procs];
-#ifdef USE_MPI
+
         MPI_Gather(accum_.data(), 1, MPI_DOUBLE, all_results, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-#endif
         double max = 0;
         if (proc_rank == 0) {
             for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
@@ -383,15 +379,13 @@ public:
 
         int n_procs = 1;
         int proc_rank = 0;
-#ifdef USE_MPI
+
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
         MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
-#endif
         loc_norms_.resize(n_procs);
         loc_norms_[proc_rank] = my_one_norm;
-#ifdef USE_MPI
+
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms_.data(), 1, MPI_DOUBLE, MPI_COMM_WORLD);
-#endif
         glob_norm_ = 0;
         for (size_t proc_idx = 0; proc_idx < n_procs; proc_idx++) {
             glob_norm_ += loc_norms_[proc_idx];

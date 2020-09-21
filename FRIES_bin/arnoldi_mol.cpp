@@ -128,9 +128,8 @@ int main(int argc, char * argv[]) {
             }
             save_proc_hash(args.result_dir.c_str(), proc_scrambler.data(), 2 * n_orb);
         }
-#ifdef USE_MPI
+
         MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-#endif
         
         std::vector<uint32_t> vec_scrambler(2 * n_orb);
         for (size_t det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
@@ -158,9 +157,8 @@ int main(int argc, char * argv[]) {
             vec_path << args.trial_path << std::setfill('0') << std::setw(2) << (int) trial_idx;
             unsigned int loc_n_dets = (unsigned int) load_vec_txt(vec_path.str(), *load_dets, load_vals);
             size_t glob_n_dets = loc_n_dets;
-#ifdef USE_MPI
+
             MPI_Bcast(&glob_n_dets, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-#endif
             trial_vecs.emplace_back(glob_n_dets, &shared_adder, n_orb * 2, n_elec_unf, proc_scrambler, vec_scrambler);
             htrial_vecs.emplace_back(glob_n_dets * num_ex / n_procs, &shared_adder, n_orb * 2, n_elec_unf, diag_shortcut, (double *)NULL, 2, proc_scrambler, vec_scrambler);
             
@@ -449,9 +447,8 @@ int main(int argc, char * argv[]) {
                     if (proc_rank == 0) {
                         rn_sys = mt_obj() / (1. + UINT32_MAX);
                     }
-#ifdef USE_MPI
+
                     MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-#endif
                     sys_comp(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
                     for (size_t det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
                         if (keep_exact[det_idx]) {
@@ -476,10 +473,9 @@ int main(int argc, char * argv[]) {
             dmat_file.close();
 //            restart_file.close();
         }
-#ifdef USE_MPI
+
 //        MPI_Comm_free(&samp_comm);
         MPI_Finalize();
-#endif
     } catch (std::exception &ex) {
         std::cerr << "\nException : " << ex.what() << "\n\nPlease report this error to the developers through our GitHub repository: https://github.com/sgreene8/FRIES/ \n\n";
     }

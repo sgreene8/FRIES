@@ -10,7 +10,7 @@
 int main(int argc, const char * argv[]) {
     int n_procs = 1;
     int proc_rank = 0;
-#ifdef USE_MPI
+
     MPI_Init(NULL, NULL);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
@@ -81,7 +81,7 @@ int main(int argc, const char * argv[]) {
         if (proc_rank == 0) {
             rn_sys = genrand_mt(rngen_ptr) / (1. + UINT32_MAX);
         }
-#ifdef USE_MPI
+
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
         MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
@@ -120,7 +120,7 @@ int main(int argc, const char * argv[]) {
     }
     fclose(dev_file);
     
-#ifdef USE_MPI
+
     MPI_Finalize();
 #endif
     return 0;

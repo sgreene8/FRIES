@@ -64,11 +64,10 @@ int main(int argc, char * argv[]) {
         int n_procs = 1;
         int proc_rank = 0;
         unsigned int hf_proc;
-#ifdef USE_MPI
+
         MPI_Init(NULL, NULL);
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
         MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
-#endif
         
         uint32_t max_n_dets = args.max_n_dets;
         const char *result_dir = args.result_dir.c_str();
@@ -133,9 +132,8 @@ int main(int argc, char * argv[]) {
                 }
                 save_proc_hash(result_dir, proc_scrambler.data(), 2 * n_orb);
             }
-#ifdef USE_MPI
+
             MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-#endif
         }
         std::vector<uint32_t> vec_scrambler(2 * n_orb);
         for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
@@ -218,11 +216,8 @@ int main(int argc, char * argv[]) {
         }
         int dense_sizes[n_procs];
         int determ_tmp = (int) n_determ;
-#ifdef USE_MPI
+
         MPI_Gather(&determ_tmp, 1, MPI_INT, dense_sizes, 1, MPI_INT, 0, MPI_COMM_WORLD);
-#else
-        dense_sizes[proc_rank] = determ_tmp;
-#endif
         if (proc_rank == 0 && args.load_dir == nullptr) {
             sprintf(file_path, "%sdense.txt", result_dir);
             FILE *dense_f = fopen(file_path, "w");
@@ -818,9 +813,8 @@ int main(int argc, char * argv[]) {
             if (proc_rank == 0) {
                 rn_sys = mt_obj() / (1. + UINT32_MAX);
             }
-#ifdef USE_MPI
+
             MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-#endif
             sys_comp(&(sol_vec.values()[n_determ]), sol_vec.curr_size() - n_determ, loc_norms, n_samp, keep_exact, rn_sys);
             for (det_idx = 0; det_idx < sol_vec.curr_size() - n_determ; det_idx++) {
                 if (keep_exact[det_idx]) {
@@ -848,9 +842,8 @@ int main(int argc, char * argv[]) {
             fclose(shift_file);
             fclose(nkept_file);
         }
-#ifdef USE_MPI
+
         MPI_Finalize();
-#endif
     } catch (std::exception &ex) {
         std::cerr << "\nException : " << ex.what() << "\n\nPlease report this error to the developers through our GitHub repository: https://github.com/sgreene8/FRIES/ \n\n";
     }

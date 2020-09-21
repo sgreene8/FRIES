@@ -39,11 +39,10 @@ int main(int argc, char * argv[]) {
     try {
         int n_procs = 1;
         int proc_rank = 0;
-#ifdef USE_MPI
+
         MPI_Init(NULL, NULL);
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
         MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
-#endif
         double shift_damping = 0.05;
         uint32_t shift_interval = 10;
         std::vector<double> en_shift(n_states);
@@ -86,9 +85,8 @@ int main(int argc, char * argv[]) {
             }
             save_proc_hash(args.result_dir.c_str(), proc_scrambler.data(), 2 * n_orb);
         }
-#ifdef USE_MPI
+
         MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-#endif
         
         std::vector<uint32_t> vec_scrambler(2 * n_orb);
         for (size_t det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
@@ -284,9 +282,8 @@ int main(int argc, char * argv[]) {
                     if (proc_rank == 0) {
                         rn_sys = mt_obj() / (1. + UINT32_MAX);
                     }
-#ifdef USE_MPI
+
                     MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-#endif
                     sys_comp(sol_vecs[vec_idx].values(), sol_vecs[vec_idx].curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
                     for (size_t det_idx = 0; det_idx < sol_vecs[vec_idx].curr_size(); det_idx++) {
                         if (keep_exact[det_idx]) {
@@ -302,9 +299,8 @@ int main(int argc, char * argv[]) {
             fclose(bmat_file);
             fclose(dmat_file);
         }
-#ifdef USE_MPI
+
         MPI_Finalize();
-#endif
     } catch (std::exception &ex) {
         std::cerr << "\nException : " << ex.what() << "\n\nPlease report this error to the developers through our GitHub repository: https://github.com/sgreene8/FRIES/ \n\n";
     }

@@ -61,9 +61,7 @@ public:
         decode_phonons(idx, phonons);
         unsigned long long hash_val = DistVec<el_type>::proc_hash_.hash_fxn(orbs, n_elec, phonons, n_sites_);
         int n_procs = 1;
-#ifdef USE_MPI
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-#endif
         return hash_val % n_procs;
     }
 

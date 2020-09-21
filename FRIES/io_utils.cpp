@@ -242,9 +242,7 @@ void parse_hh_input(const std::string &hh_path, hh_input *in_struct) {
 
 size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, int *vals) {
         int my_rank = 0;
-#ifdef USE_MPI
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-#endif
     
     if (my_rank == 0) {
         std::string buffer(prefix);
@@ -281,7 +279,6 @@ size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, int *vals)
 
 size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, double *vals) {
     int my_rank = 0;
-#ifdef USE_MPI
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 #endif
     
@@ -321,9 +318,7 @@ size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, double *va
 
 size_t read_dets(const std::string &path, Matrix<uint8_t> &dets) {
     int my_rank = 0;
-#ifdef USE_MPI
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-#endif
     
     if (my_rank == 0) {
         std::ifstream file_d(path);
@@ -355,9 +350,7 @@ size_t read_dets(const std::string &path, Matrix<uint8_t> &dets) {
 
 void save_proc_hash(const std::string &path, unsigned int *proc_hash, size_t n_hash) {
     int my_rank = 0;
-#ifdef USE_MPI
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-#endif
     
     std::string buffer(path);
     buffer.append("hash.dat");

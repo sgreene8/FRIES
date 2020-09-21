@@ -11,15 +11,10 @@ before_install:
 script: 
 - mkdir build
 - cd build
-- cmake .. -DCMAKE_INSTALL_PREFIX=~/local -DUSE_MPI=OFF
+- cmake .. -DCMAKE_INSTALL_PREFIX=~/local
 - make install
 - ctest  --verbose
 - cd ..
-- mkdir build_mpi
-- cd build_mpi
-- cmake .. -DCMAKE_INSTALL_PREFIX=~/local -DUSE_MPI=ON
-- make install
-- ctest --verbose
 - cd ..
 - mkdir build_examples
 - cd build_examples

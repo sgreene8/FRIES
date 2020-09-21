@@ -18,10 +18,9 @@
 
 int main(int argc, const char * argv[]) {
     int proc_rank = 0;
-#ifdef USE_MPI
+
     MPI_Init(NULL, NULL);
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
-#endif
     
     unsigned int n_iter = 10000;
     std::ofstream out_file;
@@ -41,8 +40,7 @@ int main(int argc, const char * argv[]) {
         }
     }
 
-#ifdef USE_MPI
+
     MPI_Finalize();
-#endif
     return 0;
 }

@@ -10,7 +10,7 @@
 #include <iostream>
 #include <fstream>
 #include <functional>
-#include <FRIES/mpi_switch.h>
+#include <mpi.h>
 #include <sstream>
 
 
@@ -95,9 +95,7 @@ public:
      */
     void print_ht() {
         int my_rank = 0;
-#ifdef USE_MPI
         MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-#endif
         std::stringstream buffer;
         buffer << "hash" << my_rank << ".txt";
         std::ofstream file_p(buffer.str());

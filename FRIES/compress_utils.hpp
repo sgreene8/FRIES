@@ -11,7 +11,7 @@
 #include <functional>
 #include <FRIES/ndarr.hpp>
 #include <random>
-#include <FRIES/mpi_switch.h>
+#include <mpi.h>
 
 /*! \brief Round a non-integral number binomially.
  *
@@ -183,9 +183,7 @@ void sys_obs(double *vec_vals, size_t vec_len, double *loc_norms, unsigned int n
 inline double sum_mpi(double local, int my_rank, int n_procs)  {
     double rec_vals[n_procs];
     rec_vals[my_rank] = local;
-#ifdef USE_MPI
     MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, rec_vals, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-#endif
     double global = 0;
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         global += rec_vals[proc_idx];
@@ -204,9 +202,7 @@ inline double sum_mpi(double local, int my_rank, int n_procs)  {
 inline int sum_mpi(int local, int my_rank, int n_procs) {
     int rec_vals[n_procs];
     rec_vals[my_rank] = local;
-#ifdef USE_MPI
     MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, rec_vals, 1, MPI_INT, MPI_COMM_WORLD);
-#endif
     int global = 0;
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         global += rec_vals[proc_idx];
@@ -225,9 +221,7 @@ inline int sum_mpi(int local, int my_rank, int n_procs) {
 inline uint64_t sum_mpi(uint64_t local, int my_rank, int n_procs) {
     uint64_t rec_vals[n_procs];
     rec_vals[my_rank] = local;
-#ifdef USE_MPI
     MPI_Allgather(MPI_IN_PLACE, 0, MPI_UINT64_T, rec_vals, 1, MPI_UINT64_T, MPI_COMM_WORLD);
-#endif
     uint64_t global = 0;
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         global += rec_vals[proc_idx];

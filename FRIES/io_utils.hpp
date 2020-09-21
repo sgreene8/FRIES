@@ -10,7 +10,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <sstream>
-#include <FRIES/mpi_switch.h>
+#include <mpi.h>
 #include <fstream>
 #include <iostream>
 #include <FRIES/ndarr.hpp>

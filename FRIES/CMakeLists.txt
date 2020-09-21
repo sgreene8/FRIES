@@ -21,16 +21,12 @@ add_subdirectory(Hamiltonians)
 
 target_link_libraries(fries PUBLIC m)
 
-option(USE_MPI "Enable MPI" ON)
-if(USE_MPI)
-    find_package(MPI REQUIRED)
-    target_include_directories(fries PUBLIC ${MPI_INCLUDE_PATH})
-    if("${CMAKE_CXX_COMPILER_ID}" MATCHES "CLANG")
-        target_link_libraries(fries PUBLIC MPI::MPI_CXX)
-    else()
-        target_link_libraries(fries PUBLIC ${MPI_LIBRARIES})
-    endif()
-    target_compile_definitions(fries PUBLIC USE_MPI)
+find_package(MPI REQUIRED)
+target_include_directories(fries PUBLIC ${MPI_INCLUDE_PATH})
+if("${CMAKE_CXX_COMPILER_ID}" MATCHES "CLANG")
+    target_link_libraries(fries PUBLIC MPI::MPI_CXX)
+else()
+    target_link_libraries(fries PUBLIC ${MPI_LIBRARIES})
 endif()
 
 
