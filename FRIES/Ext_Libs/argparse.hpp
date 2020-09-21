@@ -33,11 +33,11 @@
 #include <sstream>
 #include <iostream>
 #include <iomanip>
+#include <memory>
 #include <algorithm>
 
 #if __cplusplus < 201703L
 // Allow it to compile for c++11 by partially adding c++17 types
-#include <memory>
 #include <typeindex>
 
 namespace std {
