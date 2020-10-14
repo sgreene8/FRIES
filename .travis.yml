@@ -15,7 +15,6 @@ script:
 - make install
 - ctest  --verbose
 - cd ..
-- cd ..
 - mkdir build_examples
 - cd build_examples
 - cmake ../examples -DCMAKE_INSTALL_PREFIX=~/local
