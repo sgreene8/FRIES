@@ -172,7 +172,7 @@ int main(int argc, char * argv[]) {
         htrial_vec.perform_add();
         
         trial_vec.collect_procs();
-        uintmax_t *trial_hashes = (uintmax_t *)malloc(sizeof(uintmax_t) * trial_vec.curr_size());
+        std::vector<uintmax_t> trial_hashes(trial_vec.curr_size());
         for (det_idx = 0; det_idx < trial_vec.curr_size(); det_idx++) {
             trial_hashes[det_idx] = sol_vec.idx_to_hash(trial_vec.indices()[det_idx], tmp_orbs);
         }
@@ -183,7 +183,7 @@ int main(int argc, char * argv[]) {
         h_op_diag(htrial_vec, 0, 0, 1);
         htrial_vec.add_vecs(0, 1);
         htrial_vec.collect_procs();
-        uintmax_t *htrial_hashes = (uintmax_t *)malloc(sizeof(uintmax_t) * htrial_vec.curr_size());
+        std::vector<uintmax_t> htrial_hashes(htrial_vec.curr_size());
         for (det_idx = 0; det_idx < htrial_vec.curr_size(); det_idx++) {
             htrial_hashes[det_idx] = sol_vec.idx_to_hash(htrial_vec.indices()[det_idx], tmp_orbs);
         }

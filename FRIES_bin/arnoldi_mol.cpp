@@ -299,7 +299,7 @@ int main(int argc, char * argv[]) {
                 DistVec<double> &curr_trial = trial_vecs[trial_idx];
                 for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                     sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
-                    double d_prod = sol_vec.dot(curr_trial.indices(), curr_trial.values(), curr_trial.curr_size(), trial_hashes[trial_idx].data());
+                    double d_prod = sol_vec.dot(curr_trial.indices(), curr_trial.values(), curr_trial.curr_size(), trial_hashes[trial_idx]);
                     d_mat(trial_idx, vec_idx) = sum_mpi(d_prod, samp_rank, procs_per_vec, samp_comm);
                     d_ave(trial_idx, vec_idx) = sum_mpi(d_prod, proc_rank, n_procs) / n_sample;
                 }
@@ -310,11 +310,6 @@ int main(int argc, char * argv[]) {
                 unsigned int n_samp = args.target_nonz;
                 double glob_norm;
                 sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
-                for (size_t tst = 0; tst < sol_vec.curr_size(); tst++) {
-                    if (srt_arr.data()[tst] >= sol_vec.curr_size()) {
-                        std::cout << "oob error" << std::endl;
-                    }
-                }
                 loc_norms[samp_rank] = find_preserve(sol_vec.values(), srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm, samp_comm);
                 if (samp_rank == 0) {
                     rn_sys = mt_obj() / (1. + UINT32_MAX);
@@ -343,7 +338,7 @@ int main(int argc, char * argv[]) {
                 DistVec<double> &curr_htrial = htrial_vecs[trial_idx];
                 for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                     sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
-                    double d_prod = sol_vec.dot(curr_htrial.indices(), curr_htrial.values(), curr_htrial.curr_size(), htrial_hashes[trial_idx].data());
+                    double d_prod = sol_vec.dot(curr_htrial.indices(), curr_htrial.values(), curr_htrial.curr_size(), htrial_hashes[trial_idx]);
                     b_mat(trial_idx, vec_idx) = sum_mpi(d_prod, samp_rank, procs_per_vec, samp_comm);
                     b_ave(trial_idx, vec_idx) = sum_mpi(d_prod, proc_rank, n_procs) / n_sample;
                 }

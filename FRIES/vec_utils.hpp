@@ -242,7 +242,7 @@ public:
      * \return the value of the dot product
      */
     double dot(Matrix<uint8_t> &idx2, double *vals2, size_t num2,
-               uintmax_t *hashes2) {
+               std::vector<uintmax_t> &hashes2) {
         double numer = 0;
         for (size_t hf_idx = 0; hf_idx < num2; hf_idx++) {
             ssize_t * ht_ptr = vec_hash_.read(idx2[hf_idx], hashes2[hf_idx], false);
