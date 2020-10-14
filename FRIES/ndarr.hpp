@@ -276,9 +276,9 @@ template<> class Matrix<bool>  {
             Matrix<uint8_t> *other_mat_;
             
             public:
-            RowReference(Matrix<bool> &mat, size_t row) : row_idx_(row), mat_(&mat) {}
+            RowReference(Matrix<bool> &mat, size_t row) : row_idx_(row), mat_(&mat), other_mat_(nullptr) {}
             
-            RowReference(Matrix<uint8_t> *mat, size_t row) : row_idx_(row), other_mat_(mat) {}
+            RowReference(Matrix<uint8_t> *mat, size_t row) : row_idx_(row), other_mat_(mat), mat_(nullptr) {}
             
             BoolReference operator[] (size_t idx) {
                 if (mat_) {
