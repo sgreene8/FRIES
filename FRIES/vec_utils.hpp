@@ -96,7 +96,7 @@ public:
     
     bool get_add_result(size_t row, size_t col, double *weight) const {
         *weight = send_vals_(row, col);
-        Matrix<bool>::RowReference success(send_idx_, row);
+        Matrix<bool>::RowReference success((Matrix<uint8_t> *) &send_idx_, row);
         return success[col];
     }
 private:
@@ -1004,7 +1004,7 @@ void Adder<el_type>::perform_add(DistVec<el_type> *parent_vec) {
     mpi_atoav(send_vals_.data(), send_cts_.data(), val_disp_.data(), recv_vals_.data(), recv_cts_.data(), mpi_communicator_);
     // Move elements from receiving buffers to vector
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-        parent_vec->add_elements(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx], Matrix<bool>::RowReference(recv_idx_, proc_idx));
+        parent_vec->add_elements(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx], Matrix<bool>::RowReference(&recv_idx_, proc_idx));
     }
     mpi_atoav(recv_vals_.data(), recv_cts_.data(), val_disp_.data(), send_vals_.data(), send_cts_.data(), mpi_communicator_);
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
