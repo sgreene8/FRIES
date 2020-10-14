@@ -16,6 +16,19 @@
 template <class mat_type>
 class Matrix {
 public:
+    class RowReference {
+        private:
+        size_t row_idx_;
+        Matrix<mat_type> &mat_;
+        
+        public:
+        RowReference(Matrix<mat_type> &mat, size_t row) : row_idx_(row), mat_(mat) {}
+        
+        mat_type& operator[] (size_t idx) {
+            return mat_(row_idx_, idx);
+        }
+    };
+    
     /*! \brief Constructor for Matrix class
      * \param [in] rows     The number of rows the matrix should have initially
      * \param [in] cols     The number of columns the matrix should have initially
@@ -111,9 +124,6 @@ public:
         rows_ = new_rows;
         cols_ = new_cols;
     }
-    
-//    Matrix(const Matrix& m) = delete;
-//    Matrix& operator= (const Matrix& m) = delete;
     
     /*! \return Current number of rows in matrix */
     size_t rows() const {
@@ -261,14 +271,24 @@ template<> class Matrix<bool>  {
         
         class RowReference {
             private:
-            uint8_t *row_;
+            size_t row_idx_;
+            Matrix<bool> *mat_;
+            Matrix<uint8_t> *other_mat_;
             
             public:
-            RowReference(uint8_t *row) : row_(row) {}
+            RowReference(Matrix<bool> &mat, size_t row) : row_idx_(row), mat_(&mat) {}
+            
+            RowReference(Matrix<uint8_t> &mat, size_t row) : row_idx_(row), other_mat_(&mat) {}
             
             BoolReference operator[] (size_t idx) {
-                BoolReference ref(row_[idx / 8], idx % 8);
-                return ref;
+                if (mat_) {
+                    BoolReference ref(mat_->row_ptr(row_idx_)[idx / 8], idx % 8);
+                    return ref;
+                }
+                else {
+                    BoolReference ref((*other_mat_)(row_idx_, idx / 8), idx % 8);
+                    return ref;
+                }
             }
         };
         
@@ -277,7 +297,7 @@ template<> class Matrix<bool>  {
          * \return pointer to 0th element in a row of a matrix
          */
         RowReference operator[] (size_t row) {
-            RowReference ref(&data_[cols_coarse_ * row]);
+            RowReference ref(*this, row);
             return ref;
         }
         

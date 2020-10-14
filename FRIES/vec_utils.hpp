@@ -96,7 +96,7 @@ public:
     
     bool get_add_result(size_t row, size_t col, double *weight) const {
         *weight = send_vals_(row, col);
-        Matrix<bool>::RowReference success((uint8_t *) send_idx_[row]);
+        Matrix<bool>::RowReference success(send_idx_, row);
         return success[col];
     }
 private:
@@ -242,6 +242,18 @@ public:
      * \return the value of the dot product
      */
     double dot(Matrix<uint8_t> &idx2, double *vals2, size_t num2,
+               std::vector<uintmax_t> &hashes2) {
+        double numer = 0;
+        for (size_t hf_idx = 0; hf_idx < num2; hf_idx++) {
+            ssize_t * ht_ptr = vec_hash_.read(idx2[hf_idx], hashes2[hf_idx], false);
+            if (ht_ptr) {
+                numer += vals2[hf_idx] * values_(curr_vec_idx_, *ht_ptr);
+            }
+        }
+        return numer;
+    }
+    
+    double dot(Matrix<uint8_t> &idx2, Matrix<double>::RowReference vals2, size_t num2,
                std::vector<uintmax_t> &hashes2) {
         double numer = 0;
         for (size_t hf_idx = 0; hf_idx < num2; hf_idx++) {
@@ -992,7 +1004,7 @@ void Adder<el_type>::perform_add(DistVec<el_type> *parent_vec) {
     mpi_atoav(send_vals_.data(), send_cts_.data(), val_disp_.data(), recv_vals_.data(), recv_cts_.data(), mpi_communicator_);
     // Move elements from receiving buffers to vector
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-        parent_vec->add_elements(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx], Matrix<bool>::RowReference(recv_idx_[proc_idx]));
+        parent_vec->add_elements(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx], Matrix<bool>::RowReference(recv_idx_, proc_idx));
     }
     mpi_atoav(recv_vals_.data(), recv_cts_.data(), val_disp_.data(), send_vals_.data(), send_cts_.data(), mpi_communicator_);
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
