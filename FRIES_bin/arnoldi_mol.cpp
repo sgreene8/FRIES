@@ -65,31 +65,28 @@ int main(int argc, char * argv[]) {
     try {
         int n_procs = 1;
         int proc_rank = 0;
-//        uint16_t procs_per_vec = 1;
-#ifdef USE_MPI
+        uint16_t procs_per_vec = 1;
+        
         MPI_Init(NULL, NULL);
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
         MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
         
-//        procs_per_vec = n_procs / n_sample;
-//        if (procs_per_vec * n_sample != n_procs) {
-//            if (n_procs / procs_per_vec != n_sample) {
-//                n_sample = n_procs / procs_per_vec;
-//                std::cerr << "Increasing n_sample to " << n_sample << " in order to use more MPI processes\n";
-//            }
-//            if (n_sample * procs_per_vec != n_procs) {
-//                std::cerr << "Warning: only " << n_sample * procs_per_vec << " MPI processes will be used\n";
-//            }
-//        }
-//
-//        int samp_rank = proc_rank / n_sample;
-//        MPI_Comm samp_comm;
-//        MPI_Comm_split(MPI_COMM_WORLD, samp_rank, proc_rank, &samp_comm);
-#endif
-        double shift_damping = 0.05;
-        uint32_t shift_interval = args.shift_interval;
-        std::vector<double> en_shift(n_trial);
-        std::vector<double> last_one_norm(n_trial);
+        procs_per_vec = n_procs / n_sample;
+        if (procs_per_vec * n_sample != n_procs) {
+            if (n_procs / procs_per_vec != n_sample) {
+                n_sample = n_procs / procs_per_vec;
+                std::cerr << "Increasing n_sample to " << n_sample << " in order to use more MPI processes\n";
+            }
+            if (n_sample * procs_per_vec != n_procs) {
+                std::cerr << "Warning: only " << n_sample * procs_per_vec << " MPI processes will be used\n";
+            }
+        }
+
+        int samp_idx = proc_rank / procs_per_vec;
+        MPI_Comm samp_comm;
+        MPI_Comm_split(MPI_COMM_WORLD, samp_idx, 0, &samp_comm);
+        int samp_rank;
+        MPI_Comm_rank(samp_comm, &samp_rank);
         
         // Read in data files
         hf_input in_data;
@@ -113,7 +110,7 @@ int main(int argc, char * argv[]) {
         
         // Solution vector
         unsigned int num_ex = n_elec_unf * n_elec_unf * (n_orb - n_elec_unf / 2) * (n_orb - n_elec_unf / 2);
-        unsigned int spawn_length = args.target_nonz / n_procs * num_ex / n_procs / 4;
+        unsigned int spawn_length = args.target_nonz / procs_per_vec * num_ex / procs_per_vec / 4;
         size_t adder_size = spawn_length > 1000000 ? 1000000 : spawn_length;
         std::function<double(const uint8_t *)> diag_shortcut = [tot_orb, eris, h_core, n_frz, n_elec, hf_en](const uint8_t *occ_orbs) {
             return diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
@@ -136,7 +133,7 @@ int main(int argc, char * argv[]) {
             vec_scrambler[det_idx] = mt_obj();
         }
         
-        Adder<double> shared_adder(adder_size, n_procs, n_orb * 2);
+        Adder<double> shared_adder(adder_size, procs_per_vec, n_orb * 2, samp_comm);
         
         DistVec<double> sol_vec(args.max_n_dets, &shared_adder, n_orb * 2, n_elec_unf, diag_shortcut, nullptr, 2 * n_trial, proc_scrambler, vec_scrambler);
         size_t det_size = CEILING(2 * n_orb, 8);
@@ -155,10 +152,11 @@ int main(int argc, char * argv[]) {
         for (uint8_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
             std::stringstream vec_path;
             vec_path << args.trial_path << std::setfill('0') << std::setw(2) << (int) trial_idx;
-            unsigned int loc_n_dets = (unsigned int) load_vec_txt(vec_path.str(), *load_dets, load_vals);
+
+            unsigned int loc_n_dets = (unsigned int) load_vec_txt(vec_path.str(), *load_dets, load_vals, samp_comm);
             size_t glob_n_dets = loc_n_dets;
 
-            MPI_Bcast(&glob_n_dets, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+            MPI_Bcast(&glob_n_dets, 1, MPI_UNSIGNED, 0, samp_comm);
             trial_vecs.emplace_back(glob_n_dets, &shared_adder, n_orb * 2, n_elec_unf, proc_scrambler, vec_scrambler);
             htrial_vecs.emplace_back(glob_n_dets * num_ex / n_procs, &shared_adder, n_orb * 2, n_elec_unf, diag_shortcut, (double *)NULL, 2, proc_scrambler, vec_scrambler);
             
@@ -226,7 +224,10 @@ int main(int argc, char * argv[]) {
                 dmat_file.open(file_path, std::ios::app);
                 dmat_file << std::setprecision(14);
             }
-            
+        }
+        
+        if (proc_rank == 0) {
+            // Setup output files
             file_path = args.result_dir;
             file_path.append("params.txt");
             std::ofstream param_f(file_path);
@@ -243,15 +244,12 @@ int main(int argc, char * argv[]) {
             file_path = args.result_dir;
             file_path.append("energies.txt");
             evals_file.open(file_path);
-            
-//            file_path = args.result_dir;
-//            file_path.append("restart.txt");
-//            restart_file.open(file_path);
+            evals_file << std::setprecision(9);
         }
         
         // Parameters for systematic sampling
         double rn_sys = 0;
-        double loc_norms[n_procs];
+        double loc_norms[procs_per_vec];
         size_t max_n_dets = args.max_n_dets;
         if (sol_vec.max_size() > max_n_dets) {
             max_n_dets = sol_vec.max_size();
@@ -265,12 +263,12 @@ int main(int argc, char * argv[]) {
         
         Matrix<double> d_mat(n_trial, n_trial);
         Matrix<double> b_mat(n_trial, n_trial);
-        std::string dnpy_path(args.result_dir);
-        dnpy_path.append("d_matrix.npy");
-        std::string bnpy_path(args.result_dir);
-        bnpy_path.append("b_matrix.npy");
-        Matrix<double> d_cum(n_trial, n_trial);
-        Matrix<double> b_cum(n_trial, n_trial);
+        tmp_path.str("");
+        tmp_path << args.result_dir << "d_mat_" << samp_idx << ".npy";
+        std::string dnpy_path(tmp_path.str());
+        tmp_path.str("");
+        tmp_path << args.result_dir << "b_mat_" << samp_idx << ".npy";
+        std::string bnpy_path(tmp_path.str());
         Matrix<double> d_ave(n_trial, n_trial);
         Matrix<double> b_ave(n_trial, n_trial);
         std::vector<double> s_vals(n_trial);
@@ -300,17 +298,9 @@ int main(int argc, char * argv[]) {
                 DistVec<double> &curr_htrial = htrial_vecs[trial_idx];
                 for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                     sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
-                    double d_prod = sol_vec.dot(curr_trial.indices(), curr_trial.values(), curr_trial.curr_size(), trial_hashes[trial_idx].data());
-                    d_prod = sum_mpi(d_prod, proc_rank, n_procs);
-                    d_mat(trial_idx, vec_idx) = d_prod;
-                    d_cum(trial_idx, vec_idx) += d_prod;
-                    d_ave(trial_idx, vec_idx) = d_cum(trial_idx, vec_idx) / (iteration + 1);
-                    
-                    d_prod = sol_vec.dot(curr_htrial.indices(), curr_htrial.values(), curr_htrial.curr_size(), htrial_hashes[trial_idx].data());
-                    d_prod = sum_mpi(d_prod, proc_rank, n_procs);
-                    b_mat(trial_idx, vec_idx) = d_prod;
-                    b_cum(trial_idx, vec_idx) += d_prod;
-                    b_ave(trial_idx, vec_idx) = b_cum(trial_idx, vec_idx) / (iteration + 1);
+                    double d_prod = sol_vec.dot(curr_htrial.indices(), curr_htrial.values(), curr_htrial.curr_size(), htrial_hashes[trial_idx].data());
+                    b_mat(trial_idx, vec_idx) = sum_mpi(d_prod, samp_rank, procs_per_vec, samp_comm);
+                    b_ave(trial_idx, vec_idx) = sum_mpi(d_prod, proc_rank, n_procs) / n_sample;
                 }
             }
 //            since_last_restart++;
@@ -474,7 +464,7 @@ int main(int argc, char * argv[]) {
 //            restart_file.close();
         }
 
-//        MPI_Comm_free(&samp_comm);
+        MPI_Comm_free(&samp_comm);
         MPI_Finalize();
     } catch (std::exception &ex) {
         std::cerr << "\nException : " << ex.what() << "\n\nPlease report this error to the developers through our GitHub repository: https://github.com/sgreene8/FRIES/ \n\n";

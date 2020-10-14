@@ -22,29 +22,74 @@ struct MyArgs : public argparse::Args {
     uint32_t max_n_dets = kwarg("max_dets", "Maximum number of determinants on a single MPI process");
     std::string ini_path = kwarg("ini_vecs", "Prefix for files containing the vectors with which to initialize the calculation. Files must have names <ini_vecs>dets<xx> and <ini_vecs>vals<xx>, where xx is a 2-digit number ranging from 0 to (num_states - 1), and be text files");
     uint32_t n_states = kwarg("num_states", "Number of states whose energies will be computed");
-    uint32_t n_krylov = kwarg("n_krylov", "Number of multiplications by (1 - \eps H) to include in each iteration").set_default(1000);
-    bool use_npy = flag("use_numpy", "If set, output files will be in numpy (.npy) format. Otherwise, will be in text (.txt) format");
+    uint32_t max_krylov = kwarg("max_krylov", "Number of multiplications by (1 - \eps H) to do in between restarts").set_default(10);
+    std::string mat_output = kwarg("out_format", "A flag controlling the format for outputting the Hamiltonian and overlap matrices. Must be either 'none', in which case these matrices are not written to disk, 'txt', in which case they are outputted in text format, or 'npy', in which case they are outputted in numpy format").set_default<std::string>("none");
+    uint32_t n_sample = kwarg("n_sample", "The number of independent vectors to simulate in parallel").set_default(1);
     
     CONSTRUCTOR(MyArgs);
 };
+
+typedef enum {
+    no_out,
+    txt_out,
+    npy_out
+} OutFmt;
 
 int main(int argc, char * argv[]) {
     MyArgs args(argc, argv);
     
     uint8_t n_states = args.n_states;
-    if (n_states < 2) {
-        fprintf(stderr, "Warning: n_states is 1 or 0. Consider using the power method instead of Arnoldi in this case.\n");
+    uint32_t n_sample = args.n_sample;
+    OutFmt mat_fmt;
+    try {
+        if (args.mat_output == "none") {
+            mat_fmt = no_out;
+        }
+        else if (args.mat_output == "txt") {
+            mat_fmt = txt_out;
+        }
+        else if (args.mat_output == "npy") {
+            mat_fmt = npy_out;
+        }
+        else {
+            throw std::runtime_error("out_format input argument must be either \"none\", \"txt\", or \"npy\"");
+        }
+        if (n_states < 2) {
+            std::cerr << "Warning: Only 1 or 0 trial vectors were provided. Consider using the power method instead of Arnoldi in this case.\n";
+        }
+    } catch (std::exception &ex) {
+        std::cerr << "\nError parsing command line: " << ex.what() << "\n\n";
+        return 1;
     }
     
     try {
         int n_procs = 1;
         int proc_rank = 0;
+        uint16_t procs_per_vec = 1;
 
         MPI_Init(NULL, NULL);
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
         MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
-        double shift_damping = 0.05;
-        uint32_t shift_interval = 10;
+        
+        procs_per_vec = n_procs / n_sample;
+        if (procs_per_vec * n_sample != n_procs) {
+            if (n_procs / procs_per_vec != n_sample) {
+                n_sample = n_procs / procs_per_vec;
+                std::cerr << "Increasing n_sample to " << n_sample << " in order to use more MPI processes\n";
+            }
+            if (n_sample * procs_per_vec != n_procs) {
+                std::cerr << "Warning: only " << n_sample * procs_per_vec << " MPI processes will be used\n";
+            }
+        }
+
+        int samp_idx = proc_rank / procs_per_vec;
+        MPI_Comm samp_comm;
+        MPI_Comm_split(MPI_COMM_WORLD, samp_idx, 0, &samp_comm);
+        int samp_rank;
+        MPI_Comm_rank(samp_comm, &samp_rank);
+        
+//        double shift_damping = 0.05;
+//        uint32_t shift_interval = 10;
         std::vector<double> en_shift(n_states);
         std::vector<double> last_one_norm(n_states);
         
@@ -93,7 +138,7 @@ int main(int argc, char * argv[]) {
             vec_scrambler[det_idx] = mt_obj();
         }
         
-        Adder<double> shared_adder(adder_size, n_procs, n_orb * 2);
+        Adder<double> shared_adder(adder_size, n_procs, n_orb * 2, samp_comm);
         
         std::vector<DistVec<double>> sol_vecs;
         sol_vecs.reserve(n_states);
@@ -128,32 +173,44 @@ int main(int argc, char * argv[]) {
         }
         delete load_dets;
         
-        char file_path[300];
-        FILE *bmat_file = NULL;
-        FILE *dmat_file = NULL;
+        std::string file_path;
+        std::stringstream tmp_path;
+        std::ofstream bmat_file;
+        std::ofstream dmat_file;
+        std::ofstream evals_file;
+        
+        if (samp_rank == 0) {
+            if (mat_fmt == txt_out) {
+                tmp_path << args.result_dir << "b_mat_" << samp_idx << ".txt";
+                bmat_file.open(tmp_path.str(), std::ios::app);
+                if (!bmat_file.is_open()) {
+                    std::string msg("Could not open file for writing in directory ");
+                    msg.append(args.result_dir);
+                    throw std::runtime_error(msg);
+                }
+                bmat_file << std::setprecision(14);
+                
+                tmp_path.str("");
+                tmp_path << args.result_dir << "d_mat_" << samp_idx << ".txt";
+                dmat_file.open(tmp_path.str(), std::ios::app);
+                dmat_file << std::setprecision(14);
+            }
+        }
         
         if (proc_rank == 0) {
-            // Setup output filess
-            if (!args.use_npy) {
-                strcpy(file_path, args.result_dir.c_str());
-                strcat(file_path, "b_matrix.txt");
-                bmat_file = fopen(file_path, "a");
-                if (!bmat_file) {
-                    fprintf(stderr, "Could not open file for writing in directory %s\n", args.result_dir.c_str());
-                }
-                
-                strcpy(file_path, args.result_dir.c_str());
-                strcat(file_path, "d_matrix.txt");
-                dmat_file = fopen(file_path, "a");
+            // Setup output files
+            file_path = args.result_dir;
+            file_path.append("params.txt");
+            std::ofstream param_f(file_path);
+            if (!param_f.is_open()) {
+                std::string msg("Could not open file for writing in directory ");
+                msg.append(args.result_dir);
+                throw std::runtime_error(msg);
             }
-            
-            strcpy(file_path, args.result_dir.c_str());
-            strcat(file_path, "params.txt");
-            FILE *param_f = fopen(file_path, "w");
-            fprintf(param_f, "Arnoldi calculation\nHF path: %s\nepsilon (imaginary time step): %lf\nVector nonzero: %u\n", args.hf_path.c_str(), eps, args.target_nonz);
-            fprintf(param_f, "Path for initial vectors: %s\n", args.ini_path.c_str());
-            fprintf(param_f, "Krylov iterations: %u\n", args.n_krylov);
-            fclose(param_f);
+            param_f << "Arnoldi calculation\nHF path: " << args.hf_path << "\nepsilon (imaginary time step): " << eps << "\nVector nonzero: " << args.target_nonz << "\n";
+            param_f << "Path for initial vectors: " << args.ini_path << "\n";
+            param_f << "Max. number of Krylov iterations: " << args.max_krylov << "\n";
+            param_f.close();
         }
         
         // Parameters for systematic sampling
@@ -173,10 +230,12 @@ int main(int argc, char * argv[]) {
         
         Matrix<double> d_mat(n_states, n_states);
         Matrix<double> b_mat(n_states, n_states);
-        std::stringstream dnpy_path;
-        dnpy_path << args.result_dir << "d_matrix.npy";
-        std::stringstream bnpy_path;
-        bnpy_path << args.result_dir << "b_matrix.npy";
+        tmp_path.str(args.result_dir);
+        tmp_path << "d_mat_" << samp_idx << ".npy";
+        std::string dnpy_path(tmp_path.str());
+        tmp_path.str(args.result_dir);
+        tmp_path << "b_mat_" << samp_idx << ".npy";
+        std::string bnpy_path(tmp_path.str());
         
         for (uint32_t iteration = 0; iteration < args.max_iter; iteration++) {
             // Initialize the solution vectors
@@ -187,7 +246,7 @@ int main(int argc, char * argv[]) {
                 printf("Macro iteration %u\n", iteration);
             }
             
-            for (uint16_t krylov_idx = 0; krylov_idx < args.n_krylov; krylov_idx++) {
+            for (uint16_t krylov_idx = 0; krylov_idx < args.max_krylov; krylov_idx++) {
                 if (proc_rank == 0) {
                     printf("Krylov iteration %u\n", krylov_idx);
                 }
@@ -236,23 +295,23 @@ int main(int argc, char * argv[]) {
                         d_mat(vecl_idx, vecr_idx) = vec_ovlp;
                     }
                 }
-                if (proc_rank == 0) {
-                    if (args.use_npy) {
-                        cnpy::npy_save(bnpy_path.str(), b_mat.data(), {1, n_states, n_states}, "a");
-                        cnpy::npy_save(dnpy_path.str(), d_mat.data(), {1, n_states, n_states}, "a");
+                if (samp_rank == 0) {
+                    if (mat_fmt == npy_out) {
+                        cnpy::npy_save(bnpy_path, b_mat.data(), {1, n_states, n_states}, "a");
+                        cnpy::npy_save(dnpy_path, d_mat.data(), {1, n_states, n_states}, "a");
                     }
-                    else {
+                    else if (mat_fmt == txt_out) {
                         for (uint16_t row_idx = 0; row_idx < n_states; row_idx++) {
                             for (uint16_t col_idx = 0; col_idx < n_states - 1; col_idx++) {
-                                fprintf(bmat_file, "%.14lf,", b_mat(row_idx, col_idx));
-                                fprintf(dmat_file, "%.14lf,", d_mat(row_idx, col_idx));
+                                bmat_file << b_mat(row_idx, col_idx) << ",";
+                                dmat_file << d_mat(row_idx, col_idx) << ",";
                             }
-                            fprintf(bmat_file, "%.14lf\n", b_mat(row_idx, n_states - 1));
-                            fprintf(dmat_file, "%.14lf\n", d_mat(row_idx, n_states - 1));
+                            bmat_file << b_mat(row_idx, n_states - 1) << "\n";
+                            dmat_file << d_mat(row_idx, n_states - 1) << "\n";
                         }
+                        dmat_file.flush();
+                        bmat_file.flush();
                     }
-                    fflush(dmat_file);
-                    fflush(bmat_file);
                 }
                 
                 size_t new_max_dets = max_n_dets;
@@ -275,10 +334,15 @@ int main(int argc, char * argv[]) {
                     for (size_t det_idx = 0; det_idx < sol_vecs[vec_idx].curr_size(); det_idx++) {
                         srt_arr[det_idx] = det_idx;
                     }
-                    loc_norms[proc_rank] = find_preserve(sol_vecs[vec_idx].values(), srt_arr.data(), keep_exact, sol_vecs[vec_idx].curr_size(), &n_samp, &glob_norm);
-                    if ((krylov_idx + 1) % shift_interval == 0) {
-                        adjust_shift(&en_shift[vec_idx], glob_norm, &last_one_norm[vec_idx], 0, shift_damping / shift_interval / eps);
-                    }
+                    loc_norms[proc_rank] = find_preserve(sol_vecs[vec_idx].values(), srt_arr, keep_exact, sol_vecs[vec_idx].curr_size(), &n_samp, &glob_norm);
+                    double mean_norm = sum_mpi(glob_norm, proc_rank, n_procs) / n_procs;
+//                    for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
+//                        *sol_vec[el_idx] /= mean_norm;
+//                    }
+                    
+//                    if ((krylov_idx + 1) % shift_interval == 0) {
+//                        adjust_shift(&en_shift[vec_idx], glob_norm, &last_one_norm[vec_idx], 0, shift_damping / shift_interval / eps);
+//                    }
                     if (proc_rank == 0) {
                         rn_sys = mt_obj() / (1. + UINT32_MAX);
                     }
@@ -295,9 +359,10 @@ int main(int argc, char * argv[]) {
             }
         }
         
-        if (proc_rank == 0 && !args.use_npy) {
-            fclose(bmat_file);
-            fclose(dmat_file);
+        if (proc_rank == 0) {
+            evals_file.close();
+            bmat_file.close();
+            dmat_file.close();
         }
 
         MPI_Finalize();

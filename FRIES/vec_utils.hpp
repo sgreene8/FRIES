@@ -22,23 +22,23 @@
 #include <sstream>
 
 
-inline void mpi_atoav(double *sendv, int *send_cts, int *disps, double *recvv, int *recv_cts) {
-    MPI_Alltoallv(sendv, send_cts, disps, MPI_DOUBLE, recvv, recv_cts, disps, MPI_DOUBLE, MPI_COMM_WORLD);
+inline void mpi_atoav(double *sendv, int *send_cts, int *disps, double *recvv, int *recv_cts, MPI_Comm comm) {
+    MPI_Alltoallv(sendv, send_cts, disps, MPI_DOUBLE, recvv, recv_cts, disps, MPI_DOUBLE, comm);
 }
 
 
-inline void mpi_atoav(int *sendv, int *send_cts, int *disps, int *recvv, int *recv_cts) {
-    MPI_Alltoallv(sendv, send_cts, disps, MPI_INT, recvv, recv_cts, disps, MPI_INT, MPI_COMM_WORLD);
+inline void mpi_atoav(int *sendv, int *send_cts, int *disps, int *recvv, int *recv_cts, MPI_Comm comm) {
+    MPI_Alltoallv(sendv, send_cts, disps, MPI_INT, recvv, recv_cts, disps, MPI_INT, comm);
 }
 
 
-inline void mpi_allgathv_inplace(int *arr, int *nums, int *disps) {
-    MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, arr, nums, disps, MPI_INT, MPI_COMM_WORLD);
+inline void mpi_allgathv_inplace(int *arr, int *nums, int *disps, MPI_Comm comm) {
+    MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, arr, nums, disps, MPI_INT, comm);
 }
 
 
-inline void mpi_allgathv_inplace(double *arr, int *nums, int *disps) {
-    MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, arr, nums, disps, MPI_DOUBLE, MPI_COMM_WORLD);
+inline void mpi_allgathv_inplace(double *arr, int *nums, int *disps, MPI_Comm comm) {
+    MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, arr, nums, disps, MPI_DOUBLE, comm);
 }
 
 template <class el_type>
@@ -57,7 +57,7 @@ public:
      * \param [in] size     Maximum number of elements per MPI process in send and receive buffers
      * \param [in] n_procs  The number of processes
      */
-    Adder(size_t size, int n_procs, uint8_t n_bits) : n_bytes_(CEILING(n_bits + 1, 8)), send_idx_(n_procs, size * CEILING(n_bits + 1, 8)), send_vals_(n_procs, size), recv_idx_(n_procs, size * CEILING(n_bits + 1, 8)), recv_vals_(n_procs, size), send_cts_(n_procs), recv_cts_(n_procs), idx_disp_(n_procs), val_disp_(n_procs) {
+    Adder(size_t size, int n_procs, uint8_t n_bits, MPI_Comm adder_comm) : n_bytes_(CEILING(n_bits + 1, 8)), send_idx_(n_procs, size * CEILING(n_bits + 1, 8)), send_vals_(n_procs, size), recv_idx_(n_procs, size * CEILING(n_bits + 1, 8)), recv_vals_(n_procs, size), send_cts_(n_procs), recv_cts_(n_procs), idx_disp_(n_procs), val_disp_(n_procs), mpi_communicator_(adder_comm) {
         for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
             val_disp_[proc_idx] = proc_idx * (int)size;
             idx_disp_[proc_idx] = proc_idx * (int)size * n_bytes_;
@@ -90,6 +90,10 @@ public:
         return send_vals_.cols();
     }
     
+    MPI_Comm communicator() {
+        return mpi_communicator_;
+    }
+    
     bool get_add_result(size_t row, size_t col, double *weight) const {
         *weight = send_vals_(row, col);
         Matrix<bool>::RowReference success((uint8_t *) send_idx_[row]);
@@ -105,6 +109,7 @@ private:
     std::vector<int> idx_disp_; ///< Displacements for MPI send/receive operations for indices
     std::vector<int> val_disp_; ///< Displacements for MPI send/receive operations for values
     uint8_t n_bytes_; ///< Number of bytes used to encode each index in the send and receive buffers
+    MPI_Comm mpi_communicator_; ///< Pointer to MPI communicator to use for addition and dot operations
     
 /*! \brief Increase the size of the buffer for temporarily storing added elements
  */
@@ -153,7 +158,7 @@ private:
     double *curr_shift_; ///< If nonnull, used to calculate perturbative corrections from unsuccessful additions to the vector (see Ghanem et al., JCP 151, 224108, 2019)
     Adder<el_type> *adder_; ///< Pointer to adder object for buffered addition of elements distributed across MPI processes
     size_t min_del_idx_; ///< Elements in \p values with indices less than this index will not be deleted when \p del_at_pos() is called
-    MPI_Comm *mpi_communicator_; ///< Pointer to MPI communicator to use for addition and dot operations
+    MPI_Comm mpi_communicator_; ///< Pointer to MPI communicator to use for addition and dot operations
 protected:
     Matrix<uint8_t> indices_; ///< Array of indices of vector elements
     size_t max_size_; ///< Maximum number of vector elements that can be stored
@@ -177,10 +182,10 @@ protected:
 public:
     
     DistVec(size_t size, size_t add_size, uint8_t n_bits,
-            unsigned int n_elec, int n_procs, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(new Adder<el_type>(add_size, n_procs, n_bits)), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns_distinct), proc_hash_(0, rns_common) { }
+            unsigned int n_elec, int n_procs, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(new Adder<el_type>(add_size, n_procs, n_bits, MPI_COMM_WORLD)), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns_distinct), proc_hash_(0, rns_common) { }
     
     DistVec(size_t size, Adder<el_type> *adder, uint8_t n_bits,
-            unsigned int n_elec, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(adder), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns_distinct), proc_hash_(0, rns_common) { }
+            unsigned int n_elec, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(adder), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns_distinct), proc_hash_(0, rns_common), mpi_communicator_(adder->communicator()) { }
     
     /*! \brief Constructor for DistVec object
      * \param [in] size         Maximum number of elements to be stored in the vector
@@ -196,13 +201,10 @@ public:
      * all MPI processes, but should not be the same as \p rns_common
      */
     DistVec(size_t size, size_t add_size, uint8_t n_bits,
-            unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(new Adder<el_type>(add_size, n_procs, n_bits)), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns_distinct), proc_hash_(0, rns_common) { }
+            unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(new Adder<el_type>(add_size, n_procs, n_bits, MPI_COMM_WORLD)), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns_distinct), proc_hash_(0, rns_common) { }
     
     DistVec(size_t size, Adder<el_type> *adder, uint8_t n_bits,
-            unsigned int n_elec, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(adder), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns_distinct), proc_hash_(0, rns_common) { }
-    
-//    DistVec(size_t size, Adder<el_type> *adder, uint8_t n_bits,
-//            unsigned int n_elec, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(adder), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns_distinct), proc_hash_(0, rns_common) { }
+            unsigned int n_elec, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(adder), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr), matr_el_(size), vec_hash_(CEILING(size, 5), rns_distinct), proc_hash_(0, rns_common), mpi_communicator_(adder->communicator()) { }
     
     uint8_t n_bits() {
         return n_bits_;
@@ -294,8 +296,8 @@ public:
     double multi_dot(Matrix<uint8_t> &idx, Matrix<uint8_t> &occ, double *vals, size_t num) {
         int n_procs = 1;
         int proc_rank = 0;
-        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-        MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+        MPI_Comm_size(mpi_communicator_, &n_procs);
+        MPI_Comm_rank(mpi_communicator_, &proc_rank);
         size_t el_idx = 0;
         int num_added = 1;
         int proc;
@@ -369,7 +371,7 @@ public:
         gen_orb_list(idx, orbs);
         uintmax_t hash_val = proc_hash_.hash_fxn(orbs, n_elec, NULL, 0);
         int n_procs = 1;
-        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+        MPI_Comm_size(mpi_communicator_, &n_procs);
         return hash_val % n_procs;
     }
     
@@ -383,7 +385,7 @@ public:
         unsigned int n_elec = (unsigned int)occ_orbs_.cols();
         uintmax_t hash_val = proc_hash_.hash_fxn(orbs, n_elec, NULL, 0);
         int n_procs = 1;
-        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+        MPI_Comm_size(mpi_communicator_, &n_procs);
         return hash_val % n_procs;
     }
 
@@ -541,8 +543,8 @@ public:
     uint64_t tot_sgn_coh() const {
         int my_rank = 0;
         int n_procs = 1;
-        MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+        MPI_Comm_rank(mpi_communicator_, &my_rank);
+        MPI_Comm_size(mpi_communicator_, &n_procs);
         return sum_mpi(nonini_occ_add, my_rank, n_procs);
     }
     
@@ -820,7 +822,15 @@ public:
      * \return Size of the dense subspace
      */
     size_t init_dense(const std::string &read_path, const char *save_dir) {
-        size_t n_loaded = read_dets(read_path, indices_);
+        int n_procs = 1;
+        int my_rank = 0;
+        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+        MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+        
+        size_t n_loaded = 0;
+        if (my_rank == 0) {
+            n_loaded = read_dets(read_path, indices_);
+        }
         for (size_t idx = 0; idx < n_loaded; idx++) {
             add(indices_[idx], 1, 1);
         }
@@ -831,10 +841,6 @@ public:
             bzero(values_[vec_idx], n_dense_ * sizeof(el_type));
         }
 
-        int n_procs = 1;
-        int my_rank = 0;
-        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-        MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
         int dense_sizes[n_procs];
         dense_sizes[my_rank] = (int) n_dense_;
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, dense_sizes, 1, MPI_INT, MPI_COMM_WORLD);
@@ -869,8 +875,8 @@ public:
         }
         int n_procs = 1;
         int my_rank = 0;
-        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-        MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+        MPI_Comm_size(mpi_communicator_, &n_procs);
+        MPI_Comm_rank(mpi_communicator_, &my_rank);
         el_type glob_norm;
         glob_norm = sum_mpi(result, my_rank, n_procs);
         return glob_norm;
@@ -880,15 +886,15 @@ public:
     void collect_procs() {
         int n_procs = 1;
         int my_rank = 0;
-        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-        MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+        MPI_Comm_size(mpi_communicator_, &n_procs);
+        MPI_Comm_rank(mpi_communicator_, &my_rank);
         int vec_sizes[n_procs];
         int idx_sizes[n_procs];
         int n_bytes = (int) indices_.cols();
         vec_sizes[my_rank] = (int)curr_size_;
         idx_sizes[my_rank] = (int)curr_size_ * n_bytes;
-        MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, vec_sizes, 1, MPI_INT, MPI_COMM_WORLD);
-        MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, idx_sizes, 1, MPI_INT, MPI_COMM_WORLD);
+        MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, vec_sizes, 1, MPI_INT, mpi_communicator_);
+        MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, idx_sizes, 1, MPI_INT, mpi_communicator_);
         int tot_size = 0;
         int disps[n_procs];
         int idx_disps[n_procs];
@@ -907,9 +913,9 @@ public:
         memmove(indices_[disps[my_rank]], indices_.data(), vec_sizes[my_rank] * n_bytes);
         for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
             memmove(&values_(vec_idx, disps[my_rank]), values_[vec_idx], vec_sizes[my_rank] * el_size);
-            mpi_allgathv_inplace(values_[vec_idx], vec_sizes, disps);
+            mpi_allgathv_inplace(values_[vec_idx], vec_sizes, disps, mpi_communicator_);
         }
-        MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, indices_.data(), idx_sizes, idx_disps, MPI_UINT8_T, MPI_COMM_WORLD);
+        MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, indices_.data(), idx_sizes, idx_disps, MPI_UINT8_T, mpi_communicator_);
         curr_size_ = tot_size;
     }
     
@@ -972,9 +978,8 @@ template <class el_type>
 void Adder<el_type>::perform_add(DistVec<el_type> *parent_vec) {
     int n_procs = 1;
     
-    size_t el_size = sizeof(el_type);
-    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-    MPI_Alltoall(send_cts_.data(), 1, MPI_INT, recv_cts_.data(), 1, MPI_INT, MPI_COMM_WORLD);
+    MPI_Comm_size(mpi_communicator_, &n_procs);
+    MPI_Alltoall(send_cts_.data(), 1, MPI_INT, recv_cts_.data(), 1, MPI_INT, mpi_communicator_);
     
     int send_idx_cts[n_procs];
     int recv_idx_cts[n_procs];
@@ -983,18 +988,18 @@ void Adder<el_type>::perform_add(DistVec<el_type> *parent_vec) {
         recv_idx_cts[proc_idx] = recv_cts_[proc_idx] * n_bytes_;
     }
     
-    MPI_Alltoallv(send_idx_.data(), send_idx_cts, idx_disp_.data(), MPI_UINT8_T, recv_idx_.data(), recv_idx_cts, idx_disp_.data(), MPI_UINT8_T, MPI_COMM_WORLD);
-    mpi_atoav(send_vals_.data(), send_cts_.data(), val_disp_.data(), recv_vals_.data(), recv_cts_.data());
+    MPI_Alltoallv(send_idx_.data(), send_idx_cts, idx_disp_.data(), MPI_UINT8_T, recv_idx_.data(), recv_idx_cts, idx_disp_.data(), MPI_UINT8_T, mpi_communicator_);
+    mpi_atoav(send_vals_.data(), send_cts_.data(), val_disp_.data(), recv_vals_.data(), recv_cts_.data(), mpi_communicator_);
     // Move elements from receiving buffers to vector
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         parent_vec->add_elements(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx], Matrix<bool>::RowReference(recv_idx_[proc_idx]));
     }
-    mpi_atoav(recv_vals_.data(), recv_cts_.data(), val_disp_.data(), send_vals_.data(), send_cts_.data());
+    mpi_atoav(recv_vals_.data(), recv_cts_.data(), val_disp_.data(), send_vals_.data(), send_cts_.data(), mpi_communicator_);
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         recv_idx_cts[proc_idx] = CEILING(recv_cts_[proc_idx], 8);
         send_idx_cts[proc_idx] = CEILING(send_cts_[proc_idx], 8);
     }
-    MPI_Alltoallv(recv_idx_.data(), recv_idx_cts, idx_disp_.data(), MPI_UINT8_T, send_idx_.data(), send_idx_cts, idx_disp_.data(), MPI_UINT8_T, MPI_COMM_WORLD);
+    MPI_Alltoallv(recv_idx_.data(), recv_idx_cts, idx_disp_.data(), MPI_UINT8_T, send_idx_.data(), send_idx_cts, idx_disp_.data(), MPI_UINT8_T, mpi_communicator_);
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         send_cts_[proc_idx] = 0;
     }
@@ -1005,10 +1010,9 @@ template <class el_type>
 double Adder<el_type>::perform_dot(DistVec<el_type> *parent_vec) {
     int n_procs = 1;
     int my_rank = 0;
-    size_t el_size = sizeof(el_type);
-    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-    MPI_Alltoall(send_cts_.data(), 1, MPI_INT, recv_cts_.data(), 1, MPI_INT, MPI_COMM_WORLD);
+    MPI_Comm_size(mpi_communicator_, &n_procs);
+    MPI_Comm_rank(mpi_communicator_, &my_rank);
+    MPI_Alltoall(send_cts_.data(), 1, MPI_INT, recv_cts_.data(), 1, MPI_INT, mpi_communicator_);
     
     int send_idx_cts[n_procs];
     int recv_idx_cts[n_procs];
@@ -1017,8 +1021,8 @@ double Adder<el_type>::perform_dot(DistVec<el_type> *parent_vec) {
         recv_idx_cts[proc_idx] = recv_cts_[proc_idx] * n_bytes_;
     }
     
-    MPI_Alltoallv(send_idx_.data(), send_idx_cts, idx_disp_.data(), MPI_UINT8_T, recv_idx_.data(), recv_idx_cts, idx_disp_.data(), MPI_UINT8_T, MPI_COMM_WORLD);
-    mpi_atoav(send_vals_.data(), send_cts_.data(), val_disp_.data(), recv_vals_.data(), recv_cts_.data());
+    MPI_Alltoallv(send_idx_.data(), send_idx_cts, idx_disp_.data(), MPI_UINT8_T, recv_idx_.data(), recv_idx_cts, idx_disp_.data(), MPI_UINT8_T, mpi_communicator_);
+    mpi_atoav(send_vals_.data(), send_cts_.data(), val_disp_.data(), recv_vals_.data(), recv_cts_.data(), mpi_communicator_);
     double d_prod = 0;
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         d_prod += parent_vec->dot(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx]);

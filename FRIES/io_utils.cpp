@@ -280,7 +280,6 @@ size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, int *vals)
 size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, double *vals) {
     int my_rank = 0;
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-#endif
     
     if (my_rank == 0) {
         std::string buffer(prefix);
@@ -315,36 +314,65 @@ size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, double *va
     }
 }
 
-
-size_t read_dets(const std::string &path, Matrix<uint8_t> &dets) {
+size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, double *vals, MPI_Comm comm) {
     int my_rank = 0;
-    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+    MPI_Comm_rank(comm, &my_rank);
     
     if (my_rank == 0) {
-        std::ifstream file_d(path);
-        if (!file_d.is_open()) {
+        std::string buffer(prefix);
+        buffer.append("dets");
+        size_t n_dets = read_dets(buffer, dets);
+        
+        buffer = prefix;
+        buffer.append("vals");
+        std::ifstream file_v(buffer);
+        if (!file_v.is_open()) {
             std::string msg("Could not open file: ");
-            msg.append(path);
+            msg.append(buffer);
             throw std::runtime_error(msg);
         }
+        size_t n_vals = 0;
         
-        size_t n_dets = 0;
-        long long in_det;
-        size_t max_size = dets.cols();
-        
-        while (file_d >> in_det) {
-            for (size_t byte_idx = 0; byte_idx < 8 && byte_idx < max_size; byte_idx++) {
-                dets(n_dets, byte_idx) = in_det & 255;
-                in_det >>= 8;
-            }
-            n_dets++;
+        while (file_v >> vals[n_vals]) {
+            n_vals++;
         }
-        file_d.close();
-        return n_dets;
+        if (n_vals > n_dets) {
+            std::cerr << "Warning: fewer determinants (" << n_dets << ") than values (" << n_vals << ") read in\n";
+            return n_dets;
+        }
+        else if (n_vals < n_dets) {
+            std::cerr << "Warning: fewer values (" << n_vals << ") than determinants (" << n_dets << ") read in\n";
+        }
+        file_v.close();
+        return n_vals;
     }
     else {
         return 0;
     }
+}
+
+
+size_t read_dets(const std::string &path, Matrix<uint8_t> &dets) {
+    std::ifstream file_d(path);
+    if (!file_d.is_open()) {
+        std::string msg("Could not open file: ");
+        msg.append(path);
+        throw std::runtime_error(msg);
+    }
+    
+    size_t n_dets = 0;
+    long long in_det;
+    size_t max_size = dets.cols();
+    
+    while (file_d >> in_det) {
+        for (size_t byte_idx = 0; byte_idx < 8 && byte_idx < max_size; byte_idx++) {
+            dets(n_dets, byte_idx) = in_det & 255;
+            in_det >>= 8;
+        }
+        n_dets++;
+    }
+    file_d.close();
+    return n_dets;
 }
 
 

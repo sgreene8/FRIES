@@ -49,8 +49,12 @@ int round_binomially(double p, unsigned int n, std::mt19937 &mt_obj);
  *                      preserved elements
  * \return Sum of magnitudes of elements that are not preserved exactly
  */
-double find_preserve(double *values, size_t *srt_idx, std::vector<bool> &keep_idx,
+double find_preserve(double *values, std::vector<size_t> &srt_idx, std::vector<bool> &keep_idx,
                      size_t count, unsigned int *n_samp, double *global_norm);
+double find_preserve(double *values, std::vector<size_t> &srt_idx, std::vector<bool> &keep_idx,
+                     size_t count, unsigned int *n_samp, double *global_norm, MPI_Comm comm);
+double find_preserve(double *values, size_t *srt_idx, std::vector<bool> &keep_idx,
+                     size_t count, unsigned int *n_samp, double *global_norm, MPI_Comm comm);
 
 
 /*! \brief Systematic resampling of vector elements
@@ -69,6 +73,9 @@ double find_preserve(double *values, size_t *srt_idx, std::vector<bool> &keep_id
  */
 void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
               unsigned int n_samp, std::vector<bool> &keep_exact, double rand_num);
+void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
+              unsigned int n_samp, std::vector<bool> &keep_exact, double rand_num,
+              MPI_Comm comm);
 
 /*! \brief Systematic resampling of vector elements only on this process. Does not use MPI
  *
@@ -184,6 +191,18 @@ inline double sum_mpi(double local, int my_rank, int n_procs)  {
     double rec_vals[n_procs];
     rec_vals[my_rank] = local;
     MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, rec_vals, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+    double global = 0;
+    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        global += rec_vals[proc_idx];
+    }
+    return global;
+}
+
+
+inline double sum_mpi(double local, int my_rank, int n_procs, MPI_Comm comm)  {
+    double rec_vals[n_procs];
+    rec_vals[my_rank] = local;
+    MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, rec_vals, 1, MPI_DOUBLE, comm);
     double global = 0;
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
         global += rec_vals[proc_idx];
