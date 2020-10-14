@@ -129,6 +129,10 @@ public:
         return (mat_type *) data_.data();
     }
     
+    void copy_from(Matrix<mat_type> &mat) {
+        std::copy(mat.data_.begin(), mat.data_.end(), data_.begin());
+    }
+    
 private:
     size_t rows_, cols_, tot_size_;
     std::vector<mat_type> data_;
