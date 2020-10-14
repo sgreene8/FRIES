@@ -151,69 +151,6 @@ double find_preserve(double *values, std::vector<size_t> &srt_idx, std::vector<b
     return loc_one_norm;
 }
 
-double find_preserve(double *values, size_t *srt_idx, std::vector<bool> &keep_idx,
-                     size_t count, unsigned int *n_samp, double *global_norm, MPI_Comm comm)  {
-    double loc_one_norm = 0;
-    double glob_one_norm = 0;
-    size_t heap_count = count;
-    for (size_t det_idx = 0; det_idx < count; det_idx++) {
-        loc_one_norm += fabs(values[det_idx]);
-    }
-    int proc_rank = 0;
-    int n_procs = 1;
-    MPI_Comm_rank(comm, &proc_rank);
-    MPI_Comm_size(comm, &n_procs);
-    
-    auto val_compare = [values](size_t i, size_t j){return fabs(values[i]) < fabs(values[j]); };
-    std::make_heap(srt_idx, srt_idx + heap_count, val_compare);
-    int loc_sampled, glob_sampled = 1;
-    int keep_going = 1;
-    
-    double el_magn = 0;
-    size_t max_idx;
-    *global_norm = sum_mpi(loc_one_norm, proc_rank, n_procs);
-    while (glob_sampled > 0) {
-        glob_one_norm = sum_mpi(loc_one_norm, proc_rank, n_procs);
-        loc_sampled = 0;
-        while (keep_going && heap_count > 0) {
-            max_idx = srt_idx[0];
-            el_magn = fabs(values[max_idx]);
-            if (el_magn >= glob_one_norm / (*n_samp - loc_sampled)) {
-                keep_idx[max_idx] = 1;
-                loc_sampled++;
-                loc_one_norm -= el_magn;
-                glob_one_norm -= el_magn;
-                
-                heap_count--;
-                if (heap_count) {
-                    std::pop_heap(srt_idx, srt_idx + heap_count + 1, val_compare);
-                }
-                else {
-                    keep_going = 0;
-                }
-            }
-            else{
-                keep_going = 0;
-            }
-        }
-        glob_sampled = sum_mpi(loc_sampled, proc_rank, n_procs);
-        (*n_samp) -= glob_sampled;
-        keep_going = 1;
-    }
-    loc_one_norm = 0;
-    if (glob_one_norm < 1e-9) {
-        *n_samp = 0;
-    }
-    else {
-        for (size_t det_idx = 0; det_idx < count; det_idx++) {
-            if (!keep_idx[det_idx]) {
-                loc_one_norm += fabs(values[det_idx]);
-            }
-        }
-    }
-    return loc_one_norm;
-}
-
 double seed_sys(double *norms, double *rn, unsigned int n_samp) {
     double lbound = 0;
     int n_procs = 1;

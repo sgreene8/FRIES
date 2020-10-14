@@ -53,8 +53,6 @@ double find_preserve(double *values, std::vector<size_t> &srt_idx, std::vector<b
                      size_t count, unsigned int *n_samp, double *global_norm);
 double find_preserve(double *values, std::vector<size_t> &srt_idx, std::vector<bool> &keep_idx,
                      size_t count, unsigned int *n_samp, double *global_norm, MPI_Comm comm);
-double find_preserve(double *values, size_t *srt_idx, std::vector<bool> &keep_idx,
-                     size_t count, unsigned int *n_samp, double *global_norm, MPI_Comm comm);
 
 
 /*! \brief Systematic resampling of vector elements
