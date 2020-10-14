@@ -60,3 +60,67 @@ void get_real_gevals_vecs(Matrix<double> op, Matrix<double> ovlp, std::vector<do
         real_evals[idx] = alpha_r[idx] / beta[idx];
     }
 }
+
+
+void inv_inplace(Matrix<double> &mat, double *scratch) {
+    int rows = (int) mat.rows();
+    int pivots[mat.rows()];
+    int output;
+    double tmp_mat[rows * rows];
+    for (size_t i = 0; i < rows; i++) {
+        for (size_t j = 0; j < rows; j++) {
+            tmp_mat[i * rows + j] = mat(i, j);
+            std::cout << tmp_mat[i * rows + j] << ",";
+        }
+        std::cout << "\n";
+    }
+    dgetrf_(&rows, &rows, tmp_mat, &rows, pivots, &output);
+    if (output != 0) {
+        std::stringstream msg;
+        msg << "Error in computing LU factorization, return value is " << output;
+        throw std::runtime_error(msg.str());
+    }
+    int work_size = rows * rows;
+    dgetri_(&rows, tmp_mat, &rows, pivots, scratch, &work_size, &output);
+    if (output != 0) {
+        std::stringstream msg;
+        msg << "Error in computing inverse, return value is " << output;
+        throw std::runtime_error(msg.str());
+    }
+    for (size_t i = 0; i < rows; i++) {
+        for (size_t j = 0; j < rows; j++) {
+            mat(i, j) = tmp_mat[i * rows + j];
+        }
+    }
+}
+
+
+void gen_qr(Matrix<double> &orth_mat, Matrix<double> &rmat, double *scratch) {
+    int rows = (int) orth_mat.rows();
+    int cols = (int) orth_mat.rows();
+    int min_mn = MIN(rows, cols);
+    double *tau = scratch;
+    double *work = tau + min_mn;
+    int workdim = rows * cols;
+    int output;
+    dgeqrf_(&rows, &cols, orth_mat.data(), &rows, tau, work, &workdim, &output);
+    if (output != 0) {
+        std::stringstream msg;
+        msg << "Error in computing QR decomposition, return value is " << output;
+        throw std::runtime_error(msg.str());
+    }
+    
+    std::copy(orth_mat.data(), orth_mat.data() + rows * cols, rmat.data());
+    for (uint8_t i = 0; i < rows; i++) {
+        for (uint8_t j = i + 1; j < cols; j++) {
+            rmat(i, j) = 0;
+        }
+    }
+    
+    dorgqr_(&rows, &cols, &min_mn, orth_mat.data(), &rows, tau, work, &workdim, &output);
+    if (output != 0) {
+        std::stringstream msg;
+        msg << "Error in forming Q matrix, return value is " << output;
+        throw std::runtime_error(msg.str());
+    }
+}

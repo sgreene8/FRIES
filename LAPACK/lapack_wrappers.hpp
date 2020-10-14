@@ -35,4 +35,13 @@ void get_svals(Matrix<double> mat, std::vector<double> &s_vals, double *scratch)
 void get_real_gevals_vecs(Matrix<double> op, Matrix<double> ovlp, std::vector<double> &real_evals,
                           Matrix<double> &real_evecs, double *scratch);
 
+/*! \brief Invert a square matrix in-place
+ *
+ * \param [in] mat      The matrix to be inverted
+ * \param [in] scratch      A block of memory to be used as scratch in the calculation, must have length at least (rows^2)
+ */
+void inv_inplace(Matrix<double> &mat, double *scratch);
+
+void gen_qr(Matrix<double> &orth_mat, Matrix<double> &rmat, double *scratch);
+
 #endif /* lapack_wrappers_hpp */

@@ -109,3 +109,58 @@ TEST_CASE("Test calculation of generalized eigenvectors/values", "[ge_vecs_vals]
         }
     }
 }
+
+TEST_CASE("Test matrix inversion", "[mat_inv]") {
+    Matrix<double> mat(2, 2);
+    mat(0, 0) = 1;
+    mat(1, 0) = 2;
+    mat(0, 1) = 3;
+    mat(1, 1) = 4;
+    
+    double scratch[4];
+    inv_inplace(mat, scratch);
+    
+    double ref_inv[2][2] = {
+        {-2, 1.5},
+        {1, -0.5}
+    };
+    
+    REQUIRE(mat(0, 0) == Approx(ref_inv[0][ 0]).margin(1e-7));
+    REQUIRE(mat(0, 1) == Approx(ref_inv[0][ 1]).margin(1e-7));
+    REQUIRE(mat(1, 0) == Approx(ref_inv[1][ 0]).margin(1e-7));
+    REQUIRE(mat(1, 1) == Approx(ref_inv[1][ 1]).margin(1e-7));
+}
+
+
+TEST_CASE("Test QR factorization", "[qr]") {
+    double input[] = {0, 3, 6, 1, 4, 7, 2, 5, 9};
+    Matrix<double> mat(3, 3);
+    std::copy(input, input + 9, mat.data());
+    
+    Matrix<double> rmat(3, 3);
+    gen_qr(mat, rmat, input);
+    
+    double correct_q[3][3] = {
+        {0.        , -0.4472136 , -0.89442719},
+        {0.91287093,  0.36514837, -0.18257419},
+        {0.40824829, -0.81649658,  0.40824829}
+    };
+    
+    for (uint8_t i = 0; i < 3; i++) {
+        for (uint8_t j = 0; j < 3; j++) {
+            REQUIRE(mat(i, j) == Approx(correct_q[i][j]).margin(1e-7));
+        }
+    }
+    
+    double correct_r[3][3] = {
+        {-6.70820393, 0, 0},
+        {-8.04984472, 1.09544512, 0},
+        {-10.2859127 ,   2.00831604,   0.40824829}
+    };
+    
+    for (uint8_t i = 0; i < 3; i++) {
+        for (uint8_t j = 0; j <= i; j++) {
+            REQUIRE(rmat(i, j) == Approx(correct_r[i][j]).margin(1e-7));
+        }
+    }
+}
