@@ -404,7 +404,7 @@ public:
             char det_txt[n_bytes * 2 + 1];
             print_str(idx, n_bytes, det_txt);
             std::stringstream error;
-            error << "Determinant " << det_txt << "created with an incorrect number of electrons";
+            error << "Determinant " << det_txt << " created with an incorrect number of electrons";
             throw std::runtime_error(error.str());
         }
         return vec_hash_.hash_fxn(orbs, n_elec, NULL, 0);
