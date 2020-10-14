@@ -66,7 +66,7 @@ TEST_CASE("Test calculation of observables from systematic sampling", "[sys_obs]
     size_t num_rns = 10;
     double input_vec[input_len];
     double tmp_vec[input_len];
-    size_t vec_srt[input_len];
+    std::vector<size_t> vec_srt(input_len);
     for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
         vec_srt[el_idx] = el_idx;
     }
@@ -131,7 +131,7 @@ TEST_CASE("Test systematic sampling with arbitrary distribution", "[sys_arbitrar
     unsigned int input_len = 10;
     double input_vec[input_len];
     double tmp_vec[input_len];
-    size_t vec_srt[input_len];
+    std::vector<size_t> vec_srt(input_len);
     for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
         vec_srt[el_idx] = el_idx;
     }

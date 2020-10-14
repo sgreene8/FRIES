@@ -132,7 +132,7 @@ public:
             srt_idx_[el_idx] = el_idx;
         }
         double glob_norm;
-        loc_norm1_ = find_preserve(orig_vec_.data(), srt_idx_.data(), keep_idx1_, n_elem, &n_samp_, &glob_norm);
+        loc_norm1_ = find_preserve(orig_vec_.data(), srt_idx_, keep_idx1_, n_elem, &n_samp_, &glob_norm);
         double prob_sum = 0;
         for (double &x : probs_) {
             x = gen_rn();
@@ -473,7 +473,7 @@ public:
 
         double tmp;
         uint32_t tmp_ns = n_samp + n_large * n_procs;
-        loc_norms_[proc_rank] = find_preserve(orig_vec_.data(), srt_idx_.data(), keep_idx1_, n_elem, &tmp_ns, &tmp);
+        loc_norms_[proc_rank] = find_preserve(orig_vec_.data(), srt_idx_, keep_idx1_, n_elem, &tmp_ns, &tmp);
         if (tmp_ns != n_samp) {
             printf("Error: the number of samples is not what is expected\n");
         }

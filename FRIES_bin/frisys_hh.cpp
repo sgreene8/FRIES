@@ -162,7 +162,7 @@ int main(int argc, char * argv[]) {
         // Parameters for systematic sampling
         double loc_norms[n_procs];
         double rn_sys = 0;
-        size_t *srt_arr = (size_t *)malloc(sizeof(size_t) * max_n_dets);
+        std::vector<size_t> srt_arr(max_n_dets);
         for (det_idx = 0; det_idx < max_n_dets; det_idx++) {
             srt_arr[det_idx] = det_idx;
         }
@@ -297,7 +297,7 @@ int main(int argc, char * argv[]) {
             size_t new_max_dets = sol_vec.max_size();
             if (new_max_dets > max_n_dets) {
                 keep_exact.resize(new_max_dets, false);
-                srt_arr = (size_t *)realloc(srt_arr, sizeof(size_t) * new_max_dets);
+                srt_arr.resize(new_max_dets);
                 for (; max_n_dets < new_max_dets; max_n_dets++) {
                     srt_arr[max_n_dets] = max_n_dets;
                 }

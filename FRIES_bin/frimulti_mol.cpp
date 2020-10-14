@@ -294,7 +294,7 @@ int main(int argc, char * argv[]) {
         double rn_sys = 0;
         double lbound;
         double weight;
-        size_t *srt_arr = (size_t *)malloc(sizeof(size_t) * args.max_n_dets);
+        std::vector<size_t> srt_arr(args.max_n_dets);
         for (det_idx = 0; det_idx < args.max_n_dets; det_idx++) {
             srt_arr[det_idx] = det_idx;
         }
