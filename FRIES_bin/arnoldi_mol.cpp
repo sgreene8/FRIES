@@ -345,7 +345,7 @@ int main(int argc, char * argv[]) {
             }
             
             // Get eigenvalues
-            get_real_gevals_vecs(b_ave, d_ave, evals, evecs, lapack_scratch.data());
+            get_real_gevals_vecs(b_ave, d_ave, evals, evecs);
             for (uint8_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
                 evals[trial_idx] = (1 - evals[trial_idx]) / eps;
             }
@@ -378,9 +378,8 @@ int main(int argc, char * argv[]) {
                 }
             }
             
-//            std::copy(b_mat.data(), b_mat.data() + n_trial * n_trial, evecs.data());
             evecs.copy_from(b_mat);
-            inv_inplace(evecs, lapack_scratch.data());
+            inv_inplace(evecs);
 //            gen_qr(evecs, r_mat, lapack_scratch.data());
             
             for (uint8_t eigen_idx = 0; eigen_idx < n_trial; eigen_idx++) {

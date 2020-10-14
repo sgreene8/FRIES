@@ -30,17 +30,15 @@ void get_svals(Matrix<double> mat, std::vector<double> &s_vals, double *scratch)
  * \param [in] ovlp     The right matrix in the generalized eigenvalue problem, representing e.g. overlap matrix elements for a nonorthonormal basis
  * \param [out] real_evals      The real parts of the eigenvalues
  * \param [out] real_evecs      The real parts of the eigenvectors
- * \param [in] scratch       A block of memory to use in the calculation, must have length at least (42 * rows)
  */
 void get_real_gevals_vecs(Matrix<double> op, Matrix<double> ovlp, std::vector<double> &real_evals,
-                          Matrix<double> &real_evecs, double *scratch);
+                          Matrix<double> &real_evecs);
 
 /*! \brief Invert a square matrix in-place
  *
  * \param [in] mat      The matrix to be inverted
- * \param [in] scratch      A block of memory to be used as scratch in the calculation, must have length at least (rows^2)
  */
-void inv_inplace(Matrix<double> &mat, double *scratch);
+void inv_inplace(Matrix<double> &mat);
 
 void gen_qr(Matrix<double> &orth_mat, Matrix<double> &rmat, double *scratch);
 

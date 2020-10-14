@@ -38,18 +38,23 @@ void get_svals(Matrix<double> mat, std::vector<double> &s_vals, double *scratch)
 }
 
 void get_real_gevals_vecs(Matrix<double> op, Matrix<double> ovlp, std::vector<double> &real_evals,
-                          Matrix<double> &real_evecs, double *scratch) {
+                          Matrix<double> &real_evecs) {
     char compute_left = 'V';
     char compute_right = 'N';
     int rows = (int) op.rows();
-    double *alpha_r = scratch;
-    double *alpha_i = alpha_r + rows;
-    double *beta = alpha_i + rows;
+    double alpha_r[rows];
+    double alpha_i[rows];
+    double beta[rows];
     int output;
-    double *work_scratch = beta + rows;
+    double work_scratch[39 * rows];
     int vl_leaddim = 1;
     int work_size = 39 * rows;
-    dggev_(&compute_left, &compute_right, &rows, op.data(), &rows, ovlp.data(), &rows, alpha_r, alpha_i, beta, real_evecs.data(), &rows, nullptr, &vl_leaddim, work_scratch, &work_size, &output);
+    double ray_quo[rows * rows];
+    std::copy(op.data(), op.data() + rows * rows, ray_quo);
+    double overlap[rows * rows];
+    std::copy(ovlp.data(), ovlp.data() + rows * rows, overlap);
+    double evecs[rows * rows];
+    dggev_(&compute_left, &compute_right, &rows, ray_quo, &rows, overlap, &rows, alpha_r, alpha_i, beta, evecs, &rows, nullptr, &vl_leaddim, work_scratch, &work_size, &output);
     if (output != 0) {
         std::stringstream msg;
         msg << "Error in solving generalized eigenvalue problem, return value is " << output;
@@ -59,10 +64,11 @@ void get_real_gevals_vecs(Matrix<double> op, Matrix<double> ovlp, std::vector<do
     for (uint8_t idx = 0; idx < rows; idx++) {
         real_evals[idx] = alpha_r[idx] / beta[idx];
     }
+    std::copy(evecs, evecs + rows * rows, real_evecs.data());
 }
 
 
-void inv_inplace(Matrix<double> &mat, double *scratch) {
+void inv_inplace(Matrix<double> &mat) {
     int rows = (int) mat.rows();
     int pivots[mat.rows()];
     int output;
@@ -70,9 +76,7 @@ void inv_inplace(Matrix<double> &mat, double *scratch) {
     for (size_t i = 0; i < rows; i++) {
         for (size_t j = 0; j < rows; j++) {
             tmp_mat[i * rows + j] = mat(i, j);
-            std::cout << tmp_mat[i * rows + j] << ",";
         }
-        std::cout << "\n";
     }
     dgetrf_(&rows, &rows, tmp_mat, &rows, pivots, &output);
     if (output != 0) {
@@ -81,6 +85,7 @@ void inv_inplace(Matrix<double> &mat, double *scratch) {
         throw std::runtime_error(msg.str());
     }
     int work_size = rows * rows;
+    double scratch[work_size];
     dgetri_(&rows, tmp_mat, &rows, pivots, scratch, &work_size, &output);
     if (output != 0) {
         std::stringstream msg;
