@@ -108,9 +108,9 @@ double find_preserve(double *values, std::vector<size_t> &srt_idx, std::vector<b
     
     double el_magn = 0;
     size_t max_idx;
-    *global_norm = sum_mpi(loc_one_norm, proc_rank, n_procs);
+    *global_norm = sum_mpi(loc_one_norm, proc_rank, n_procs, comm);
     while (glob_sampled > 0) {
-        glob_one_norm = sum_mpi(loc_one_norm, proc_rank, n_procs);
+        glob_one_norm = sum_mpi(loc_one_norm, proc_rank, n_procs, comm);
         loc_sampled = 0;
         while (keep_going && heap_count > 0) {
             max_idx = srt_idx[0];
@@ -133,7 +133,7 @@ double find_preserve(double *values, std::vector<size_t> &srt_idx, std::vector<b
                 keep_going = 0;
             }
         }
-        glob_sampled = sum_mpi(loc_sampled, proc_rank, n_procs);
+        glob_sampled = sum_mpi(loc_sampled, proc_rank, n_procs, comm);
         (*n_samp) -= glob_sampled;
         keep_going = 1;
     }
