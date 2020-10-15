@@ -68,33 +68,71 @@ void get_real_gevals_vecs(Matrix<double> op, Matrix<double> ovlp, std::vector<do
 }
 
 
-void inv_inplace(Matrix<double> &mat) {
+void inv_inplace(Matrix<double> &mat, double *scratch) {
     int rows = (int) mat.rows();
     int pivots[mat.rows()];
     int output;
-    double tmp_mat[rows * rows];
-    for (size_t i = 0; i < rows; i++) {
-        for (size_t j = 0; j < rows; j++) {
-            tmp_mat[i * rows + j] = mat(i, j);
-        }
-    }
-    dgetrf_(&rows, &rows, tmp_mat, &rows, pivots, &output);
+    dgetrf_(&rows, &rows, mat.data(), &rows, pivots, &output);
     if (output != 0) {
         std::stringstream msg;
         msg << "Error in computing LU factorization, return value is " << output;
         throw std::runtime_error(msg.str());
     }
     int work_size = rows * rows;
-    double scratch[work_size];
-    dgetri_(&rows, tmp_mat, &rows, pivots, scratch, &work_size, &output);
+    dgetri_(&rows, mat.data(), &rows, pivots, scratch, &work_size, &output);
     if (output != 0) {
         std::stringstream msg;
         msg << "Error in computing inverse, return value is " << output;
         throw std::runtime_error(msg.str());
     }
+}
+
+void invu_inplace(Matrix<double> &mat, double *scratch) {
+    int rows = (int) mat.rows();
+    double lmat[rows * rows];
+    double umat[rows * rows];
+    std::fill(lmat, lmat + rows * rows, 0);
+    std::copy(mat.data(), mat.data() + rows * rows, umat);
+    for (size_t k = 0; k < rows; k++) {
+        lmat[k * rows + k] = 1;
+    }
+    for (size_t k = 0; k < rows; k++) {
+        for (size_t j = k + 1; j < rows; j++) {
+            lmat[j * rows + k] = umat[j * rows + k] / umat[k * rows + k];
+            if (fabs(umat[k * rows + k]) < 1e-5) {
+                std::cerr << "Division by small number (" << umat[k * rows + k] << ") in inv(U) method\n";
+            }
+        }
+        
+        for (size_t l = k + 1; l < rows; l++) {
+            for (size_t j = 0; j < rows; j++) {
+                umat[l * rows + j] -= lmat[l * rows + k] * umat[k * rows + j];
+            }
+        }
+    }
+    
+    double lapack_mat[rows * rows];
+    int pivots[rows];
+    std::fill(lapack_mat, lapack_mat + rows * rows, 0);
+    for (size_t i = 0; i < rows; i++) {
+        pivots[i] = (int) i + 1;
+        for (size_t j = i; j < rows; j++) {
+            lapack_mat[j * rows + i] = umat[i * rows + j];
+        }
+    }
+    
+    int work_size = rows * rows;
+    int output;
+    dgetri_(&rows, lapack_mat, &rows, pivots, scratch, &work_size, &output);
+    if (output != 0) {
+        std::stringstream msg;
+        msg << "Error in computing inverse of U, return value is " << output;
+        throw std::runtime_error(msg.str());
+    }
+    
     for (size_t i = 0; i < rows; i++) {
         for (size_t j = 0; j < rows; j++) {
-            mat(i, j) = tmp_mat[i * rows + j];
+            mat(i, j) = lapack_mat[j * rows + i];
         }
     }
 }

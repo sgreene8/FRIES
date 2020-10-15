@@ -118,11 +118,32 @@ TEST_CASE("Test matrix inversion", "[mat_inv]") {
     mat(1, 1) = 4;
     
     double scratch[4];
-    inv_inplace(mat);
+    inv_inplace(mat, scratch);
     
     double ref_inv[2][2] = {
         {-2, 1.5},
         {1, -0.5}
+    };
+    
+    REQUIRE(mat(0, 0) == Approx(ref_inv[0][ 0]).margin(1e-7));
+    REQUIRE(mat(0, 1) == Approx(ref_inv[0][ 1]).margin(1e-7));
+    REQUIRE(mat(1, 0) == Approx(ref_inv[1][ 0]).margin(1e-7));
+    REQUIRE(mat(1, 1) == Approx(ref_inv[1][ 1]).margin(1e-7));
+}
+
+TEST_CASE("Test calculation of inverse of U factor of matrix", "[mat_u_inv]") {
+    Matrix<double> mat(2, 2);
+    mat(0, 0) = 1;
+    mat(1, 0) = 2;
+    mat(0, 1) = 3;
+    mat(1, 1) = 4;
+    
+    double scratch[4];
+    invu_inplace(mat, scratch);
+    
+    double ref_inv[2][2] = {
+        {1, 1.5},
+        {0, -0.5}
     };
     
     REQUIRE(mat(0, 0) == Approx(ref_inv[0][ 0]).margin(1e-7));
