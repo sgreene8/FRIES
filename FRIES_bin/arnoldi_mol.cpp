@@ -291,7 +291,7 @@ int main(int argc, char * argv[]) {
             double norm = sol_vec.local_norm();
             norm = sum_mpi(norm, samp_rank, procs_per_vec, samp_comm);
             for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
-//                *sol_vec[el_idx] /= norm;
+                *sol_vec[el_idx] /= norm;
             }
             
 #pragma mark Calculate overlap matrix
@@ -379,7 +379,7 @@ int main(int argc, char * argv[]) {
             }
             
             evecs.copy_from(b_mat);
-            inv_inplace(evecs);
+            invu_inplace(evecs, lapack_scratch.data());
 //            gen_qr(evecs, r_mat, lapack_scratch.data());
             
             for (uint8_t eigen_idx = 0; eigen_idx < n_trial; eigen_idx++) {
@@ -388,7 +388,7 @@ int main(int argc, char * argv[]) {
                 for (uint8_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                     for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
 //                        *sol_vec((1 - vec_half) * n_trial + eigen_idx, el_idx) += *sol_vec(vec_half * n_trial + vec_idx, el_idx) * evecs(eigen_idx, vec_idx);
-                        *sol_vec((1 - vec_half) * n_trial + eigen_idx, el_idx) += *sol_vec(vec_half * n_trial + vec_idx, el_idx) * evecs(vec_idx, eigen_idx); // for inv(B)
+                        *sol_vec((1 - vec_half) * n_trial + eigen_idx, el_idx) += *sol_vec(vec_half * n_trial + vec_idx, el_idx) * evecs(vec_idx, eigen_idx); // for inv(B) and inv(U)?
 //                        *sol_vec((1 - vec_half) * n_trial + eigen_idx, el_idx) += *sol_vec(vec_half * n_trial + vec_idx, el_idx) * evecs(eigen_idx, vec_idx); // for QR
                     }
                 }
