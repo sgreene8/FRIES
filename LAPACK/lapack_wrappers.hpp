@@ -45,4 +45,6 @@ void invu_inplace(Matrix<double> &mat, double *scratch);
 
 void gen_qr(Matrix<double> &orth_mat, Matrix<double> &rmat, double *scratch);
 
+void invr_inplace(Matrix<double> &mat, double *scratch);
+
 #endif /* lapack_wrappers_hpp */

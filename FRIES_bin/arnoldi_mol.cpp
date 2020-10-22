@@ -379,17 +379,14 @@ int main(int argc, char * argv[]) {
             }
             
             evecs.copy_from(b_mat);
-            invu_inplace(evecs, lapack_scratch.data());
-//            gen_qr(evecs, r_mat, lapack_scratch.data());
+            invr_inplace(evecs, lapack_scratch.data());
             
             for (uint8_t eigen_idx = 0; eigen_idx < n_trial; eigen_idx++) {
                 sol_vec.set_curr_vec_idx((1 - vec_half) * n_trial + eigen_idx);
                 sol_vec.zero_vec();
                 for (uint8_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                     for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
-//                        *sol_vec((1 - vec_half) * n_trial + eigen_idx, el_idx) += *sol_vec(vec_half * n_trial + vec_idx, el_idx) * evecs(eigen_idx, vec_idx);
-                        *sol_vec((1 - vec_half) * n_trial + eigen_idx, el_idx) += *sol_vec(vec_half * n_trial + vec_idx, el_idx) * evecs(vec_idx, eigen_idx); // for inv(B) and inv(U)?
-//                        *sol_vec((1 - vec_half) * n_trial + eigen_idx, el_idx) += *sol_vec(vec_half * n_trial + vec_idx, el_idx) * evecs(eigen_idx, vec_idx); // for QR
+                        *sol_vec((1 - vec_half) * n_trial + eigen_idx, el_idx) += *sol_vec(vec_half * n_trial + vec_idx, el_idx) * evecs(vec_idx, eigen_idx); // for inv(B) and inv(U) and inv(R)
                     }
                 }
             }

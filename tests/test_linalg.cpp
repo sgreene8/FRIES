@@ -131,7 +131,7 @@ TEST_CASE("Test matrix inversion", "[mat_inv]") {
     REQUIRE(mat(1, 1) == Approx(ref_inv[1][ 1]).margin(1e-7));
 }
 
-TEST_CASE("Test calculation of inverse of U factor of matrix", "[mat_u_inv]") {
+TEST_CASE("Test calculation of inverse of U factor of LU decomposition of a matrix", "[mat_u_inv]") {
     Matrix<double> mat(2, 2);
     mat(0, 0) = 1;
     mat(1, 0) = 2;
@@ -150,6 +150,27 @@ TEST_CASE("Test calculation of inverse of U factor of matrix", "[mat_u_inv]") {
     REQUIRE(mat(0, 1) == Approx(ref_inv[0][ 1]).margin(1e-7));
     REQUIRE(mat(1, 0) == Approx(ref_inv[1][ 0]).margin(1e-7));
     REQUIRE(mat(1, 1) == Approx(ref_inv[1][ 1]).margin(1e-7));
+}
+
+TEST_CASE("Test calculation of inverse of R factor of QR decomposition of a matrix", "[mat_r_inv]") {
+    double input[] = {0, 3, 6, 1, 4, 7, 2, 5, 9};
+    Matrix<double> mat(3, 3);
+    std::copy(input, input + 9, mat.data());
+    double scratch[2 * 3 * 3 + 3];
+    
+    invr_inplace(mat, scratch);
+    
+    double ref_inv[3][3] = {
+        {-0.4472136 , -0.85201287,  1.08866211},
+        {0.        ,  0.30429031, -4.76289672},
+        {0.        ,  0.        ,  2.44948974}
+    };
+    
+    for (size_t i = 0; i < 3; i++) {
+        for (size_t j = 0; j < 3; j++) {
+            REQUIRE(mat(i, j) == Approx(ref_inv[i][j]).margin(1e-7));
+        }
+    }
 }
 
 

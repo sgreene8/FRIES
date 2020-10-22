@@ -137,6 +137,46 @@ void invu_inplace(Matrix<double> &mat, double *scratch) {
     }
 }
 
+void invr_inplace(Matrix<double> &mat, double *scratch) {
+    int rows = (int) mat.rows();
+    double *tau = scratch;
+    double *work = tau + rows;
+    int workdim = rows * rows;
+    double *lapack_mat = work + workdim;
+    for (size_t i = 0; i < rows; i++) {
+        for (size_t j = 0; j < rows; j++) {
+            lapack_mat[i * rows + j] = mat(j, i);
+        }
+    }
+    int output;
+    dgeqrf_(&rows, &rows, lapack_mat, &rows, tau, work, &workdim, &output);
+    if (output != 0) {
+        std::stringstream msg;
+        msg << "Error in computing QR decomposition, return value is " << output;
+        throw std::runtime_error(msg.str());
+    }
+    int pivots[rows];
+    for (size_t i = 0; i < rows; i++) {
+        pivots[i] = (int) i + 1;
+        for (size_t j = i + 1; j < rows; j++) {
+            lapack_mat[i * rows + j] = 0;
+        }
+    }
+    
+    dgetri_(&rows, lapack_mat, &rows, pivots, work, &workdim, &output);
+    if (output != 0) {
+        std::stringstream msg;
+        msg << "Error in computing inverse of R, return value is " << output;
+        throw std::runtime_error(msg.str());
+    }
+    
+    for (size_t i = 0; i < rows; i++) {
+        for (size_t j = 0; j < rows; j++) {
+            mat(i, j) = lapack_mat[j * rows + i];
+        }
+    }
+}
+
 
 void gen_qr(Matrix<double> &orth_mat, Matrix<double> &rmat, double *scratch) {
     int rows = (int) orth_mat.rows();
