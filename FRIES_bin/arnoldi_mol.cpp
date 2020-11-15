@@ -21,7 +21,7 @@ struct MyArgs : public argparse::Args {
     uint32_t max_n_dets = kwarg("max_dets", "Maximum number of determinants on a single MPI process");
     std::string trial_path = kwarg("trial_vecs", "Prefix for files containing the vectors with which to calculate the energy and initialize the calculation. Files must have names <trial_vecs>dets<xx> and <trial_vecs>vals<xx>, where xx is a 2-digit number ranging from 0 to (num_trial - 1), and be text files");
     uint32_t n_trial = kwarg("num_trial", "Number of trial vectors to use to calculate dot products with the iterates");
-    uint32_t max_krylov = kwarg("max_krylov", "Number of multiplications by (1 - \eps H) to do in between restarts").set_default(10);
+    uint32_t restart_int = kwarg("restart_int", "Number of multiplications by (1 - \eps H) to do in between restarts").set_default(10);
     std::string mat_output = kwarg("out_format", "A flag controlling the format for outputting the Hamiltonian and overlap matrices. Must be either 'none', in which case these matrices are not written to disk, 'txt', in which case they are outputted in text format, or 'npy', in which case they are outputted in numpy format").set_default<std::string>("none");
     uint32_t n_sample = kwarg("n_sample", "The number of independent vectors to simulate in parallel").set_default(1);
 //    uint32_t shift_interval = kwarg("shift_int", "The interval at which to adjust the energy shifts for each vector to control normalization").set_default(10);
@@ -34,6 +34,42 @@ typedef enum {
     txt_out,
     npy_out
 } OutFmt;
+
+void compress_all(DistVec<double> &vectors, size_t start_idx, size_t end_idx, unsigned int compress_size,
+                  MPI_Comm vec_comm, std::vector<size_t> &srt_scratch, std::vector<bool> &keep_scratch,
+                  std::vector<bool> &del_arr, std::mt19937 &rn_gen) {
+    int n_procs = 1;
+    int rank = 0;
+    MPI_Comm_size(vec_comm, &n_procs);
+    MPI_Comm_rank(vec_comm, &rank);
+    double loc_norms[n_procs];
+    for (uint16_t vec_idx = start_idx; vec_idx < end_idx; vec_idx++) {
+        double glob_norm;
+        unsigned int n_samp = compress_size;
+        vectors.set_curr_vec_idx(vec_idx);
+        loc_norms[rank] = find_preserve(vectors.values(), srt_scratch, keep_scratch, vectors.curr_size(), &n_samp, &glob_norm, vec_comm);
+        double rn_sys = 0;
+        if (rank == 0) {
+            rn_sys = rn_gen() / (1. + UINT32_MAX);
+        }
+        MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, vec_comm);
+        sys_comp(vectors.values(), vectors.curr_size(), loc_norms, n_samp, keep_scratch, rn_sys, vec_comm);
+        for (size_t idx = 0; idx < vectors.curr_size(); idx++) {
+            if (keep_scratch[idx]) {
+                keep_scratch[idx] = 0;
+            }
+            else {
+                del_arr[idx] = false;
+            }
+        }
+    }
+    for (size_t det_idx = 0; det_idx < vectors.curr_size(); det_idx++) {
+        if (del_arr[det_idx]) {
+            vectors.del_at_pos(det_idx);
+        }
+        del_arr[det_idx] = true;
+    }
+}
 
 int main(int argc, char * argv[]) {
     MyArgs args(argc, argv);
@@ -236,7 +272,7 @@ int main(int argc, char * argv[]) {
             }
             param_f << "Arnoldi calculation\nHF path: " << args.hf_path << "\nepsilon (imaginary time step): " << eps << "\nVector nonzero: " << args.target_nonz << "\n";
             param_f << "Path for trial vectors: " << args.trial_path << "\n";
-            param_f << "Max. number of Krylov iterations: " << args.max_krylov << "\n";
+            param_f << "Restart interval: " << args.restart_int << "\n";
             param_f.close();
             
             file_path = args.result_dir;
@@ -245,9 +281,7 @@ int main(int argc, char * argv[]) {
             evals_file << std::setprecision(9);
         }
         
-        // Parameters for systematic sampling
-        double rn_sys = 0;
-        double loc_norms[procs_per_vec];
+        // Vectors for systematic sampling
         size_t max_n_dets = args.max_n_dets;
         if (sol_vec.max_size() > max_n_dets) {
             max_n_dets = sol_vec.max_size();
@@ -306,32 +340,7 @@ int main(int argc, char * argv[]) {
             }
             
 #pragma mark Vector compression
-            for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
-                unsigned int n_samp = args.target_nonz;
-                double glob_norm;
-                sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
-                loc_norms[samp_rank] = find_preserve(sol_vec.values(), srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm, samp_comm);
-                if (samp_rank == 0) {
-                    rn_sys = mt_obj() / (1. + UINT32_MAX);
-                }
-                
-                MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, samp_comm);
-                sys_comp(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys, samp_comm);
-                for (size_t det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
-                    if (keep_exact[det_idx]) {
-                        keep_exact[det_idx] = 0;
-                    }
-                    else {
-                        del_all[det_idx] = false;
-                    }
-                }
-            }
-            for (size_t det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
-                if (del_all[det_idx]) {
-                    sol_vec.del_at_pos(det_idx);
-                }
-                del_all[det_idx] = true;
-            }
+            compress_all(sol_vec, vec_half * n_trial, (vec_half + 1) * n_trial, args.target_nonz, samp_comm, srt_arr, keep_exact, del_all, mt_obj);
 
 #pragma mark Calculate hamiltonian matrix
             for (uint16_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
@@ -378,44 +387,40 @@ int main(int argc, char * argv[]) {
                 }
             }
             
-            evecs.copy_from(b_mat);
-            invr_inplace(evecs, lapack_scratch.data());
-            
-            for (uint8_t eigen_idx = 0; eigen_idx < n_trial; eigen_idx++) {
-                sol_vec.set_curr_vec_idx((1 - vec_half) * n_trial + eigen_idx);
-                sol_vec.zero_vec();
-                for (uint8_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
-                    for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
-                        *sol_vec((1 - vec_half) * n_trial + eigen_idx, el_idx) += *sol_vec(vec_half * n_trial + vec_idx, el_idx) * evecs(vec_idx, eigen_idx); // for inv(B) and inv(U) and inv(R)
+            if ((iteration + 1) % args.restart_int == 0) {
+                evecs.copy_from(b_mat);
+                invr_inplace(evecs, lapack_scratch.data());
+                for (uint8_t eigen_idx = 0; eigen_idx < n_trial; eigen_idx++) {
+                    sol_vec.set_curr_vec_idx((1 - vec_half) * n_trial + eigen_idx);
+                    sol_vec.zero_vec();
+                    for (uint8_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
+                        for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
+                            *sol_vec((1 - vec_half) * n_trial + eigen_idx, el_idx) += *sol_vec(vec_half * n_trial + vec_idx, el_idx) * evecs(vec_idx, eigen_idx); // for inv(B) and inv(U) and inv(R)
+                        }
                     }
                 }
+                vec_half = !vec_half;
             }
-            vec_half = !vec_half;
-            for (uint32_t mult_idx = 0; mult_idx < args.max_krylov; mult_idx++) {
-                if (proc_rank == 0) {
-                    std::cout << "multiplying\n";
-                }
 # pragma mark Matrix multiplication
-                for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
-                    int curr_idx = vec_half * n_trial + vec_idx;
-                    int next_idx = (1 - vec_half) * n_trial + vec_idx;
-                    sol_vec.set_curr_vec_idx(curr_idx);
-                    h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, next_idx, -eps);
-                    sol_vec.set_curr_vec_idx(curr_idx);
-                    h_op_diag(sol_vec, curr_idx, 1, -eps);
-                    sol_vec.add_vecs(curr_idx, next_idx);
+            for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
+                int curr_idx = vec_half * n_trial + vec_idx;
+                int next_idx = (1 - vec_half) * n_trial + vec_idx;
+                sol_vec.set_curr_vec_idx(curr_idx);
+                h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, next_idx, -eps);
+                sol_vec.set_curr_vec_idx(curr_idx);
+                h_op_diag(sol_vec, curr_idx, 1, -eps);
+                sol_vec.add_vecs(curr_idx, next_idx);
+            }
+            size_t new_max_dets = max_n_dets;
+            if (sol_vec.max_size() > new_max_dets) {
+                new_max_dets = sol_vec.max_size();
+                keep_exact.resize(new_max_dets, false);
+                del_all.resize(new_max_dets, true);
+                srt_arr.resize(new_max_dets);
+                for (size_t idx = max_n_dets; idx < new_max_dets; idx++) {
+                    srt_arr[idx] = idx;
                 }
-                size_t new_max_dets = max_n_dets;
-                if (sol_vec.max_size() > new_max_dets) {
-                    new_max_dets = sol_vec.max_size();
-                    keep_exact.resize(new_max_dets, false);
-                    del_all.resize(new_max_dets, true);
-                    srt_arr.resize(new_max_dets);
-                    for (size_t idx = max_n_dets; idx < new_max_dets; idx++) {
-                        srt_arr[idx] = idx;
-                    }
-                    max_n_dets = new_max_dets;
-                }
+                max_n_dets = new_max_dets;
             }
         }
         if (proc_rank == 0) {
