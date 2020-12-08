@@ -24,7 +24,8 @@ struct MyArgs : public argparse::Args {
     uint32_t restart_int = kwarg("restart_int", "Number of multiplications by (1 - \eps H) to do in between restarts").set_default(10);
     std::string mat_output = kwarg("out_format", "A flag controlling the format for outputting the Hamiltonian and overlap matrices. Must be either 'none', in which case these matrices are not written to disk, 'txt', in which case they are outputted in text format, or 'npy', in which case they are outputted in numpy format").set_default<std::string>("none");
     uint32_t n_sample = kwarg("n_sample", "The number of independent vectors to simulate in parallel").set_default(1);
-//    uint32_t shift_interval = kwarg("shift_int", "The interval at which to adjust the energy shifts for each vector to control normalization").set_default(10);
+    std::string restart_technique = kwarg("restart_technique", "Specify whether to restart using the generalized eigenvectors ('eig') or using the inverse of the Hamiltonian matrix in the subspace ('h_inv') or using the inverse of the R factor of a QR decomposition of this matrix ('r_inv').");
+    std::string normalization_technique = kwarg("norm_technique", "Specify how to normalize the iterates, i.e. not at all ('none'), individually by one-norm ('1-norm'), or by the max of all 1-norms ('max-1-norm')");
     
     CONSTRUCTOR(MyArgs);
 };
@@ -280,6 +281,7 @@ int main(int argc, char * argv[]) {
         std::vector<double> lapack_scratch((3 + n_trial + 32 * 2) * n_trial - 1);
         Matrix<double> evecs(n_trial, n_trial);
         std::vector<double> evals(n_trial);
+        std::vector<double> norms(n_trial);
         
         int vec_half = 0; // controls whether the current iterates are stored in the first or second half of the values_ matrix
         std::vector<uint8_t> eigen_sort(n_trial);
@@ -295,10 +297,32 @@ int main(int argc, char * argv[]) {
                 std::cout << "Iteration " << iteration << "\n";
             }
 #pragma mark Normalize vectors
-            double norm = sol_vec.local_norm();
-            norm = sum_mpi(norm, samp_rank, procs_per_vec, samp_comm);
-            for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
-                *sol_vec[el_idx] /= norm;
+            for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
+                sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
+                double norm = sol_vec.local_norm();
+                norms[vec_idx] = sum_mpi(norm, samp_rank, procs_per_vec, samp_comm);
+            }
+            if (args.normalization_technique == "max-1-norm") {
+                double max_norm = 0;
+                for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
+                    if (norms[vec_idx] > max_norm) {
+                        max_norm = norms[vec_idx];
+                    }
+                }
+                for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
+                    norms[vec_idx] = max_norm;
+                }
+            }
+            else if (args.normalization_technique == "none") {
+                for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
+                    norms[vec_idx] = 1;
+                }
+            }
+            for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
+                sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
+                for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
+                    *sol_vec[el_idx] /= norms[vec_idx];
+                }
             }
             
 #pragma mark Calculate overlap matrix
@@ -368,13 +392,22 @@ int main(int argc, char * argv[]) {
             
             if ((iteration + 1) % args.restart_int == 0) {
                 evecs.copy_from(b_mat);
-                invr_inplace(evecs, lapack_scratch.data());
+                if (args.restart_technique == "h_inv") {
+                    inv_inplace(evecs, lapack_scratch.data());
+                }
+                else if (args.restart_technique == "r_inv") {
+                    invr_inplace(evecs, lapack_scratch.data());
+                }
+                else if (args.restart_technique == "eig") {
+                    get_real_gevals_vecs(b_mat, d_mat, evals, evecs);
+                    std::sort(eigen_sort.begin(), eigen_sort.end(), eigen_cmp);
+                }
                 for (uint8_t eigen_idx = 0; eigen_idx < n_trial; eigen_idx++) {
                     sol_vec.set_curr_vec_idx((1 - vec_half) * n_trial + eigen_idx);
                     sol_vec.zero_vec();
                     for (uint8_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                         for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
-                            *sol_vec((1 - vec_half) * n_trial + eigen_idx, el_idx) += *sol_vec(vec_half * n_trial + vec_idx, el_idx) * evecs(vec_idx, eigen_idx); // for inv(B) and inv(U) and inv(R)
+                            *sol_vec((1 - vec_half) * n_trial + eigen_idx, el_idx) += *sol_vec(vec_half * n_trial + vec_idx, el_idx) * evecs(vec_idx, eigen_sort[eigen_idx]);
                         }
                     }
                 }
