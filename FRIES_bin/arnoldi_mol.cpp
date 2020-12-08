@@ -222,7 +222,6 @@ int main(int argc, char * argv[]) {
         std::stringstream tmp_path;
         std::ofstream bmat_file;
         std::ofstream dmat_file;
-        std::ofstream evals_file;
         
         if (samp_rank == 0) {
             if (mat_fmt == txt_out) {
@@ -256,11 +255,6 @@ int main(int argc, char * argv[]) {
             param_f << "Path for trial vectors: " << args.trial_path << "\n";
             param_f << "Restart interval: " << args.restart_int << "\n";
             param_f.close();
-            
-            file_path = args.result_dir;
-            file_path.append("energies.txt");
-            evals_file.open(file_path);
-            evals_file << std::setprecision(9);
         }
         
         // Vectors for systematic sampling
@@ -283,9 +277,6 @@ int main(int argc, char * argv[]) {
         tmp_path.str("");
         tmp_path << args.result_dir << "b_mat_" << samp_idx << ".npy";
         std::string bnpy_path(tmp_path.str());
-        Matrix<double> d_ave(n_trial, n_trial);
-        Matrix<double> b_ave(n_trial, n_trial);
-        Matrix<double> r_mat(n_trial, n_trial);
         std::vector<double> lapack_scratch((3 + n_trial + 32 * 2) * n_trial - 1);
         Matrix<double> evecs(n_trial, n_trial);
         std::vector<double> evals(n_trial);
@@ -317,7 +308,6 @@ int main(int argc, char * argv[]) {
                     sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
                     double d_prod = sol_vec.dot(curr_trial.indices(), curr_trial.values(), curr_trial.curr_size(), trial_hashes[trial_idx]);
                     d_mat(trial_idx, vec_idx) = sum_mpi(d_prod, samp_rank, procs_per_vec, samp_comm);
-                    d_ave(trial_idx, vec_idx) = sum_mpi(d_prod, proc_rank, n_procs) / n_sample;
                 }
             }
             
@@ -354,23 +344,7 @@ int main(int argc, char * argv[]) {
                     sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
                     double d_prod = sol_vec.dot(curr_trial.indices(), curr_trial.values(), curr_trial.curr_size(), trial_hashes[trial_idx]);
                     b_mat(trial_idx, vec_idx) = sum_mpi(d_prod, samp_rank, procs_per_vec, samp_comm);
-                    b_ave(trial_idx, vec_idx) = sum_mpi(d_prod, proc_rank, n_procs) / n_sample;
                 }
-            }
-            
-            // Get eigenvalues
-            get_real_gevals_vecs(b_ave, d_ave, evals, evecs);
-            for (uint8_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
-                evals[trial_idx] = (1 - evals[trial_idx]) / eps;
-            }
-            
-            std::sort(eigen_sort.begin(), eigen_sort.end(), eigen_cmp);
-            if (proc_rank == 0) {
-                for (uint8_t trial_idx = 0; trial_idx < n_trial - 1; trial_idx++) {
-                    evals_file << evals[eigen_sort[trial_idx]] << ",";
-                }
-                evals_file << evals[eigen_sort[n_trial - 1]] << "\n";
-                evals_file.flush();
             }
             
             if (samp_rank == 0) {
@@ -408,11 +382,10 @@ int main(int argc, char * argv[]) {
             }
         }
         if (proc_rank == 0) {
-            evals_file.close();
             bmat_file.close();
             dmat_file.close();
         }
-
+        
         MPI_Comm_free(&samp_comm);
         MPI_Finalize();
     } catch (std::exception &ex) {
