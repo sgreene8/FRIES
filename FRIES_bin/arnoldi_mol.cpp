@@ -179,8 +179,6 @@ int main(int argc, char * argv[]) {
 # pragma mark Set up trial vectors
         std::vector<DistVec<double>> trial_vecs;
         trial_vecs.reserve(n_trial);
-        std::vector<DistVec<double>> htrial_vecs;
-        htrial_vecs.reserve(n_trial);
         
         Matrix<uint8_t> *load_dets = new Matrix<uint8_t>(args.max_n_dets, det_size);
         sol_vec.set_curr_vec_idx(n_trial);
@@ -194,16 +192,11 @@ int main(int argc, char * argv[]) {
 
             MPI_Bcast(&glob_n_dets, 1, MPI_UNSIGNED, 0, samp_comm);
             trial_vecs.emplace_back(glob_n_dets, &shared_adder, n_orb * 2, n_elec_unf, proc_scrambler, vec_scrambler);
-            htrial_vecs.emplace_back(glob_n_dets * num_ex / n_procs, &shared_adder, n_orb * 2, n_elec_unf, diag_shortcut, (double *)NULL, 2, proc_scrambler, vec_scrambler);
             
             for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
                 trial_vecs[trial_idx].add(load_dets[0][det_idx], load_vals[det_idx], 1);
             }
             trial_vecs[trial_idx].perform_add();
-            for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
-                htrial_vecs[trial_idx].add(load_dets[0][det_idx], load_vals[det_idx], 1);
-            }
-            htrial_vecs[trial_idx].perform_add();
             sol_vec.set_curr_vec_idx(trial_idx);
             for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
                 sol_vec.add(load_dets[0][det_idx], load_vals[det_idx], 1);
@@ -222,17 +215,6 @@ int main(int argc, char * argv[]) {
             trial_hashes[trial_idx].reserve(curr_trial.curr_size());
             for (size_t det_idx = 0; det_idx < curr_trial.curr_size(); det_idx++) {
                 trial_hashes[trial_idx][det_idx] = sol_vec.idx_to_hash(curr_trial.indices()[det_idx], tmp_orbs);
-            }
-            
-            DistVec<double> &curr_htrial = htrial_vecs[trial_idx];
-            h_op_offdiag(curr_htrial, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, 1, -eps);
-            curr_htrial.set_curr_vec_idx(0);
-            h_op_diag(curr_htrial, 0, 1, -eps);
-            curr_htrial.add_vecs(0, 1);
-            curr_htrial.collect_procs();
-            htrial_hashes[trial_idx].reserve(curr_htrial.curr_size());
-            for (size_t det_idx = 0; det_idx < curr_htrial.curr_size(); det_idx++) {
-                htrial_hashes[trial_idx][det_idx] = sol_vec.idx_to_hash(curr_htrial.indices()[det_idx], tmp_orbs);
             }
         }
         
@@ -341,13 +323,36 @@ int main(int argc, char * argv[]) {
             
 #pragma mark Vector compression
             compress_all(sol_vec, vec_half * n_trial, (vec_half + 1) * n_trial, args.target_nonz, samp_comm, srt_arr, keep_exact, del_all, mt_obj);
+                        
+# pragma mark Matrix multiplication
+            for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
+                int curr_idx = vec_half * n_trial + vec_idx;
+                int next_idx = (1 - vec_half) * n_trial + vec_idx;
+                sol_vec.set_curr_vec_idx(curr_idx);
+                h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, next_idx, -eps);
+                sol_vec.set_curr_vec_idx(curr_idx);
+                h_op_diag(sol_vec, curr_idx, 1, -eps);
+                sol_vec.add_vecs(curr_idx, next_idx);
+            }
+            
+            size_t new_max_dets = max_n_dets;
+            if (sol_vec.max_size() > new_max_dets) {
+                new_max_dets = sol_vec.max_size();
+                keep_exact.resize(new_max_dets, false);
+                del_all.resize(new_max_dets, true);
+                srt_arr.resize(new_max_dets);
+                for (size_t idx = max_n_dets; idx < new_max_dets; idx++) {
+                    srt_arr[idx] = idx;
+                }
+                max_n_dets = new_max_dets;
+            }
 
 #pragma mark Calculate hamiltonian matrix
             for (uint16_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
-                DistVec<double> &curr_htrial = htrial_vecs[trial_idx];
+                DistVec<double> &curr_trial = trial_vecs[trial_idx];
                 for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                     sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
-                    double d_prod = sol_vec.dot(curr_htrial.indices(), curr_htrial.values(), curr_htrial.curr_size(), htrial_hashes[trial_idx]);
+                    double d_prod = sol_vec.dot(curr_trial.indices(), curr_trial.values(), curr_trial.curr_size(), trial_hashes[trial_idx]);
                     b_mat(trial_idx, vec_idx) = sum_mpi(d_prod, samp_rank, procs_per_vec, samp_comm);
                     b_ave(trial_idx, vec_idx) = sum_mpi(d_prod, proc_rank, n_procs) / n_sample;
                 }
@@ -400,27 +405,6 @@ int main(int argc, char * argv[]) {
                     }
                 }
                 vec_half = !vec_half;
-            }
-# pragma mark Matrix multiplication
-            for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
-                int curr_idx = vec_half * n_trial + vec_idx;
-                int next_idx = (1 - vec_half) * n_trial + vec_idx;
-                sol_vec.set_curr_vec_idx(curr_idx);
-                h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, next_idx, -eps);
-                sol_vec.set_curr_vec_idx(curr_idx);
-                h_op_diag(sol_vec, curr_idx, 1, -eps);
-                sol_vec.add_vecs(curr_idx, next_idx);
-            }
-            size_t new_max_dets = max_n_dets;
-            if (sol_vec.max_size() > new_max_dets) {
-                new_max_dets = sol_vec.max_size();
-                keep_exact.resize(new_max_dets, false);
-                del_all.resize(new_max_dets, true);
-                srt_arr.resize(new_max_dets);
-                for (size_t idx = max_n_dets; idx < new_max_dets; idx++) {
-                    srt_arr[idx] = idx;
-                }
-                max_n_dets = new_max_dets;
             }
         }
         if (proc_rank == 0) {
