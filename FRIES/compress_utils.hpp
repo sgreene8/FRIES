@@ -99,7 +99,7 @@ void sys_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
  * \param [in] vec_len  Number of elements in the vector
  * \param [in] seg_norm  Sum of magnitudes of elements in this segment not preserved exactly
  * \param [in] sampl_val    Magnitude to assign to elements selected
- * \param [in] n_samp   Number of samples in systematic resampling (just for this segment)
+ * \param [in] n_samp   Number of samples in pivotal resampling (just for this segment)
  * \param [in, out] keep_exact Array indicating elements to be preserved exactly
  *                      in compression; upon return, 1's indicate elements
  *                      zeroed in the compression
@@ -119,6 +119,16 @@ void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
  * \return Number of elements to sample on this process
  */
  uint32_t sys_budget(double *loc_norms, uint32_t n_samp, double rand_num);
+
+
+ /*! \brief Calculate a budget for compressing vectors on each MPI process independently using pivotal resampling
+  *
+  * \param [in] loc_norms    Sum of magnitudes of elements on each MPI process
+  * \param [in] n_samp       Total number of elements (across all processes) to select in sampling
+  * \param [in] mt_obj   A reference to an initialized MT object to use for random number generation
+  * \return Number of elements to sample on this process
+  */
+  uint32_t piv_budget(double *loc_norms, uint32_t n_samp, std::mt19937 &mt_obj);
 
 
 /*! \brief If needed, adjust elements in a vector prior to resampling to ensure that each element can be selected

@@ -8,10 +8,7 @@ target_include_directories(clt PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../../")
 
 find_library(FRIES_LIB fries PATHS "${CMAKE_CURRENT_LIST_DIR}/../../build/FRIES")
 
-find_library(DCMT_LIB dcmt PATHS "${CMAKE_CURRENT_LIST_DIR}/../../build/FRIES/Ext_Libs/dcmt")
-
 target_link_libraries(clt PRIVATE "${FRIES_LIB}")
-target_link_libraries(clt PRIVATE "${DCMT_LIB}")
 
 target_compile_definitions(clt PUBLIC USE_MPI)
 

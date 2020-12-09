@@ -29,8 +29,9 @@ int main(int argc, const char * argv[]) {
     }
 //    ParBudget test(5);
 //    SysSerial test(10);
-    PivSerial test(10);
+//    PivSerial test(10);
 //    SysStratified test(10, 4 * n_procs - 1);
+    ParBudgetPiv test(5);
     
     for (unsigned int iter = 0; iter < n_iter; iter++) {
         test.sample();
@@ -39,7 +40,9 @@ int main(int argc, const char * argv[]) {
             out_file << diff << "\n";
         }
     }
-
+    if (proc_rank == 0) {
+        out_file.close();
+    }
 
     MPI_Finalize();
     return 0;

@@ -218,6 +218,55 @@ public:
     }
 };
 
+class ParBudgetPiv : Sampler {
+    std::vector<double> norms_;
+    double tot_norm_;
+    double loc_norm_;
+public:
+    ParBudgetPiv(unsigned int n_samp) : Sampler(1, n_samp) {
+        int n_procs = 1;
+        int proc_rank = 0;
+
+        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+        MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+        norms_.reserve(n_procs);
+        loc_norm_ = gen_rn();
+        norms_[proc_rank] = loc_norm_;
+
+        MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, norms_.data(), 1, MPI_DOUBLE, MPI_COMM_WORLD);
+        for (size_t el_idx = 0; el_idx < n_procs; el_idx++) {
+            tot_norm_ += norms_[el_idx];
+        }
+    }
+    
+    void sample() override {
+        Sampler::sample();
+        uint32_t budget = piv_budget(norms_.data(), n_samp_, Sampler::mt_obj);
+        accum_[0] += budget;
+    }
+    
+    double calc_max_diff() override {
+        int n_procs = 1;
+        int proc_rank = 0;
+
+        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+        MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+        double all_results[n_procs];
+
+        MPI_Gather(accum_.data(), 1, MPI_DOUBLE, all_results, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        double max = 0;
+        if (proc_rank == 0) {
+            for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+                double diff = fabs(all_results[proc_idx] / n_times_ - n_samp_ * norms_[proc_idx] / tot_norm_);
+                if (diff > max) {
+                    max = diff;
+                }
+            }
+        }
+        return max;
+    }
+};
+
 class SysSerial : Sampler {
     std::vector<double> orig_vec_;
     std::vector<double> tmp_vec_;
