@@ -289,7 +289,7 @@ int main(int argc, char * argv[]) {
             eigen_sort[idx] = idx;
         }
         auto eigen_cmp = [&evals](uint8_t idx1, uint8_t idx2) {
-            return evals[idx1] < evals[idx2];
+            return evals[idx1] > evals[idx2];
         };
         
         for (uint32_t iteration = 0; iteration < args.max_iter; iteration++) {
