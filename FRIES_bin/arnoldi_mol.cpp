@@ -12,6 +12,7 @@
 #include <LAPACK/lapack_wrappers.hpp>
 #include <FRIES/Ext_Libs/cnpy/cnpy.h>
 #include <stdexcept>
+#include <algorithm>
 
 struct MyArgs : public argparse::Args {
     std::string hf_path = kwarg("hf_path", "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt");
@@ -401,6 +402,11 @@ int main(int argc, char * argv[]) {
                 else if (args.restart_technique == "eig") {
                     get_real_gevals_vecs(b_mat, d_mat, evals, evecs);
                     std::sort(eigen_sort.begin(), eigen_sort.end(), eigen_cmp);
+                    for (uint16_t row_idx = 0; row_idx < n_trial; row_idx++) {
+                        for (uint16_t col_idx = row_idx + 1; col_idx < n_trial; col_idx++) {
+                            std::swap(evecs(row_idx, col_idx), evecs(col_idx, row_idx));
+                        }
+                    }
                 }
                 for (uint8_t eigen_idx = 0; eigen_idx < n_trial; eigen_idx++) {
                     sol_vec.set_curr_vec_idx((1 - vec_half) * n_trial + eigen_idx);

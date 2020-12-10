@@ -64,11 +64,7 @@ void get_real_gevals_vecs(Matrix<double> op, Matrix<double> ovlp, std::vector<do
     for (uint8_t idx = 0; idx < rows; idx++) {
         real_evals[idx] = alpha_r[idx] / beta[idx];
     }
-    for (uint8_t row_idx = 0; row_idx < rows; row_idx++) {
-        for (uint8_t col_idx = 0; col_idx < rows; col_idx++) {
-            real_evecs(col_idx, row_idx) = evecs[row_idx * rows + col_idx];
-        }
-    }
+    std::copy(evecs, evecs + rows * rows, real_evecs.data());
 }
 
 

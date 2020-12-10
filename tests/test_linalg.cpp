@@ -56,7 +56,6 @@ TEST_CASE("Test calculation of generalized eigenvectors/values", "[ge_vecs_vals]
 
     std::vector<double> evals(5);
     Matrix<double> evecs(5, 5);
-    double scratch[42 * 5];
     get_real_gevals_vecs(op_mat, ovlp_mat, evals, evecs);
 
     // sort by eigenvalue
