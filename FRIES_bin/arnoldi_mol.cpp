@@ -50,12 +50,21 @@ void compress_all(DistVec<double> &vectors, size_t start_idx, size_t end_idx, un
         unsigned int n_samp = compress_size;
         vectors.set_curr_vec_idx(vec_idx);
         loc_norms[rank] = find_preserve(vectors.values(), srt_scratch, keep_scratch, vectors.curr_size(), &n_samp, &glob_norm, vec_comm);
-        double rn_sys = 0;
-        if (rank == 0) {
-            rn_sys = rn_gen() / (1. + UINT32_MAX);
-        }
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, vec_comm);
-        sys_comp(vectors.values(), vectors.curr_size(), loc_norms, n_samp, keep_scratch, rn_sys, vec_comm);
+        glob_norm = 0;
+        for (uint16_t proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+            glob_norm += loc_norms[proc_idx];
+        }
+        
+        uint32_t loc_samp = piv_budget(loc_norms, n_samp, rn_gen, vec_comm);
+        double new_norm = adjust_probs(vectors.values(), vectors.curr_size(), loc_samp, n_samp * loc_norms[rank] / glob_norm, n_samp, glob_norm, keep_scratch);
+        piv_comp_serial(vectors.values(), vectors.curr_size(), new_norm, glob_norm / n_samp, loc_samp, keep_scratch, rn_gen);
+        
+//        double rn_sys = 0;
+//        if (rank == 0) {
+//            rn_sys = rn_gen() / (1. + UINT32_MAX);
+//        }
+//        sys_comp(vectors.values(), vectors.curr_size(), loc_norms, n_samp, keep_scratch, rn_sys, vec_comm);
         for (size_t idx = 0; idx < vectors.curr_size(); idx++) {
             if (keep_scratch[idx]) {
                 keep_scratch[idx] = 0;

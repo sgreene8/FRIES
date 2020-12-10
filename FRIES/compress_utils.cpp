@@ -759,6 +759,45 @@ uint32_t piv_budget(double *loc_norms, uint32_t n_samp, std::mt19937 &mt_obj) {
     return proc_budget;
 }
 
+uint32_t piv_budget(double *loc_norms, uint32_t n_samp, std::mt19937 &mt_obj,
+                    MPI_Comm comm) {
+    int n_procs = 1;
+    int proc_rank = 0;
+    MPI_Comm_size(comm, &n_procs);
+    MPI_Comm_rank(comm, &proc_rank);
+    
+    std::vector<uint32_t> budgets(n_procs);
+    uint32_t proc_budget;
+    
+    if (proc_rank == 0) {
+        double glob_norm = 0;
+        for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+            glob_norm += loc_norms[proc_idx];
+        }
+        
+        uint32_t tot_budget = 0;
+        std::vector<double> weights(n_procs);
+        for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+            budgets[proc_idx] = loc_norms[proc_idx] / glob_norm * n_samp;
+            tot_budget += budgets[proc_idx];
+            weights[proc_idx] = loc_norms[proc_idx] - budgets[proc_idx] * glob_norm / n_samp;
+        }
+        
+        std::vector<bool> keep(n_procs, false);
+        if (tot_budget < n_samp) {
+            piv_comp_serial(weights.data(), n_procs, glob_norm * (n_samp - tot_budget) / n_samp, 1, n_samp - tot_budget, keep, mt_obj);
+        }
+        
+        for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+            if (weights[proc_idx] > 0) {
+                budgets[proc_idx]++;
+            }
+        }
+    }
+    MPI_Scatter(budgets.data(), 1, MPI_UINT32_T, &proc_budget, 1, MPI_UINT32_T, 0, comm);
+    return proc_budget;
+}
+
 double adjust_probs(double *vec_vals, size_t vec_len, uint32_t n_samp_loc,
                     double exp_nsamp_loc, uint32_t n_samp_tot, double tot_norm,
                     std::vector<bool> &keep_exact) {

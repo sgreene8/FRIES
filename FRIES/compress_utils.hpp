@@ -129,6 +129,8 @@ void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
   * \return Number of elements to sample on this process
   */
   uint32_t piv_budget(double *loc_norms, uint32_t n_samp, std::mt19937 &mt_obj);
+  uint32_t piv_budget(double *loc_norms, uint32_t n_samp, std::mt19937 &mt_obj,
+                      MPI_Comm comm);
 
 
 /*! \brief If needed, adjust elements in a vector prior to resampling to ensure that each element can be selected
