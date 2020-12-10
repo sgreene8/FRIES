@@ -437,6 +437,18 @@ void sys_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
 
 void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double sampl_val,
                      uint32_t n_samp, std::vector<bool> &keep_exact, std::mt19937 &mt_obj) {
+    if (n_samp == 0) {
+        for (size_t idx = 0; idx < vec_len; idx++) {
+            if (keep_exact[idx]) {
+                keep_exact[idx] = false;
+            }
+            else {
+                vec_vals[idx] = 0;
+                keep_exact[idx] = true;
+            }
+        }
+        return;
+    }
     double sampl_unit = seg_norm / n_samp;
     size_t vec_idx = 0;
     std::vector<double> sampl_el(2 * vec_len / n_samp);

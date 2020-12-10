@@ -160,3 +160,62 @@ TEST_CASE("Test systematic sampling with arbitrary distribution", "[sys_arbitrar
         REQUIRE(input_vec[el_idx] == Approx(tmp_vec[el_idx]).margin(1e-7));
     }
 }
+
+
+TEST_CASE("Test that compression does nothing when target number of nonzeros is greater than input number of nonzeros", "[comp_preserve]") {
+    int n_procs = 1;
+    int proc_rank = 0;
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+    
+    unsigned int input_len = 10;
+    std::vector<double> input1(input_len);
+    std::vector<double> input2(input_len);
+    std::vector<bool> vec_keep(input_len, false);
+    std::vector<size_t> vec_srt(input_len);
+    
+    unsigned int tot_samp = input_len * n_procs + 1;
+    
+    auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+    std::mt19937 mt_obj((unsigned int)seed);
+    
+    for (size_t idx = 0; idx < input_len; idx++) {
+        input1[idx] = mt_obj() / (1. + UINT32_MAX);
+        vec_srt[idx] = idx;
+    }
+    std::copy(input1.begin(), input1.end(), input2.begin());
+    
+    double norm_before;
+    double norms[n_procs];
+    norms[proc_rank] = find_preserve(input1.data(), vec_srt, vec_keep, input_len, &tot_samp, &norm_before);
+    
+    for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
+        REQUIRE(vec_keep[el_idx]);
+    }
+    REQUIRE(norms[proc_rank] == Approx(0).margin(1e-5));
+    MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+    
+    sys_comp(input1.data(), input_len, norms, tot_samp, vec_keep, mt_obj() / (1. + UINT32_MAX));
+    
+    for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
+        REQUIRE(input1[el_idx] == Approx(input2[el_idx]).margin(1e-5));
+        REQUIRE(!vec_keep[el_idx]);
+    }
+    
+    std::fill(vec_keep.begin(), vec_keep.end(), true);
+    sys_comp_serial(input1.data(), input_len, 0, 1, 0, vec_keep, 0);
+    
+    for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
+        REQUIRE(input1[el_idx] == Approx(input2[el_idx]).margin(1e-5));
+        REQUIRE(!vec_keep[el_idx]);
+    }
+    
+    std::fill(vec_keep.begin(), vec_keep.end(), true);
+    piv_comp_serial(input1.data(), input_len, 0, 1, 0, vec_keep, mt_obj);
+    
+    for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
+        REQUIRE(input1[el_idx] == Approx(input2[el_idx]).margin(1e-5));
+        REQUIRE(!vec_keep[el_idx]);
+    }
+}
+
