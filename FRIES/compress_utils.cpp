@@ -486,7 +486,7 @@ void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
         double rn = mt_obj() / (1. + UINT32_MAX) * cum_prob;
         cum_prob = 0;
         size_t Hn = 0;
-        while (cum_prob < rn) {
+        while (cum_prob < rn && Hn < vec_max_offset) {
             cum_prob += sampl_el[Hn];
             Hn++;
         }
