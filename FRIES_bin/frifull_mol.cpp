@@ -1,6 +1,6 @@
 /*! \file
  *
- * \brief FRI algorithm with systematic matrix compression for a molecular
+ * \brief FRI algorithm with systematic vector compression for a molecular
  * system
  */
 
@@ -137,7 +137,6 @@ int main(int argc, char * argv[]) {
         
 # pragma mark Set up trial vector
         size_t n_trial;
-        size_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
         Matrix<uint8_t> &load_dets = sol_vec.indices();
         double *load_vals = (double *)sol_vec.values();
         if (args.trial_path != nullptr) { // load trial vector from file
@@ -147,38 +146,22 @@ int main(int argc, char * argv[]) {
             n_trial = 1;
         }
         DistVec<double> trial_vec(n_trial, n_trial, n_orb * 2, n_elec_unf, n_procs, proc_scrambler, vec_scrambler);
-        DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2, proc_scrambler, vec_scrambler);
         if (args.trial_path != nullptr) { // load trial vector from file
             for (det_idx = 0; det_idx < n_trial; det_idx++) {
                 trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
-                htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
             }
         }
         else { // Otherwise, use HF as trial vector
             if (hf_proc == proc_rank) {
                 trial_vec.add(hf_det, 1, 1);
-                htrial_vec.add(hf_det, 1, 1);
             }
         }
         trial_vec.perform_add();
-        htrial_vec.perform_add();
         
         trial_vec.collect_procs();
         std::vector<uintmax_t> trial_hashes(trial_vec.curr_size());
         for (det_idx = 0; det_idx < trial_vec.curr_size(); det_idx++) {
             trial_hashes[det_idx] = sol_vec.idx_to_hash(trial_vec.indices()[det_idx], tmp_orbs);
-        }
-        
-        // Calculate H * trial vector, and accumulate results on each processor
-        h_op_offdiag(htrial_vec, symm, tot_orb, *eris, *h_core, orb_indices, n_frz, n_elec_unf, 1, 1);
-        htrial_vec.set_curr_vec_idx(0);
-        h_op_diag(htrial_vec, 0, 0, 1);
-        htrial_vec.add_vecs(0, 1);
-        
-        htrial_vec.collect_procs();
-        std::vector<uintmax_t> htrial_hashes(htrial_vec.curr_size());
-        for (det_idx = 0; det_idx < htrial_vec.curr_size(); det_idx++) {
-            htrial_hashes[det_idx] = sol_vec.idx_to_hash(htrial_vec.indices()[det_idx], tmp_orbs);
         }
         
         char file_path[300];
@@ -286,10 +269,24 @@ int main(int argc, char * argv[]) {
         std::vector<double> obs_probs(num_rn_obs);
         
         for (unsigned int iterat = 0; iterat < args.max_iter; iterat++) {
+            double denom = sol_vec.dot(trial_vec.indices(), trial_vec.values(), trial_vec.curr_size(), trial_hashes);
+            denom = sum_mpi(denom, proc_rank, n_procs);
+            if (proc_rank == hf_proc) {
+                fprintf(den_file, "%lf\n", denom);
+            }
+            
             h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, orb_indices, n_frz, n_elec_unf, 1, -eps);
             sol_vec.set_curr_vec_idx(0);
             h_op_diag(sol_vec, 0, 1 + eps * en_shift, -eps);
             sol_vec.add_vecs(0, 1);
+            
+            double numer = sol_vec.dot(trial_vec.indices(), trial_vec.values(), trial_vec.curr_size(), trial_hashes);
+            numer = sum_mpi(numer, proc_rank, n_procs);
+            numer = ((1 + eps * en_shift) * denom - numer) / eps;
+            if (proc_rank == hf_proc) {
+                fprintf(num_file, "%lf\n", numer);
+                printf("%6u, en est: %.9lf, shift: %lf, norm: %lf\n", iterat, numer / denom, en_shift, glob_norm);
+            }
             
             size_t new_max_dets = sol_vec.max_size();
             if (new_max_dets > max_n_dets) {
@@ -341,15 +338,6 @@ int main(int argc, char * argv[]) {
                     fprintf(shift_file, "%lf\n", en_shift);
                     fprintf(norm_file, "%lf\n", glob_norm);
                 }
-            }
-            double numer = sol_vec.dot(htrial_vec.indices(), htrial_vec.values(), htrial_vec.curr_size(), htrial_hashes);
-            double denom = sol_vec.dot(trial_vec.indices(), trial_vec.values(), trial_vec.curr_size(), trial_hashes);
-            numer = sum_mpi(numer, proc_rank, n_procs);
-            denom = sum_mpi(denom, proc_rank, n_procs);
-            if (proc_rank == hf_proc) {
-                fprintf(num_file, "%lf\n", numer);
-                fprintf(den_file, "%lf\n", denom);
-                printf("%6u, en est: %.9lf, shift: %lf, norm: %lf\n", iterat, numer / denom, en_shift, glob_norm);
             }
             
             if (proc_rank == 0) {
