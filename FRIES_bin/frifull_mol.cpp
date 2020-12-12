@@ -100,7 +100,7 @@ int main(int argc, char * argv[]) {
         // Initialize hash function for processors and vector
         std::vector<uint32_t> proc_scrambler(2 * n_orb);
         double loc_norm, glob_norm;
-        double last_norm = 0;
+        double last_one_norm = 0;
         
         if (args.load_dir != nullptr) {
             load_proc_hash(args.load_dir->c_str(), proc_scrambler.data());
@@ -210,7 +210,7 @@ int main(int argc, char * argv[]) {
         loc_norm = sol_vec.local_norm();
         glob_norm = sum_mpi(loc_norm, proc_rank, n_procs);
         if (args.load_dir != nullptr) {
-            last_norm = glob_norm;
+            last_one_norm = glob_norm;
         }
         
         if (proc_rank == hf_proc) {
@@ -252,8 +252,6 @@ int main(int argc, char * argv[]) {
             }
             fclose(param_f);
         }
-        
-        double last_one_norm = 0;
         
         // Parameters for systematic sampling
         double rn_sys = 0;
@@ -302,7 +300,6 @@ int main(int argc, char * argv[]) {
             loc_norms[proc_rank] = find_preserve(sol_vec.values(), srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
 
             MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-            glob_norm += sol_vec.dense_norm();
             if (proc_rank == hf_proc) {
                 fprintf(nkept_file, "%u\n", args.target_nonz - n_samp);
             }
