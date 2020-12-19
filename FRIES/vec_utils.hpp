@@ -209,13 +209,6 @@ public:
     uint8_t n_bits() {
         return n_bits_;
     }
-    
-//    DistVec(const DistVec &d) = default;
-    
-//    DistVec& operator= (const DistVec& d) = delete;
-    
-//    DistVec(DistVec &&d) = default;
-//    DistVec& operator= (DistVec&& d) = default;
 
     /*! \brief Generate list of occupied orbitals from bit-string representation of
      *  a determinant
@@ -573,6 +566,14 @@ public:
     void copy_vec(uint8_t src, uint8_t dst) {
         for (size_t el_idx = 0; el_idx < curr_size_; el_idx++) {
             values_(dst, el_idx) = values_(src, el_idx);
+        }
+    }
+    
+    /*! \brief Weight elements in the first vector v(\p idx1, i) by those in the second [1 + |v(\p idx2, i)|]^\p expo
+     */
+    void weight_vec(uint8_t idx1, uint8_t idx2, double expo) {
+        for (size_t el_idx = 0; el_idx < curr_size_; el_idx++) {
+            values_(idx1, el_idx) *= pow(1 + fabs(values_(idx2, el_idx)), expo);
         }
     }
     
