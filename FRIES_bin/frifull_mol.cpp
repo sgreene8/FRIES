@@ -169,6 +169,8 @@ int main(int argc, char * argv[]) {
         
 #pragma mark Initialize solution vector
         if (args.load_dir != nullptr) {
+            sol_vec.load(*args.load_dir);
+            
             file_path = *args.load_dir;
             file_path.append("S.txt");
             std::ifstream shift_in(file_path);
