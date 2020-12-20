@@ -598,6 +598,10 @@ public:
         }
     }
     
+    uint8_t curr_vec_idx() const {
+        return curr_vec_idx_;
+    }
+    
     /*! \brief Add elements destined for this process to the DistVec object
      * \param [in] indices Indices of the elements to be added
      * \param [in, out] vals     Values of the elements to be added. Upon return, contains 2nd-order perturbative

@@ -169,6 +169,7 @@ void h_op_diag(DistVec<double> &vec, uint8_t dest_idx, double id_fac, double h_f
 
 void one_elec_op(DistVec<double> &vec, unsigned int n_orbs, uint8_t des_op, uint8_t cre_op,
                  uint8_t dest_idx) {
+    uint8_t before_idx = vec.curr_vec_idx();
     for (size_t det_idx = 0; det_idx < vec.curr_size(); det_idx++) {
         uint8_t *curr_det = vec.indices()[det_idx];
         double *curr_val = vec[det_idx];
@@ -193,7 +194,9 @@ void one_elec_op(DistVec<double> &vec, unsigned int n_orbs, uint8_t des_op, uint
         }
     }
     vec.set_curr_vec_idx(dest_idx);
+    vec.zero_vec();
     vec.perform_add();
+    vec.set_curr_vec_idx(before_idx);
 }
 
 
