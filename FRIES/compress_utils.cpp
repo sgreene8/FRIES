@@ -464,7 +464,7 @@ void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
             size_t vec_max = sampl_el.capacity();
             if (!keep_exact[vec_idx + vec_offset]) {
                 if (prob_idx == vec_max) {
-                    sampl_el.reserve(vec_max * 2);
+                    sampl_el.resize(vec_max * 2);
                 }
                 sampl_el[prob_idx] = fabs(vec_vals[vec_idx + vec_offset]);
                 cum_prob += sampl_el[prob_idx];
@@ -486,7 +486,7 @@ void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
         double rn = mt_obj() / (1. + UINT32_MAX) * cum_prob;
         cum_prob = 0;
         size_t Hn = 0;
-        while (cum_prob < rn && Hn < vec_max_offset) {
+        while (cum_prob < rn && Hn < prob_idx) {
             cum_prob += sampl_el[Hn];
             Hn++;
         }
