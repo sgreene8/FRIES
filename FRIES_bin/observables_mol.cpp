@@ -109,13 +109,6 @@ int main(int argc, char * argv[]) {
          */
         DistVec<double> sol_vec(args.max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 4, proc_scrambler, vec_scrambler);
         
-        std::function<void(size_t, double *)> rdm_obs = [n_elec_unf, &sol_vec, n_orb](size_t idx, double *obs_vals) {
-            uint8_t *orbs = sol_vec.orbs_at_pos(idx);
-            for (size_t elec_idx = 0; elec_idx < n_elec_unf; elec_idx++) {
-                obs_vals[orbs[elec_idx] % n_orb] += 1;
-            }
-        };
-        
         uint8_t hf_det[det_size];
         gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
         hf_proc = sol_vec.idx_to_proc(hf_det);
