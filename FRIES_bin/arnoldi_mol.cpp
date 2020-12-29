@@ -23,7 +23,7 @@ struct MyArgs : public argparse::Args {
     std::string trial_path = kwarg("trial_vecs", "Prefix for files containing the vectors with which to calculate the energy and initialize the calculation. Files must have names <trial_vecs>dets<xx> and <trial_vecs>vals<xx>, where xx is a 2-digit number ranging from 0 to (num_trial - 1), and be text files");
     uint32_t n_trial = kwarg("num_trial", "Number of trial vectors to use to calculate dot products with the iterates");
     uint32_t restart_int = kwarg("restart_int", "Number of multiplications by (1 - \eps H) to do in between restarts").set_default(10);
-    std::string mat_output = kwarg("out_format", "A flag controlling the format for outputting the Hamiltonian and overlap matrices. Must be either 'none', in which case these matrices are not written to disk, 'txt', in which case they are outputted in text format, or 'npy', in which case they are outputted in numpy format").set_default<std::string>("none");
+    std::string mat_output = kwarg("out_format", "A flag controlling the format for outputting the Hamiltonian and overlap matrices. Must be either 'none', in which case these matrices are not written to disk, 'txt', in which case they are outputted in text format, 'npy', in which case they are outputted in numpy format, or 'bin' for binary format").set_default<std::string>("none");
     uint32_t n_sample = kwarg("n_sample", "The number of independent vectors to simulate in parallel").set_default(1);
     std::string restart_technique = kwarg("restart_technique", "Specify whether to restart using the generalized eigenvectors ('eig') or using the inverse of the Hamiltonian matrix in the subspace ('h_inv') or using the inverse of the R factor of a QR decomposition of this matrix ('r_inv').");
     std::string normalization_technique = kwarg("norm_technique", "Specify how to normalize the iterates, i.e. not at all ('none'), individually by one-norm ('1-norm'), or by the max of all 1-norms ('max-1-norm')");
@@ -34,7 +34,8 @@ struct MyArgs : public argparse::Args {
 typedef enum {
     no_out,
     txt_out,
-    npy_out
+    npy_out,
+    bin_out
 } OutFmt;
 
 void compress_all(DistVec<double> &vectors, size_t start_idx, size_t end_idx, unsigned int compress_size,
@@ -97,6 +98,9 @@ int main(int argc, char * argv[]) {
         }
         else if (args.mat_output == "npy") {
             mat_fmt = npy_out;
+        }
+        else if (args.mat_output == "bin") {
+            mat_fmt = bin_out;
         }
         else {
             throw std::runtime_error("out_format input argument must be either \"none\", \"txt\", or \"npy\"");
@@ -250,6 +254,19 @@ int main(int argc, char * argv[]) {
                 dmat_file.open(tmp_path.str(), std::ios::app);
                 dmat_file << std::setprecision(14);
             }
+            else if (mat_fmt == bin_out) {
+                tmp_path << args.result_dir << "b_mat_" << samp_idx << ".dat";
+                bmat_file.open(tmp_path.str(), std::ios::app | std::ios::binary);
+                if (!bmat_file.is_open()) {
+                    std::string msg("Could not open file for writing in directory ");
+                    msg.append(args.result_dir);
+                    throw std::runtime_error(msg);
+                }
+                
+                tmp_path.str("");
+                tmp_path << args.result_dir << "d_mat_" << samp_idx << ".dat";
+                dmat_file.open(tmp_path.str(), std::ios::app | std::ios::binary);
+            }
         }
         
         if (proc_rank == 0) {
@@ -397,6 +414,12 @@ int main(int argc, char * argv[]) {
                     }
                     dmat_file.flush();
                     bmat_file.flush();
+                }
+                else if (mat_fmt == bin_out) {
+                    bmat_file.write((char *) b_mat.data(), sizeof(double) * n_trial * n_trial);
+                    dmat_file.write((char *) d_mat.data(), sizeof(double) * n_trial * n_trial);
+                    bmat_file.flush();
+                    dmat_file.flush();
                 }
             }
             
