@@ -19,6 +19,8 @@ struct MyArgs : public argparse::Args {
     std::shared_ptr<std::string> load_dir = kwarg("load_dir", "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())");
     std::shared_ptr<std::string> ini_path = kwarg("ini_vec", "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)");
     std::shared_ptr<std::string> trial_path = kwarg("trial_vec", "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text)");
+    uint32_t obs_des = kwarg("obs_des", "Orbital index of the destruction operator component of the observale operator.");
+    uint32_t obs_cre = kwarg("obs_cre", "Orbital index of the creation operator component of the observale operator.");
     CONSTRUCTOR(MyArgs);
 };
 
@@ -172,7 +174,7 @@ int main(int argc, char * argv[]) {
         }
         sol_vec.perform_add();
         sol_vec.copy_vec(0, 1);
-        one_elec_op(sol_vec, n_orb, 5, 9, 2);
+        one_elec_op(sol_vec, n_orb, args.obs_des, args.obs_cre, 2);
         loc_norm = sol_vec.local_norm();
         
         last_norm = sum_mpi(loc_norm, proc_rank, n_procs);
@@ -290,7 +292,7 @@ int main(int argc, char * argv[]) {
                 }
             }
             
-            one_elec_op(sol_vec, n_orb, 5, 9, 2);
+            one_elec_op(sol_vec, n_orb, args.obs_des, args.obs_cre, 2);
 
             sol_vec.set_curr_vec_idx(1);
             double denom2 = sol_vec.dot(trial_vec.indices(), trial_vec.values(), trial_vec.curr_size(), trial_hashes);

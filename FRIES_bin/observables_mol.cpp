@@ -22,6 +22,8 @@ struct MyArgs : public argparse::Args {
     uint32_t burn_in = kwarg("burn_in", "Number of iterations to perform before calculating observables.");
     uint32_t n_obs = kwarg("num_obs", "Number of times to calculate the observable within each period");
     uint32_t btw_obs = kwarg("btw_obs", "Number of iterations to perform in between periods of calculating the observable.");
+    uint32_t obs_des = kwarg("obs_des", "Orbital index of the destruction operator component of the observale operator.");
+    uint32_t obs_cre = kwarg("obs_cre", "Orbital index of the creation operator component of the observale operator.");
     
     CONSTRUCTOR(MyArgs);
 };
@@ -237,7 +239,7 @@ int main(int argc, char * argv[]) {
                     sol_vec.copy_vec(1, 0);
                 }
                 if (((iterat - args.burn_in) % period_length) == 0) {
-                    one_elec_op(sol_vec, n_orb, 5, 9, 2);
+                    one_elec_op(sol_vec, n_orb, args.obs_des, args.obs_cre, 2);
                     sol_vec.copy_vec(0, 1);
                 }
             }
