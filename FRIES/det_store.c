@@ -10,12 +10,11 @@
 
 int bit_str_equ(uint8_t *str1, uint8_t *str2, uint8_t n_bytes) {
     int byte_idx;
+    int result = 0;
     for (byte_idx = 0; byte_idx < n_bytes; byte_idx++) {
-        if (str1[byte_idx] != str2[byte_idx]) {
-            return 0;
-        }
+        result += (str1[byte_idx] != str2[byte_idx]);
     }
-    return 1;
+    return result == 0;
 }
 
 
