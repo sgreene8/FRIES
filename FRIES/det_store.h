@@ -8,6 +8,7 @@
 #define det_store_h
 
 #include <FRIES/math_utils.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,7 +21,9 @@ extern "C" {
  * \param [in] n_bytes      Number of bytes represented in \p str1 and \p str2
  * \return 1 if str1 == str2, 0 otherwise
  */
-int bit_str_equ(uint8_t *str1, uint8_t *str2, uint8_t n_bytes);
+inline int bit_str_equ(uint8_t *str1, uint8_t *str2, uint8_t n_bytes)  {
+    return !memcmp(str1, str2, n_bytes);
+}
 
 
 /*! \brief Read the nth bit from a bit string
