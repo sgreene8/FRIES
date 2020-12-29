@@ -32,6 +32,9 @@ target_link_libraries(symm_arnoldi_mol PRIVATE cnpy)
 add_executable(observables_mol observables_mol.cpp)
 target_link_libraries(observables_mol PRIVATE fries)
 
+add_executable(obs_repl_mol obs_repl_mol.cpp)
+target_link_libraries(obs_repl_mol PRIVATE fries)
+
 install(
     TARGETS
         fciqmc_mol
