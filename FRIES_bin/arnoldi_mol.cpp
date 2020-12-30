@@ -25,7 +25,7 @@ struct MyArgs : public argparse::Args {
     uint32_t restart_int = kwarg("restart_int", "Number of multiplications by (1 - \eps H) to do in between restarts").set_default(10);
     std::string mat_output = kwarg("out_format", "A flag controlling the format for outputting the Hamiltonian and overlap matrices. Must be either 'none', in which case these matrices are not written to disk, 'txt', in which case they are outputted in text format, 'npy', in which case they are outputted in numpy format, or 'bin' for binary format").set_default<std::string>("none");
     uint32_t n_sample = kwarg("n_sample", "The number of independent vectors to simulate in parallel").set_default(1);
-    std::string restart_technique = kwarg("restart_technique", "Specify whether to restart using the generalized eigenvectors ('eig') or using the inverse of the Hamiltonian matrix in the subspace ('h_inv') or using the inverse of the R factor of a QR decomposition of this matrix ('r_inv').");
+    std::string restart_technique = kwarg("restart_technique", "Specify whether to restart using the inverse of the Hamiltonian matrix in the subspace ('h_inv') or using the inverse of the R factor of a QR decomposition of this matrix ('r_inv').");
     std::string normalization_technique = kwarg("norm_technique", "Specify how to normalize the iterates, i.e. not at all ('none'), individually by one-norm ('1-norm'), or by the max of all 1-norms ('max-1-norm')");
     
     CONSTRUCTOR(MyArgs);
@@ -61,11 +61,6 @@ void compress_all(DistVec<double> &vectors, size_t start_idx, size_t end_idx, un
         double new_norm = adjust_probs(vectors.values(), vectors.curr_size(), loc_samp, n_samp * loc_norms[rank] / glob_norm, n_samp, glob_norm, keep_scratch);
         piv_comp_serial(vectors.values(), vectors.curr_size(), new_norm, glob_norm / n_samp, loc_samp, keep_scratch, rn_gen);
         
-//        double rn_sys = 0;
-//        if (rank == 0) {
-//            rn_sys = rn_gen() / (1. + UINT32_MAX);
-//        }
-//        sys_comp(vectors.values(), vectors.curr_size(), loc_norms, n_samp, keep_scratch, rn_sys, vec_comm);
         for (size_t idx = 0; idx < vectors.curr_size(); idx++) {
             if (keep_scratch[idx]) {
                 keep_scratch[idx] = 0;
@@ -103,7 +98,7 @@ int main(int argc, char * argv[]) {
             mat_fmt = bin_out;
         }
         else {
-            throw std::runtime_error("out_format input argument must be either \"none\", \"txt\", or \"npy\"");
+            throw std::runtime_error("out_format input argument must be either \"none\", \"txt\", \"npy\", or \"bin\"");
         }
         if (n_trial < 2) {
             std::cerr << "Warning: Only 1 or 0 trial vectors were provided. Consider using the power method instead of Arnoldi in this case.\n";
@@ -198,25 +193,26 @@ int main(int argc, char * argv[]) {
         Matrix<uint8_t> *load_dets = new Matrix<uint8_t>(args.max_n_dets, det_size);
         sol_vec.set_curr_vec_idx(n_trial);
         double *load_vals = sol_vec.values();
+        std::stringstream tmp_path;
         for (uint8_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
-            std::stringstream vec_path;
-            vec_path << args.trial_path << std::setfill('0') << std::setw(2) << (int) trial_idx;
+            tmp_path << args.trial_path << std::setfill('0') << std::setw(2) << (int) trial_idx;
 
-            unsigned int loc_n_dets = (unsigned int) load_vec_txt(vec_path.str(), *load_dets, load_vals, samp_comm);
+            unsigned int loc_n_dets = (unsigned int) load_vec_txt(tmp_path.str(), *load_dets, load_vals, samp_comm);
             size_t glob_n_dets = loc_n_dets;
 
             MPI_Bcast(&glob_n_dets, 1, MPI_UNSIGNED, 0, samp_comm);
             trial_vecs.emplace_back(glob_n_dets, &shared_adder, n_orb * 2, n_elec_unf, proc_scrambler, vec_scrambler);
             
             for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
-                trial_vecs[trial_idx].add(load_dets[0][det_idx], load_vals[det_idx], 1);
+                trial_vecs[trial_idx].add((*load_dets)[det_idx], load_vals[det_idx], 1);
             }
             trial_vecs[trial_idx].perform_add();
             sol_vec.set_curr_vec_idx(trial_idx);
             for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
-                sol_vec.add(load_dets[0][det_idx], load_vals[det_idx], 1);
+                sol_vec.add((*load_dets)[det_idx], load_vals[det_idx], 1);
             }
             sol_vec.perform_add();
+            tmp_path.str("");
         }
         delete load_dets;
         sol_vec.fix_min_del_idx();
@@ -234,7 +230,6 @@ int main(int argc, char * argv[]) {
         }
         
         std::string file_path;
-        std::stringstream tmp_path;
         std::ofstream bmat_file;
         std::ofstream dmat_file;
         
@@ -307,17 +302,9 @@ int main(int argc, char * argv[]) {
         std::string bnpy_path(tmp_path.str());
         std::vector<double> lapack_scratch((3 + n_trial + 32 * 2) * n_trial - 1);
         Matrix<double> evecs(n_trial, n_trial);
-        std::vector<double> evals(n_trial);
         std::vector<double> norms(n_trial);
         
         int vec_half = 0; // controls whether the current iterates are stored in the first or second half of the values_ matrix
-        std::vector<uint8_t> eigen_sort(n_trial);
-        for (uint8_t idx = 0; idx < n_trial; idx++) {
-            eigen_sort[idx] = idx;
-        }
-        auto eigen_cmp = [&evals](uint8_t idx1, uint8_t idx2) {
-            return evals[idx1] > evals[idx2];
-        };
         
         for (uint32_t iteration = 0; iteration < args.max_iter; iteration++) {
             if (proc_rank == 0) {
@@ -431,21 +418,12 @@ int main(int argc, char * argv[]) {
                 else if (args.restart_technique == "r_inv") {
                     invr_inplace(evecs, lapack_scratch.data());
                 }
-                else if (args.restart_technique == "eig") {
-                    get_real_gevals_vecs(b_mat, d_mat, evals, evecs);
-                    std::sort(eigen_sort.begin(), eigen_sort.end(), eigen_cmp);
-                    for (uint16_t row_idx = 0; row_idx < n_trial; row_idx++) {
-                        for (uint16_t col_idx = row_idx + 1; col_idx < n_trial; col_idx++) {
-                            std::swap(evecs(row_idx, col_idx), evecs(col_idx, row_idx));
-                        }
-                    }
-                }
                 for (uint8_t eigen_idx = 0; eigen_idx < n_trial; eigen_idx++) {
                     sol_vec.set_curr_vec_idx((1 - vec_half) * n_trial + eigen_idx);
                     sol_vec.zero_vec();
                     for (uint8_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                         for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
-                            *sol_vec((1 - vec_half) * n_trial + eigen_idx, el_idx) += *sol_vec(vec_half * n_trial + vec_idx, el_idx) * evecs(vec_idx, eigen_sort[eigen_idx]);
+                            *sol_vec((1 - vec_half) * n_trial + eigen_idx, el_idx) += *sol_vec(vec_half * n_trial + vec_idx, el_idx) * evecs(vec_idx, eigen_idx);
                         }
                     }
                 }
