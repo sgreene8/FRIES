@@ -370,11 +370,11 @@ int main(int argc, char * argv[]) {
                 int curr_idx = vec_half * n_trial + vec_idx;
                 int next_idx = (1 - vec_half) * n_trial + vec_idx;
                 sol_vec.set_curr_vec_idx(curr_idx);
-                h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, next_idx, -eps);
+                h_op_diag(sol_vec, next_idx, 1, -eps);
                 sol_vec.set_curr_vec_idx(curr_idx);
-                h_op_diag(sol_vec, curr_idx, 1, -eps);
-                sol_vec.add_vecs(curr_idx, next_idx);
+                h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, next_idx, -eps);
             }
+            vec_half = !vec_half;
             
             size_t new_max_dets = max_n_dets;
             if (sol_vec.max_size() > new_max_dets) {

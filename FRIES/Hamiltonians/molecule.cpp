@@ -195,7 +195,6 @@ void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
         adder_size = n_ex;
     }
     vec.set_curr_vec_idx(dest_idx);
-    vec.zero_vec();
     
     size_t det_idx = 0;
     int num_added = 1;
