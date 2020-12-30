@@ -104,10 +104,9 @@ int main(int argc, char * argv[]) {
         for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
             vec_scrambler[det_idx] = mt_obj();
         }
-        /* - vector 0 is the evolving solution vector iterate
-         * - vector 1 is a saved snapshot for dot products
-         * - vector 2 is the observable operator * the snapshot
-         * - vector 3 is scratch
+        /* - vectors 0 and 1 are the evolving solution vector iterate
+         * - vector 2 is a saved snapshot for dot products
+         * - vector 3 is the observable operator * the snapshot
          */
         DistVec<double> sol_vec(args.max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 4, proc_scrambler, vec_scrambler);
         
@@ -232,16 +231,17 @@ int main(int argc, char * argv[]) {
         uint32_t period_length = args.n_obs + args.btw_obs;
         // |--- burn-in ---|--- calculating observable ---|--- free evolution ---|
         
+        int vec_idx = 0;
         for (uint32_t iterat = 0; iterat < args.max_iter; iterat++) {
             bool calculating_obs = iterat >= args.burn_in && ((iterat - args.burn_in) % period_length) < args.n_obs;
             
             if (iterat >= args.burn_in) {
                 if (((iterat - args.burn_in) % period_length) == args.n_obs) {
-                    sol_vec.copy_vec(1, 0);
+                    sol_vec.copy_vec(2, vec_idx);
                 }
                 if (((iterat - args.burn_in) % period_length) == 0) {
-                    one_elec_op(sol_vec, n_orb, args.obs_des, args.obs_cre, 2);
-                    sol_vec.copy_vec(0, 1);
+                    one_elec_op(sol_vec, n_orb, args.obs_des, args.obs_cre, 3);
+                    sol_vec.copy_vec(vec_idx, 2);
                 }
             }
             
@@ -250,7 +250,7 @@ int main(int argc, char * argv[]) {
                         
 #pragma mark Vector compression step
             if (calculating_obs) {
-                sol_vec.weight_vec(0, 2, 3);
+                sol_vec.weight_vec(vec_idx, 3, 3);
             }
             unsigned int n_samp = args.target_nonz;
             double tmp_norm;
@@ -268,22 +268,22 @@ int main(int argc, char * argv[]) {
                 }
             }
             if (calculating_obs) {
-                sol_vec.weight_vec(0, 2, -3);
+                sol_vec.weight_vec(vec_idx, 3, -3);
             }
-            
-            h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, orb_indices, n_frz, n_elec_unf, 3, -eps);
-            sol_vec.set_curr_vec_idx(0);
-            h_op_diag(sol_vec, 0, 1, -eps);
-            sol_vec.add_vecs(0, 3);
+
+            h_op_diag(sol_vec, !vec_idx, 1, -eps);
+            sol_vec.set_curr_vec_idx(vec_idx);
+            h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, orb_indices, n_frz, n_elec_unf, !vec_idx, -eps);
+            vec_idx = !vec_idx;
                 
             double numer = sol_vec.dot(trial_vec.indices(), trial_vec.values(), trial_vec.curr_size(), trial_hashes);
             numer = sum_mpi(numer, proc_rank, n_procs);
             numer = (denom - numer) / eps;
             
             if (calculating_obs) {
-                double obs_den = sol_vec.internal_dot(0, 1);
+                double obs_den = sol_vec.internal_dot(vec_idx, 2);
                 obs_den = sum_mpi(obs_den, proc_rank, n_procs);
-                double obs_num = sol_vec.internal_dot(0, 2);
+                double obs_num = sol_vec.internal_dot(vec_idx, 3);
                 obs_num = sum_mpi(obs_num, proc_rank, n_procs);
                 if (proc_rank == hf_proc) {
                     obs_den_file << obs_den << '\n';

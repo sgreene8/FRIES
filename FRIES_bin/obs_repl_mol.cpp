@@ -268,6 +268,9 @@ int main(int argc, char * argv[]) {
                 }
             }
             
+            sol_vec.set_curr_vec_idx(3);
+            sol_vec.zero_vec();
+            sol_vec.set_curr_vec_idx(0);
             h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, orb_indices, n_frz, n_elec_unf, 3, -eps);
             sol_vec.set_curr_vec_idx(0);
             h_op_diag(sol_vec, 0, 1, -eps);
