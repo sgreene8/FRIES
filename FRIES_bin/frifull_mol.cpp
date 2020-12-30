@@ -176,7 +176,7 @@ int main(int argc, char * argv[]) {
             file_path.append("S.txt");
             std::ifstream shift_in(file_path);
             if (shift_in.is_open()) {
-                // load energy shift (seehttps://stackoverflow.com/questions/11876290/c-fastest-way-to-read-only-last-line-of-text-file)
+                // load energy shift (see https://stackoverflow.com/questions/11876290/c-fastest-way-to-read-only-last-line-of-text-file)
                 shift_in.seekg(-1, std::ios_base::end);
 
                 bool keepLooping = true;
@@ -285,40 +285,16 @@ int main(int argc, char * argv[]) {
         Matrix<double> obs_vals(num_rn_obs, n_orb);
         std::vector<double> obs_probs(num_rn_obs);
         
+        int vec_idx = 0;
+        
         for (unsigned int iterat = 0; iterat < args.max_iter; iterat++) {
             double denom = sol_vec.dot(trial_vec.indices(), trial_vec.values(), trial_vec.curr_size(), trial_hashes);
             denom = sum_mpi(denom, proc_rank, n_procs);
             
-            sol_vec.set_curr_vec_idx(1);
-            sol_vec.zero_vec();
-            sol_vec.set_curr_vec_idx(0);
-            h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, orb_indices, n_frz, n_elec_unf, 1, -eps);
-            sol_vec.set_curr_vec_idx(0);
-            h_op_diag(sol_vec, 0, 1 + eps * en_shift, -eps);
-            sol_vec.add_vecs(0, 1);
-            
-            double numer = sol_vec.dot(trial_vec.indices(), trial_vec.values(), trial_vec.curr_size(), trial_hashes);
-            numer = sum_mpi(numer, proc_rank, n_procs);
-            numer = ((1 + eps * en_shift) * denom - numer) / eps;
-            if (proc_rank == hf_proc) {
-                num_file << numer << '\n';
-                den_file << denom << "\n";
-                std::cout << iterat << ", en est: " << numer / denom << ", shift: " << en_shift << ", norm: " << glob_norm << '\n';
-            }
-            
-            size_t new_max_dets = sol_vec.max_size();
-            if (new_max_dets > max_n_dets) {
-                keep_exact.resize(new_max_dets, false);
-                srt_arr.resize(new_max_dets);
-                for (; max_n_dets < new_max_dets; max_n_dets++) {
-                    srt_arr[max_n_dets] = max_n_dets;
-                }
-            }
-            
 #pragma mark Vector compression step
             unsigned int n_samp = args.target_nonz;
             loc_norms[proc_rank] = find_preserve(sol_vec.values(), srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
-
+            
             MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
             if (proc_rank == hf_proc) {
                 nkept_file << args.target_nonz - n_samp << '\n';
@@ -373,6 +349,29 @@ int main(int argc, char * argv[]) {
                 if (keep_exact[det_idx]) {
                     sol_vec.del_at_pos(det_idx);
                     keep_exact[det_idx] = 0;
+                }
+            }
+            
+            h_op_diag(sol_vec, !vec_idx, 1 + eps * en_shift, -eps);
+            sol_vec.set_curr_vec_idx(vec_idx);
+            h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, orb_indices, n_frz, n_elec_unf, !vec_idx, -eps);
+            vec_idx = !vec_idx;
+            
+            double numer = sol_vec.dot(trial_vec.indices(), trial_vec.values(), trial_vec.curr_size(), trial_hashes);
+            numer = sum_mpi(numer, proc_rank, n_procs);
+            numer = ((1 + eps * en_shift) * denom - numer) / eps;
+            if (proc_rank == hf_proc) {
+                num_file << numer << '\n';
+                den_file << denom << "\n";
+                std::cout << iterat << ", en est: " << numer / denom << ", shift: " << en_shift << ", norm: " << glob_norm << '\n';
+            }
+            
+            size_t new_max_dets = sol_vec.max_size();
+            if (new_max_dets > max_n_dets) {
+                keep_exact.resize(new_max_dets, false);
+                srt_arr.resize(new_max_dets);
+                for (; max_n_dets < new_max_dets; max_n_dets++) {
+                    srt_arr[max_n_dets] = max_n_dets;
                 }
             }
             
