@@ -103,6 +103,17 @@ size_t doub_ex_symm(uint8_t *det, uint8_t *occ_orbs, unsigned int num_elec,
 size_t sing_ex_symm(uint8_t *det, uint8_t *occ_orbs, unsigned int num_elec,
                     unsigned int num_orb, uint8_t res_arr[][2], uint8_t *symm);
 
+/*! \brief Deterministically multiply a vector by a 1-electron operator a^\dagger_p a_q
+ *
+ * \param [in, out]  vec    upon return, contains the vector obtained by multiplying by the 1-electron operator
+ * \param [in] n_orbs       Number of HF unfrozen spatial orbitals in the basis
+ * \param [in] des_op       Orbital index of the destruction operator component of the 1-electron operator
+ * \param [in] cre_op       Orbital index of the creation operator component of the 1-electron operator
+ * \param [in] dest_idx     The index of the sub-vector in \p vec to store the result in
+ */
+void one_elec_op(DistVec<double> &vec, unsigned int n_orbs, uint8_t des_op, uint8_t cre_op,
+                 uint8_t dest_idx);
+
 
 /*! \brief Deterministically multiply a vector by the off-diagonal elements of the Hamiltonian matrix times a constant factor
  * This method multiplies a sub-vector within the inputted DistVec object, as determined by its \p curr_vec_idx instance variable

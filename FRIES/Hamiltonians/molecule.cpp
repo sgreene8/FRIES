@@ -166,6 +166,40 @@ void h_op_diag(DistVec<double> &vec, uint8_t dest_idx, double id_fac, double h_f
     }
 }
 
+
+void one_elec_op(DistVec<double> &vec, unsigned int n_orbs, uint8_t des_op, uint8_t cre_op,
+                 uint8_t dest_idx) {
+    uint8_t before_idx = vec.curr_vec_idx();
+    for (size_t det_idx = 0; det_idx < vec.curr_size(); det_idx++) {
+        uint8_t *curr_det = vec.indices()[det_idx];
+        double *curr_val = vec[det_idx];
+        uint8_t n_bytes = CEILING(vec.n_bits(), 8);
+        uint8_t new_det[n_bytes];
+        
+        if (read_bit(curr_det, des_op) && !read_bit(curr_det, cre_op)) {
+            std::copy(curr_det, curr_det + n_bytes, new_det);
+            uint8_t orbs[2];
+            orbs[0] = des_op;
+            orbs[1] = cre_op;
+            int sign = sing_det_parity(new_det, orbs);
+            vec.add(new_det, sign * (*curr_val), 1);
+        }
+        if (read_bit(curr_det, des_op + n_orbs) && !read_bit(curr_det, cre_op + n_orbs)) {
+            std::copy(curr_det, curr_det + n_bytes, new_det);
+            uint8_t orbs[2];
+            orbs[0] = des_op + n_orbs;
+            orbs[1] = cre_op + n_orbs;
+            int sign = sing_det_parity(new_det, orbs);
+            vec.add(new_det, sign * (*curr_val), 1);
+        }
+    }
+    vec.set_curr_vec_idx(dest_idx);
+    vec.zero_vec();
+    vec.perform_add();
+    vec.set_curr_vec_idx(before_idx);
+}
+
+
 void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
                   const FourDArr &eris, const Matrix<double> &h_core,
                   uint8_t *orbs_scratch, unsigned int n_frozen,

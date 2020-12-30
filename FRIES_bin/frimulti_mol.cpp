@@ -4,9 +4,6 @@
  * system
  */
 
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
 #include <FRIES/Hamiltonians/near_uniform.hpp>
 #include <FRIES/io_utils.hpp>
 #include <chrono>
@@ -189,31 +186,46 @@ int main(int argc, char * argv[]) {
         size_t n_hf_sing = count_singex(hf_det, tmp_orbs, symm, n_orb, symm_lookup, n_elec_unf);
         double p_doub = (double) n_hf_doub / (n_hf_sing + n_hf_doub);
         
-        char file_path[300];
-        FILE *num_file = NULL;
-        FILE *den_file = NULL;
-        FILE *shift_file = NULL;
-        FILE *norm_file = NULL;
-        FILE *ini_file = NULL;
+        std::string file_path;
+        std::ofstream norm_file;
+        std::ofstream num_file;
+        std::ofstream den_file;
+        std::ofstream shift_file;
+        std::ofstream ini_file;
         
         // Initialize solution vector
         if (args.load_dir != nullptr) {
-            sol_vec.load(args.load_dir->c_str());
+            sol_vec.load(*args.load_dir);
             
-            // load energy shift (see https://stackoverflow.com/questions/13790662/c-read-only-last-line-of-a-file-no-loops)
-            static const long max_len = 20;
-            sprintf(file_path, "%sS.txt", args.load_dir->c_str());
-            shift_file = fopen(file_path, "rb");
-            fseek(shift_file, -max_len, SEEK_END);
-            (void) fread(file_path, max_len, 1, shift_file);
-            fclose(shift_file);
-            shift_file = NULL;
-            
-            file_path[max_len - 1] = '\0';
-            char *last_newline = strrchr(file_path, '\n');
-            char *last_line = last_newline + 1;
-            
-            sscanf(last_line, "%lf", &en_shift);
+            file_path = *args.load_dir;
+            file_path.append("S.txt");
+            std::ifstream shift_in(file_path);
+            if(shift_in.is_open()) {
+
+                // load energy shift (seehttps://stackoverflow.com/questions/11876290/c-fastest-way-to-read-only-last-line-of-text-file)
+                shift_in.seekg(-1, std::ios_base::end);
+
+                bool keepLooping = true;
+                while(keepLooping) {
+                    char ch;
+                    shift_in.get(ch);
+
+                    if((int)shift_in.tellg() <= 1) {
+                        shift_in.seekg(0);
+                        keepLooping = false;
+                    }
+                    else if(ch == '\n') {
+                        keepLooping = false;
+                    }
+                    else {
+                        shift_in.seekg(-2, std::ios_base::cur);
+                    }
+                }
+                
+                shift_in >> en_shift;
+
+                shift_in.close();
+            }
         }
         else if (args.ini_path != nullptr) {
             // from an initial vector in .txt format
@@ -242,39 +254,45 @@ int main(int argc, char * argv[]) {
         
         if (proc_rank == hf_proc) {
             // Setup output files
-            strcpy(file_path, result_dir);
-            strcat(file_path, "projnum.txt");
-            num_file = fopen(file_path, "a");
-            if (!num_file) {
-                fprintf(stderr, "Could not open file for writing in directory %s\n", result_dir);
+            file_path = args.result_dir;
+            file_path.append("projnum.txt");
+            num_file.open(file_path, std::ofstream::app);
+            if (!num_file.is_open()) {
+                std::string msg("Could not open file for writing in directory ");
+                msg.append(args.result_dir);
+                throw std::runtime_error(msg);
             }
-            strcpy(file_path, result_dir);
-            strcat(file_path, "projden.txt");
-            den_file = fopen(file_path, "a");
-            strcpy(file_path, result_dir);
-            strcat(file_path, "S.txt");
-            shift_file = fopen(file_path, "a");
-            strcpy(file_path, result_dir);
-            strcat(file_path, "norm.txt");
-            norm_file = fopen(file_path, "a");
-            strcpy(file_path, result_dir);
-            strcat(file_path, "nini.txt");
-            ini_file = fopen(file_path, "a");
             
-            strcpy(file_path, result_dir);
-            strcat(file_path, "params.txt");
-            FILE *param_f = fopen(file_path, "w");
-            fprintf(param_f, "FRI calculation\nHF path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nInitiator threshold: %lf\nMatrix nonzero: %u\nVector nonzero: %u\n", args.hf_path.c_str(), eps, target_norm, args.init_thresh, args.matr_samp, args.target_nonz);
+            file_path = args.result_dir;
+            file_path.append("projden.txt");
+            den_file.open(file_path, std::ofstream::app);
+            
+            file_path = args.result_dir;
+            file_path.append("S.txt");
+            shift_file.open(file_path, std::ofstream::app);
+            
+            file_path = args.result_dir;
+            file_path.append("norm.txt");
+            norm_file.open(file_path, std::ofstream::app);
+            
+            file_path = args.result_dir;
+            file_path.append("nini.txt");
+            ini_file.open(file_path, std::ofstream::app);
+            
+            file_path = args.result_dir;
+            file_path.append("params.txt");
+            std::ofstream param_f(file_path);
+            param_f << "FRI calculation\nHF path: " << args.hf_path << "\nepsilon (imaginary time step): " << eps << "\nTarget norm " << target_norm << "\nInitiator threshold: " << args.init_thresh << "\nMatrix nonzero: " << args.matr_samp << "\nVector nonzero: " << args.target_nonz << "\n";
             if (args.load_dir != nullptr) {
-                fprintf(param_f, "Restarting calculation from %s\n", args.load_dir->c_str());
+                param_f << "Restarting calculation from " << args.load_dir << "\n";
             }
             else if (args.ini_path != nullptr) {
-                fprintf(param_f, "Initializing calculation from vector files with prefix %s\n", args.ini_path->c_str());
+                param_f << "Initializing calculation from vector files with prefix " << args.ini_path << '\n';
             }
             else {
-                fprintf(param_f, "Initializing calculation from HF unit vector\n");
+                param_f << "Initializing calculation from HF unit vector\n";
             }
-            fclose(param_f);
+            param_f.close();
         }
         
         hb_info *hb_probs = NULL;
@@ -390,8 +408,8 @@ int main(int argc, char * argv[]) {
             if ((iterat + 1) % shift_interval == 0) {
                 adjust_shift(&en_shift, glob_norm, &last_one_norm, target_norm, shift_damping / shift_interval / eps);
                 if (proc_rank == hf_proc) {
-                    fprintf(shift_file, "%lf\n", en_shift);
-                    fprintf(norm_file, "%lf\n", glob_norm);
+                    shift_file << en_shift << "\n";
+                    norm_file << glob_norm << "\n";
                 }
             }
             matr_el = sol_vec.dot(htrial_vec.indices(), htrial_vec.values(), htrial_vec.curr_size(), htrial_hashes);
@@ -406,10 +424,10 @@ int main(int argc, char * argv[]) {
                     matr_el += recv_nums[proc_idx];
                     denom += recv_dens[proc_idx];
                 }
-                fprintf(num_file, "%lf\n", matr_el);
-                fprintf(den_file, "%lf\n", denom);
-                printf("%6u, en est: %lf, shift: %lf, norm: %lf\n", iterat, matr_el / denom, en_shift, glob_norm);
-                fprintf(ini_file, "%zu\n", n_ini);
+                num_file << matr_el << '\n';
+                den_file << denom << '\n';
+                std::cout << iterat << ", en est: " << matr_el / denom << ", shift: " << en_shift << ", norm: " << glob_norm << '\n';
+                ini_file << n_ini << '\n';
             }
             
             if (proc_rank == 0) {
@@ -428,17 +446,17 @@ int main(int argc, char * argv[]) {
             if ((iterat + 1) % save_interval == 0) {
                 sol_vec.save(result_dir);
                 if (proc_rank == hf_proc) {
-                    fflush(num_file);
-                    fflush(den_file);
-                    fflush(shift_file);
+                    num_file.flush();
+                    den_file.flush();
+                    shift_file.flush();
                 }
             }
         }
         sol_vec.save(result_dir);
         if (proc_rank == hf_proc) {
-            fclose(num_file);
-            fclose(den_file);
-            fclose(shift_file);
+            num_file.close();
+            den_file.close();
+            shift_file.close();
         }
 
         MPI_Finalize();

@@ -4,9 +4,7 @@
  *
  */
 
-#include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include <chrono>
 #define __STDC_LIMIT_MACROS
 #include <cstdint>
@@ -131,40 +129,45 @@ int main(int argc, char * argv[]) {
             last_one_norm = glob_norm;
         }
         
-        char file_path[300];
-        FILE *norm_file = NULL;
-        FILE *num_file = NULL;
-        FILE *den_file = NULL;
-        FILE *shift_file = NULL;
+        std::string file_path;
+        std::ofstream norm_file;
+        std::ofstream num_file;
+        std::ofstream den_file;
+        std::ofstream shift_file;
         if (proc_rank == ref_proc) {
             // Setup output files
-            strcpy(file_path, args.result_dir.c_str());
-            strcat(file_path, "projnum.txt");
-            num_file = fopen(file_path, "a");
-            if (!num_file) {
-                fprintf(stderr, "Could not open file for writing in directory %s\n", args.result_dir.c_str());
+            file_path = args.result_dir;
+            file_path.append("projnum.txt");
+            num_file.open(file_path, std::ofstream::app);
+            if (!num_file.is_open()) {
+                std::string msg("Could not open file for writing in directory ");
+                msg.append(args.result_dir);
+                throw std::runtime_error(msg);
             }
-            strcpy(file_path, args.result_dir.c_str());
-            strcat(file_path, "projden.txt");
-            den_file = fopen(file_path, "a");
-            strcpy(file_path, args.result_dir.c_str());
-            strcat(file_path, "S.txt");
-            shift_file = fopen(file_path, "a");
-            strcpy(file_path, args.result_dir.c_str());
-            strcat(file_path, "norm.txt");
-            norm_file = fopen(file_path, "a");
             
-            strcpy(file_path, args.result_dir.c_str());
-            strcat(file_path, "params.txt");
-            FILE *param_f = fopen(file_path, "w");
-            fprintf(param_f, "FRI calculation\nHubbard-Holstein parameters path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nInitiator threshold: %f\nVector nonzero: %u\n", args.params_path.c_str(), eps, target_norm, args.init_thresh, args.target_nonz);
+            file_path = args.result_dir;
+            file_path.append("projden.txt");
+            den_file.open(file_path, std::ofstream::app);
+            
+            file_path = args.result_dir;
+            file_path.append("S.txt");
+            shift_file.open(file_path, std::ofstream::app);
+            
+            file_path = args.result_dir;
+            file_path.append("norm.txt");
+            norm_file.open(file_path, std::ofstream::app);
+            
+            file_path = args.result_dir;
+            file_path.append("params.txt");
+            std::ofstream param_f(file_path);
+            param_f << "FRI calculation\nHubbard-Holstein parameters path: " << args.params_path << "\nepsilon (imaginary time step): " << eps << "\nTarget norm " << target_norm << "\nInitiator threshold: " << args.init_thresh << "\nVector nonzero: " << args.target_nonz << "\n";
             if (args.load_dir != nullptr) {
-                fprintf(param_f, "Restarting calculation from %s\n", args.load_dir->c_str());
+                param_f << "Restarting calculation from " << args.load_dir << "\n";
             }
             else {
-                fprintf(param_f, "Initializing calculation from Neel unit vector\n");
+                param_f << "Initializing calculation from Neel unit vector\n";
             }
-            fclose(param_f);
+            param_f.close();
         }
         
         // Parameters for systematic sampling
@@ -284,8 +287,8 @@ int main(int argc, char * argv[]) {
             if ((iterat + 1) % shift_interval == 0) {
                 adjust_shift(&en_shift, glob_norm, &last_one_norm, target_norm, shift_damping / shift_interval / eps);
                 if (proc_rank == ref_proc) {
-                    fprintf(shift_file, "%lf\n", en_shift);
-                    fprintf(norm_file, "%lf\n", glob_norm);
+                    shift_file << en_shift << '\n';
+                    norm_file << glob_norm << '\n';
                 }
             }
             
@@ -299,9 +302,9 @@ int main(int argc, char * argv[]) {
                 for (proc_idx = 0; proc_idx < n_procs; proc_idx++) {
                     matr_el += recv_nums[proc_idx] * -hub_t;
                 }
-                fprintf(num_file, "%lf\n", matr_el);
-                fprintf(den_file, "%lf\n", ref_element);
-                printf("%6u, norm: %lf, en est: %lf, shift: %lf, n_neel: %lf\n", iterat, glob_norm, matr_el / ref_element, en_shift, ref_element);
+                num_file << matr_el << '\n';
+                den_file << ref_element << '\n';
+                std::cout << iterat << ", norm: " << glob_norm << ", en est: " << matr_el / ref_element << ", shift: " << en_shift << ", n_neel: " << ref_element << '\n';
             }
             
             if (proc_rank == 0) {
@@ -318,19 +321,19 @@ int main(int argc, char * argv[]) {
             
             // Save vector snapshot to disk
             if ((iterat + 1) % save_interval == 0) {
-                sol_vec.save(args.result_dir.c_str());
+                sol_vec.save(args.result_dir);
                 if (proc_rank == ref_proc) {
-                    fflush(num_file);
-                    fflush(den_file);
-                    fflush(shift_file);
+                    num_file.flush();
+                    den_file.flush();
+                    shift_file.flush();
                 }
             }
         }
         sol_vec.save(args.result_dir.c_str());
         if (proc_rank == ref_proc) {
-            fclose(num_file);
-            fclose(den_file);
-            fclose(shift_file);
+            num_file.close();
+            den_file.close();
+            shift_file.close();
         }
         MPI_Finalize();
     } catch (std::exception &ex) {

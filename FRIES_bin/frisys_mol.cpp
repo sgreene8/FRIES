@@ -4,12 +4,6 @@
  * system
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-#include <math.h>
-#include <cinttypes>
 #include <FRIES/Hamiltonians/near_uniform.hpp>
 #include <FRIES/io_utils.hpp>
 #include <chrono>
@@ -70,7 +64,6 @@ int main(int argc, char * argv[]) {
         MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
         
         uint32_t max_n_dets = args.max_n_dets;
-        const char *result_dir = args.result_dir.c_str();
         uint32_t matr_samp = args.matr_samp;
         
         // Parameters
@@ -130,7 +123,7 @@ int main(int argc, char * argv[]) {
                 for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
                     proc_scrambler[det_idx] = mt_obj();
                 }
-                save_proc_hash(result_dir, proc_scrambler.data(), 2 * n_orb);
+                save_proc_hash(args.result_dir, proc_scrambler.data(), 2 * n_orb);
             }
 
             MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
@@ -202,54 +195,70 @@ int main(int argc, char * argv[]) {
         size_t n_hf_sing = count_singex(hf_det, tmp_orbs, symm, n_orb, symm_lookup, n_elec_unf);
         double p_doub = (double) n_hf_doub / (n_hf_sing + n_hf_doub);
         
-        char file_path[300];
-        FILE *num_file = NULL;
-        FILE *den_file = NULL;
-        FILE *shift_file = NULL;
-        FILE *norm_file = NULL;
-        FILE *nkept_file = NULL;
-        FILE *ini_file = NULL;
+        std::string file_path;
+        std::ofstream norm_file;
+        std::ofstream num_file;
+        std::ofstream den_file;
+        std::ofstream shift_file;
+        std::ofstream nkept_file;
+        std::ofstream ini_file;
         
         size_t n_determ = 0; // Number of deterministic determinants on this process
         if (args.load_dir == nullptr && args.determ_path != nullptr) {
-            n_determ = sol_vec.init_dense(*args.determ_path, result_dir);
+            n_determ = sol_vec.init_dense(*args.determ_path, args.result_dir);
         }
         int dense_sizes[n_procs];
         int determ_tmp = (int) n_determ;
 
         MPI_Gather(&determ_tmp, 1, MPI_INT, dense_sizes, 1, MPI_INT, 0, MPI_COMM_WORLD);
         if (proc_rank == 0 && args.load_dir == nullptr) {
-            sprintf(file_path, "%sdense.txt", result_dir);
-            FILE *dense_f = fopen(file_path, "w");
-            if (!dense_f) {
-                fprintf(stderr, "Error opening file containing sizes of deterministic subspaces.\n");
-                return 0;
+            file_path = args.result_dir;
+            file_path.append("dense.txt");
+            std::ofstream dense_f(file_path);
+            
+            if (!dense_f.is_open()) {
+                throw std::runtime_error("Error opening file containing sizes of deterministic subspaces");
             }
             for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-                fprintf(dense_f, "%d, ", dense_sizes[proc_idx]);
+                dense_f << dense_sizes[proc_idx] << ", ";
             }
-            fprintf(dense_f, "\n");
-            fclose(dense_f);
+            dense_f << '\n';
+            dense_f.close();
         }
         
 #pragma mark Initialize solution vector
         if (args.load_dir != nullptr) {
-            n_determ = sol_vec.load(args.load_dir->c_str());
+            n_determ = sol_vec.load(*args.load_dir);
             
-            // load energy shift (see https://stackoverflow.com/questions/13790662/c-read-only-last-line-of-a-file-no-loops)
-            static const long max_len = 20;
-            sprintf(file_path, "%sS.txt", args.load_dir->c_str());
-            shift_file = fopen(file_path, "rb");
-            fseek(shift_file, -max_len, SEEK_END);
-            fread(file_path, max_len, 1, shift_file);
-            fclose(shift_file);
-            shift_file = NULL;
-            
-            file_path[max_len - 1] = '\0';
-            char *last_newline = strrchr(file_path, '\n');
-            char *last_line = last_newline + 1;
-            
-            sscanf(last_line, "%lf", &en_shift);
+            file_path = *args.load_dir;
+            file_path.append("S.txt");
+            std::ifstream shift_in(file_path);
+            if(shift_in.is_open()) {
+
+                // load energy shift (seehttps://stackoverflow.com/questions/11876290/c-fastest-way-to-read-only-last-line-of-text-file)
+                shift_in.seekg(-1, std::ios_base::end);
+
+                bool keepLooping = true;
+                while(keepLooping) {
+                    char ch;
+                    shift_in.get(ch);
+
+                    if((int)shift_in.tellg() <= 1) {
+                        shift_in.seekg(0);
+                        keepLooping = false;
+                    }
+                    else if(ch == '\n') {
+                        keepLooping = false;
+                    }
+                    else {
+                        shift_in.seekg(-2, std::ios_base::cur);
+                    }
+                }
+                
+                shift_in >> en_shift;
+
+                shift_in.close();
+            }
         }
         else if (args.ini_path != nullptr) {
             Matrix<uint8_t> load_dets(max_n_dets, det_size);
@@ -277,42 +286,49 @@ int main(int argc, char * argv[]) {
         
         if (proc_rank == hf_proc) {
             // Setup output files
-            strcpy(file_path, result_dir);
-            strcat(file_path, "projnum.txt");
-            num_file = fopen(file_path, "a");
-            if (!num_file) {
-                fprintf(stderr, "Could not open file for writing in directory %s\n", result_dir);
+            file_path = args.result_dir;
+            file_path.append("projnum.txt");
+            num_file.open(file_path, std::ofstream::app);
+            if (!num_file.is_open()) {
+                std::string msg("Could not open file for writing in directory ");
+                msg.append(args.result_dir);
+                throw std::runtime_error(msg);
             }
-            strcpy(file_path, result_dir);
-            strcat(file_path, "projden.txt");
-            den_file = fopen(file_path, "a");
-            strcpy(file_path, result_dir);
-            strcat(file_path, "S.txt");
-            shift_file = fopen(file_path, "a");
-            strcpy(file_path, result_dir);
-            strcat(file_path, "norm.txt");
-            norm_file = fopen(file_path, "a");
-            strcpy(file_path, result_dir);
-            strcat(file_path, "nkept.txt");
-            nkept_file = fopen(file_path, "a");
-            strcpy(file_path, result_dir);
-            strcat(file_path, "nini.txt");
-            ini_file = fopen(file_path, "a");
             
-            strcpy(file_path, result_dir);
-            strcat(file_path, "params.txt");
-            FILE *param_f = fopen(file_path, "w");
-            fprintf(param_f, "FRI calculation\nHF path: %s\nepsilon (imaginary time step): %lf\nTarget norm %lf\nInitiator threshold: %f\nMatrix nonzero: %u\nVector nonzero: %u\n", args.hf_path.c_str(), eps, target_norm, args.init_thresh, args.matr_samp, args.target_nonz);
+            file_path = args.result_dir;
+            file_path.append("projden.txt");
+            den_file.open(file_path, std::ofstream::app);
+            
+            file_path = args.result_dir;
+            file_path.append("S.txt");
+            shift_file.open(file_path, std::ofstream::app);
+            
+            file_path = args.result_dir;
+            file_path.append("norm.txt");
+            norm_file.open(file_path, std::ofstream::app);
+            
+            file_path = args.result_dir;
+            file_path.append("nkept.txt");
+            nkept_file.open(file_path, std::ofstream::app);
+            
+            file_path = args.result_dir;
+            file_path.append("nini.txt");
+            ini_file.open(file_path, std::ofstream::app);
+            
+            file_path = args.result_dir;
+            file_path.append("params.txt");
+            std::ofstream param_f(file_path);
+            param_f << "FRI calculation\nHF path: " << args.hf_path << "\nepsilon (imaginary time step): " << eps << "\nTarget norm " << target_norm << "\nInitiator threshold: " << args.init_thresh << "\nMatrix nonzero: " << args.matr_samp << "\nVector nonzero: " << args.target_nonz << "\n";
             if (args.load_dir != nullptr) {
-                fprintf(param_f, "Restarting calculation from %s\n", args.load_dir->c_str());
+                param_f << "Restarting calculation from " << args.load_dir << "\n";
             }
             else if (args.ini_path != nullptr) {
-                fprintf(param_f, "Initializing calculation from vector files with prefix %s\n", args.ini_path->c_str());
+                param_f << "Initializing calculation from vector files with prefix " << args.ini_path << '\n';
             }
             else {
-                fprintf(param_f, "Initializing calculation from HF unit vector\n");
+                param_f << "Initializing calculation from HF unit vector\n";
             }
-            fclose(param_f);
+            param_f.close();
         }
         
         size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2) ? n_elec_unf : n_orb - n_elec_unf / 2;
@@ -361,7 +377,7 @@ int main(int argc, char * argv[]) {
             
             size_t n_sing = sing_ex_symm(curr_det, occ_orbs, n_elec_unf, n_orb, sing_ex_orbs, symm);
             if (n_sing + n_determ_h > determ_h_size) {
-                printf("Allocating more memory for deterministic part of Hamiltonian\n");
+                std::cout << "Allocating more memory for deterministic part of Hamiltonian\n";
                 determ_h_size *= 2;
                 determ_from = (size_t *)realloc(determ_from, determ_h_size * sizeof(size_t));
                 determ_to.reshape(determ_h_size, det_size);
@@ -381,7 +397,7 @@ int main(int argc, char * argv[]) {
             uint8_t (*doub_ex_orbs)[4] = (uint8_t (*)[4])orb_indices1;
             size_t n_doub = doub_ex_symm(curr_det, occ_orbs, n_elec_unf, n_orb, doub_ex_orbs, symm);
             if (n_doub + n_determ_h > determ_h_size) {
-                printf("Allocating more memory for deterministic part of Hamiltonian\n");
+                std::cout << "Allocating more memory for deterministic part of Hamiltonian\n";
                 determ_h_size *= 2;
                 determ_from = (size_t *)realloc(determ_from, determ_h_size * sizeof(size_t));
                 determ_to.reshape(determ_h_size, det_size);
@@ -400,7 +416,7 @@ int main(int argc, char * argv[]) {
         }
         unsigned int tot_dense_h = sum_mpi((int) n_determ_h, proc_rank, n_procs);
         if (proc_rank == 0) {
-            printf("Elements in dense H: %u\n", tot_dense_h);
+            std::cout << "Elements in dense H: " << tot_dense_h << "\n";
         }
         
         unsigned int iterat;
@@ -411,7 +427,7 @@ int main(int argc, char * argv[]) {
             
             // Systematic matrix compression
             if (glob_n_nonz > args.matr_samp) {
-                fprintf(stderr, "Warning: target number of matrix samples (%u) is less than number of nonzero vector elements (%d)\n", args.matr_samp, glob_n_nonz);
+                std::cerr << "Warning: target number of matrix samples " << args.matr_samp << " is less than number of nonzero vector elements (" << glob_n_nonz << ")\n";
             }
             
 #pragma mark Singles vs doubles
@@ -788,15 +804,15 @@ int main(int argc, char * argv[]) {
             loc_norms[proc_rank] = find_preserve(&(sol_vec.values()[n_determ]), srt_arr, keep_exact, sol_vec.curr_size() - n_determ, &n_samp, &glob_norm);
             glob_norm += sol_vec.dense_norm();
             if (proc_rank == hf_proc) {
-                fprintf(nkept_file, "%u\n", args.target_nonz - n_samp);
+                nkept_file << args.target_nonz - n_samp << '\n';
             }
             
             // Adjust shift
             if ((iterat + 1) % shift_interval == 0) {
                 adjust_shift(&en_shift, glob_norm, &last_one_norm, target_norm, shift_damping / shift_interval / eps);
                 if (proc_rank == hf_proc) {
-                    fprintf(shift_file, "%lf\n", en_shift);
-                    fprintf(norm_file, "%lf\n", glob_norm);
+                    shift_file << en_shift << "\n";
+                    norm_file << glob_norm << "\n";
                 }
             }
             double numer = sol_vec.dot(htrial_vec.indices(), htrial_vec.values(), htrial_vec.curr_size(), htrial_hashes);
@@ -804,10 +820,10 @@ int main(int argc, char * argv[]) {
             numer = sum_mpi(numer, proc_rank, n_procs);
             denom = sum_mpi(denom, proc_rank, n_procs);
             if (proc_rank == hf_proc) {
-                fprintf(num_file, "%lf\n", numer);
-                fprintf(den_file, "%lf\n", denom);
-                printf("%6u, en est: %.9lf, shift: %lf, norm: %lf\n", iterat, numer / denom, en_shift, glob_norm);
-                fprintf(ini_file, "%zu\n", n_ini);
+                num_file << numer << '\n';
+                den_file << denom << '\n';
+                std::cout << iterat << ", en est: " << numer / denom << ", shift: " << en_shift << ", norm: " << glob_norm << '\n';
+                ini_file << n_ini << '\n';
             }
             
             if (proc_rank == 0) {
@@ -824,23 +840,23 @@ int main(int argc, char * argv[]) {
             }
             
             if ((iterat + 1) % save_interval == 0) {
-                sol_vec.save(result_dir);
+                sol_vec.save(args.result_dir);
                 uint64_t tot_add = sol_vec.tot_sgn_coh();
                 if (proc_rank == hf_proc) {
-                    fflush(num_file);
-                    fflush(den_file);
-                    fflush(shift_file);
-                    fflush(nkept_file);
-                    printf("Total additions to nonzero: %" PRIu64 "\n", tot_add);
+                    num_file.flush();
+                    den_file.flush();
+                    shift_file.flush();
+                    nkept_file.flush();
+                    std::cout << "Total additions to nonzero: " << tot_add << "\n";
                 }
             }
         }
-        sol_vec.save(result_dir);
+        sol_vec.save(args.result_dir);
         if (proc_rank == hf_proc) {
-            fclose(num_file);
-            fclose(den_file);
-            fclose(shift_file);
-            fclose(nkept_file);
+            num_file.close();
+            den_file.close();
+            shift_file.close();
+            nkept_file.close();
         }
 
         MPI_Finalize();

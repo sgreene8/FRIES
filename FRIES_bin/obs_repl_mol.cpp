@@ -1,7 +1,6 @@
 /*! \file
  *
- * \brief FRI algorithm with systematic vector compression for a molecular
- * system
+ * \brief Replica method for approximating observables that do not commute with H.
  */
 
 #include <chrono>
@@ -13,7 +12,6 @@
 
 struct MyArgs : public argparse::Args {
     std::string hf_path = kwarg("hf_path", "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt");
-    double target_norm = kwarg("target", "Target one-norm of solution vector").set_default(0);
     uint32_t max_iter = kwarg("max_iter", "Maximum number of iterations to run the calculation").set_default(1000000);
     uint32_t target_nonz = kwarg("vec_nonz", "Target number of nonzero vector elements to keep after each iteration");
     std::string result_dir = kwarg("result_dir", "Directory in which to save output files").set_default<std::string>("./");
@@ -21,16 +19,13 @@ struct MyArgs : public argparse::Args {
     std::shared_ptr<std::string> load_dir = kwarg("load_dir", "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())");
     std::shared_ptr<std::string> ini_path = kwarg("ini_vec", "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)");
     std::shared_ptr<std::string> trial_path = kwarg("trial_vec", "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text)");
-    std::shared_ptr<std::string> rdm_path = kwarg("rdm_path", "Path to file from which to load the diagonal elements of the 1-RDM to use in compression");
-    double rdm_confidence = kwarg("kernel_confidence", "Parameter to use in the kernel function when using the 1-RDM to guide compression").set_default(0);
-    
+    uint32_t obs_des = kwarg("obs_des", "Orbital index of the destruction operator component of the observale operator.");
+    uint32_t obs_cre = kwarg("obs_cre", "Orbital index of the creation operator component of the observale operator.");
     CONSTRUCTOR(MyArgs);
 };
 
 int main(int argc, char * argv[]) {
     MyArgs args(argc, argv);
-    
-    double target_norm = args.target_norm;
     
     try {
         int n_procs = 1;
@@ -42,10 +37,7 @@ int main(int argc, char * argv[]) {
         MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
         
         // Parameters
-        double shift_damping = 0.05;
-        unsigned int shift_interval = 10;
-        unsigned int save_interval = 100;
-        double en_shift = 0;
+        unsigned int save_interval = 10;
         
         // Read in data files
         hf_input in_data;
@@ -62,12 +54,6 @@ int main(int argc, char * argv[]) {
         uint8_t *symm = in_data.symm;
         Matrix<double> *h_core = in_data.hcore;
         FourDArr *eris = in_data.eris;
-        
-        std::vector<double> rdm_diag(tot_orb);
-        if (args.rdm_path != nullptr) {
-            load_rdm(args.rdm_path->c_str(), rdm_diag.data());
-            std::copy(rdm_diag.begin() + n_frz / 2, rdm_diag.end(), rdm_diag.begin());
-        }
         
         // Rn generator
         auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
@@ -94,8 +80,8 @@ int main(int argc, char * argv[]) {
         
         // Initialize hash function for processors and vector
         std::vector<uint32_t> proc_scrambler(2 * n_orb);
-        double loc_norm, glob_norm;
-        double last_one_norm = 0;
+        double loc_norm;
+        double last_norm;
         
         if (args.load_dir != nullptr) {
             load_proc_hash(args.load_dir->c_str(), proc_scrambler.data());
@@ -114,14 +100,12 @@ int main(int argc, char * argv[]) {
         for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
             vec_scrambler[det_idx] = mt_obj();
         }
-        DistVec<double> sol_vec(args.max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2, proc_scrambler, vec_scrambler);
-        
-        std::function<void(size_t, double *)> rdm_obs = [n_elec_unf, &sol_vec, n_orb](size_t idx, double *obs_vals) {
-            uint8_t *orbs = sol_vec.orbs_at_pos(idx);
-            for (size_t elec_idx = 0; elec_idx < n_elec_unf; elec_idx++) {
-                obs_vals[orbs[elec_idx] % n_orb] += 1;
-            }
-        };
+        /* - vector 0 is the first iterate
+         * - vector 1 is the second
+         * - vector 2 is the observable operator * the first
+         * - vector 3 is scratch
+         */
+        DistVec<double> sol_vec(args.max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 4, proc_scrambler, vec_scrambler);
         
         uint8_t hf_det[det_size];
         gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
@@ -161,45 +145,16 @@ int main(int argc, char * argv[]) {
         }
         
         std::string file_path;
-        std::ofstream num_file;
-        std::ofstream den_file;
-        std::ofstream shift_file;
-        std::ofstream norm_file;
-        std::ofstream nkept_file;
-        std::ofstream prob_file;
+        std::ofstream num_file1;
+        std::ofstream den_file1;
+        std::ofstream num_file2;
+        std::ofstream den_file2;
+        std::ofstream obs_num_file;
+        std::ofstream obs_den_file;
         
 #pragma mark Initialize solution vector
         if (args.load_dir != nullptr) {
             sol_vec.load(*args.load_dir);
-            
-            file_path = *args.load_dir;
-            file_path.append("S.txt");
-            std::ifstream shift_in(file_path);
-            if (shift_in.is_open()) {
-                // load energy shift (seehttps://stackoverflow.com/questions/11876290/c-fastest-way-to-read-only-last-line-of-text-file)
-                shift_in.seekg(-1, std::ios_base::end);
-
-                bool keepLooping = true;
-                while(keepLooping) {
-                    char ch;
-                    shift_in.get(ch);
-
-                    if((int)shift_in.tellg() <= 1) {
-                        shift_in.seekg(0);
-                        keepLooping = false;
-                    }
-                    else if(ch == '\n') {
-                        keepLooping = false;
-                    }
-                    else {
-                        shift_in.seekg(-2, std::ios_base::cur);
-                    }
-                }
-                
-                shift_in >> en_shift;
-
-                shift_in.close();
-            }
         }
         else if (args.ini_path != nullptr) {
             Matrix<uint8_t> load_dets(args.max_n_dets, det_size);
@@ -219,47 +174,47 @@ int main(int argc, char * argv[]) {
             }
         }
         sol_vec.perform_add();
+        sol_vec.copy_vec(0, 1);
+        one_elec_op(sol_vec, n_orb, args.obs_des, args.obs_cre, 2);
         loc_norm = sol_vec.local_norm();
-        glob_norm = sum_mpi(loc_norm, proc_rank, n_procs);
-        if (args.load_dir != nullptr) {
-            last_one_norm = glob_norm;
-        }
+        
+        last_norm = sum_mpi(loc_norm, proc_rank, n_procs);
         
         if (proc_rank == hf_proc) {
             // Setup output files
             file_path = args.result_dir;
-            file_path.append("projnum.txt");
-            num_file.open(file_path, std::ofstream::app);
-            if (!num_file.is_open()) {
+            file_path.append("projnum1.txt");
+            num_file1.open(file_path, std::ofstream::app);
+            if (!num_file1.is_open()) {
                 std::string msg("Could not open file for writing in directory ");
                 msg.append(args.result_dir);
                 throw std::runtime_error(msg);
             }
             
             file_path = args.result_dir;
-            file_path.append("projden.txt");
-            den_file.open(file_path, std::ofstream::app);
+            file_path.append("projden1.txt");
+            den_file1.open(file_path, std::ofstream::app);
             
             file_path = args.result_dir;
-            file_path.append("S.txt");
-            shift_file.open(file_path, std::ofstream::app);
+            file_path.append("projnum2.txt");
+            num_file2.open(file_path, std::ofstream::app);
             
             file_path = args.result_dir;
-            file_path.append("norm.txt");
-            norm_file.open(file_path, std::ofstream::app);
+            file_path.append("projden2.txt");
+            den_file2.open(file_path, std::ofstream::app);
             
             file_path = args.result_dir;
-            file_path.append("nkept.txt");
-            nkept_file.open(file_path, std::ofstream::app);
+            file_path.append("obs_num.txt");
+            obs_num_file.open(file_path, std::ofstream::app);
             
             file_path = args.result_dir;
-            file_path.append("probs.txt");
-            nkept_file.open(file_path, std::ofstream::app);
+            file_path.append("obs_den.txt");
+            obs_den_file.open(file_path, std::ofstream::app);
             
             file_path = args.result_dir;
             file_path.append("params.txt");
             std::ofstream param_f(file_path);
-            param_f << "FRI calculation\nHF path: " << args.hf_path << "\nepsilon (imaginary time step): " << eps << "\nTarget norm " << target_norm << "\nVector nonzero: " << args.target_nonz << "\n";
+            param_f << "FRI calculation\nHF path: " << args.hf_path << "\nepsilon (imaginary time step): " << eps << "\nVector nonzero: " << args.target_nonz << "\n";
             if (args.load_dir != nullptr) {
                 param_f << "Restarting calculation from " << args.load_dir << "\n";
             }
@@ -281,29 +236,52 @@ int main(int argc, char * argv[]) {
             srt_arr[det_idx] = det_idx;
         }
         std::vector<bool> keep_exact(max_n_dets, false);
-        size_t num_rn_obs = (args.rdm_path != nullptr) ? 5 : 0;
-        Matrix<double> obs_vals(num_rn_obs, n_orb);
-        std::vector<double> obs_probs(num_rn_obs);
         
-        for (unsigned int iterat = 0; iterat < args.max_iter; iterat++) {
-            double denom = sol_vec.dot(trial_vec.indices(), trial_vec.values(), trial_vec.curr_size(), trial_hashes);
-            denom = sum_mpi(denom, proc_rank, n_procs);
-            
-            sol_vec.set_curr_vec_idx(1);
-            sol_vec.zero_vec();
-            sol_vec.set_curr_vec_idx(0);
-            h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, orb_indices, n_frz, n_elec_unf, 1, -eps);
-            sol_vec.set_curr_vec_idx(0);
-            h_op_diag(sol_vec, 0, 1 + eps * en_shift, -eps);
-            sol_vec.add_vecs(0, 1);
-            
-            double numer = sol_vec.dot(trial_vec.indices(), trial_vec.values(), trial_vec.curr_size(), trial_hashes);
-            numer = sum_mpi(numer, proc_rank, n_procs);
-            numer = ((1 + eps * en_shift) * denom - numer) / eps;
+        for (uint32_t iterat = 0; iterat < args.max_iter; iterat++) {
+            double obs_den = sol_vec.internal_dot(0, 1);
+            obs_den = sum_mpi(obs_den, proc_rank, n_procs);
+            double obs_num = sol_vec.internal_dot(1, 2);
+            obs_num = sum_mpi(obs_num, proc_rank, n_procs);
             if (proc_rank == hf_proc) {
-                num_file << numer << '\n';
-                den_file << denom << "\n";
-                std::cout << iterat << ", en est: " << numer / denom << ", shift: " << en_shift << ", norm: " << glob_norm << '\n';
+                obs_den_file << obs_den << '\n';
+                obs_num_file << obs_num << '\n';
+            }
+            
+            sol_vec.set_curr_vec_idx(0);
+            double denom1 = sol_vec.dot(trial_vec.indices(), trial_vec.values(), trial_vec.curr_size(), trial_hashes);
+            denom1 = sum_mpi(denom1, proc_rank, n_procs);
+                        
+#pragma mark Vector compression step
+            unsigned int n_samp = args.target_nonz;
+            double tmp_norm;
+            loc_norms[proc_rank] = find_preserve(sol_vec.values(), srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &tmp_norm);
+            MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+            
+            if (proc_rank == 0) {
+                rn_sys = mt_obj() / (1. + UINT32_MAX);
+            }
+            sys_comp(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
+            for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
+                if (keep_exact[det_idx]) {
+                    sol_vec.del_at_pos(det_idx);
+                    keep_exact[det_idx] = 0;
+                }
+            }
+            
+            h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, orb_indices, n_frz, n_elec_unf, 3, -eps);
+            sol_vec.set_curr_vec_idx(0);
+            h_op_diag(sol_vec, 0, 1, -eps);
+            sol_vec.add_vecs(0, 3);
+                
+            double numer1 = sol_vec.dot(trial_vec.indices(), trial_vec.values(), trial_vec.curr_size(), trial_hashes);
+            numer1 = sum_mpi(numer1, proc_rank, n_procs);
+            numer1 = (denom1 - numer1) / eps;
+            
+            double glob_norm = sol_vec.local_norm();
+            glob_norm = sum_mpi(glob_norm, proc_rank, n_procs);
+            
+            for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
+                *sol_vec[el_idx] /= glob_norm;
             }
             
             size_t new_max_dets = sol_vec.max_size();
@@ -315,60 +293,21 @@ int main(int argc, char * argv[]) {
                 }
             }
             
-#pragma mark Vector compression step
-            unsigned int n_samp = args.target_nonz;
-            loc_norms[proc_rank] = find_preserve(sol_vec.values(), srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &glob_norm);
+            one_elec_op(sol_vec, n_orb, args.obs_des, args.obs_cre, 2);
 
-            MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-            if (proc_rank == hf_proc) {
-                nkept_file << args.target_nonz - n_samp << '\n';
-            }
-            if (args.rdm_path != nullptr) {
-                sys_obs(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rdm_obs, obs_vals);
-                double two_norm = sol_vec.two_norm();
-                two_norm = sum_mpi(two_norm, proc_rank, n_procs);
-                double prob_norm = 0;
-                for (size_t rn_idx = 0; rn_idx < num_rn_obs; rn_idx++) {
-                    obs_probs[rn_idx] = 0;
-                    for (size_t obs_idx = 0; obs_idx < n_orb; obs_idx++) {
-                        double obs = sum_mpi(obs_vals(rn_idx, obs_idx), proc_rank, n_procs) / two_norm;
-                        obs_probs[rn_idx] += (obs - rdm_diag[obs_idx]) * (obs - rdm_diag[obs_idx]);
-                    }
-                    obs_probs[rn_idx] = exp(-obs_probs[rn_idx] / args.rdm_confidence / args.rdm_confidence);
-                    prob_norm += obs_probs[rn_idx];
-                }
-                for (size_t rn_idx = 0; rn_idx < num_rn_obs; rn_idx++) {
-                    obs_probs[rn_idx] /= prob_norm;
-                }
-                if ((iterat + 1) % 1000 == 0 && proc_rank == hf_proc) {
-                    for (size_t rn_idx = 0; rn_idx < num_rn_obs; rn_idx++) {
-                        prob_file << obs_probs[rn_idx];
-                        if (rn_idx + 1 < num_rn_obs) {
-                            prob_file << ',';
-                        }
-                    }
-                    prob_file << '\n';
-                }
-            }
+            sol_vec.set_curr_vec_idx(1);
+            double denom2 = sol_vec.dot(trial_vec.indices(), trial_vec.values(), trial_vec.curr_size(), trial_hashes);
+            denom2 = sum_mpi(denom2, proc_rank, n_procs);
             
-            // Adjust shift
-            if ((iterat + 1) % shift_interval == 0) {
-                adjust_shift(&en_shift, glob_norm, &last_one_norm, target_norm, shift_damping / shift_interval / eps);
-                if (proc_rank == hf_proc) {
-                    shift_file << en_shift << "\n";
-                    norm_file << glob_norm << "\n";
-                }
-            }
+#pragma mark Vector compression step
+            n_samp = args.target_nonz;
+            loc_norms[proc_rank] = find_preserve(sol_vec.values(), srt_arr, keep_exact, sol_vec.curr_size(), &n_samp, &tmp_norm);
+            MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
             
             if (proc_rank == 0) {
                 rn_sys = mt_obj() / (1. + UINT32_MAX);
             }
-            if (args.rdm_path != nullptr) {
-                sys_comp_nonuni(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, obs_probs.data(), num_rn_obs, rn_sys);
-            }
-            else {
-                sys_comp(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
-            }
+            sys_comp(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
             for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
                 if (keep_exact[det_idx]) {
                     sol_vec.del_at_pos(det_idx);
@@ -376,26 +315,70 @@ int main(int argc, char * argv[]) {
                 }
             }
             
+            h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, orb_indices, n_frz, n_elec_unf, 3, -eps);
+            sol_vec.set_curr_vec_idx(1);
+            h_op_diag(sol_vec, 1, 1, -eps);
+            sol_vec.add_vecs(1, 3);
+            
+            double numer2 = sol_vec.dot(trial_vec.indices(), trial_vec.values(), trial_vec.curr_size(), trial_hashes);
+            numer2 = sum_mpi(numer2, proc_rank, n_procs);
+            numer2 = (denom2 - numer2) / eps;
+            
+            glob_norm = sol_vec.local_norm();
+            glob_norm = sum_mpi(glob_norm, proc_rank, n_procs);
+            
+            for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
+                *sol_vec[el_idx] /= glob_norm;
+            }
+            
+            obs_den = sol_vec.internal_dot(0, 1);
+            obs_den = sum_mpi(obs_den, proc_rank, n_procs);
+            obs_num = sol_vec.internal_dot(1, 2);
+            obs_num = sum_mpi(obs_num, proc_rank, n_procs);
+            if (proc_rank == hf_proc) {
+                obs_den_file << obs_den << '\n';
+                obs_num_file << obs_num << '\n';
+            }
+            
+            if (proc_rank == hf_proc) {
+                den_file1 << denom1 << '\n';
+                num_file1 << numer1 << '\n';
+                den_file2 << denom2 << '\n';
+                num_file2 << numer2 << '\n';
+                std::cout << "Iteration " << iterat <<  ", en1: " << numer1 / denom1 << ", en2: " << numer2 / denom2 << "\n";
+            }
+            
+            new_max_dets = sol_vec.max_size();
+            if (new_max_dets > max_n_dets) {
+                keep_exact.resize(new_max_dets, false);
+                srt_arr.resize(new_max_dets);
+                for (; max_n_dets < new_max_dets; max_n_dets++) {
+                    srt_arr[max_n_dets] = max_n_dets;
+                }
+            }
+            
             if ((iterat + 1) % save_interval == 0) {
-                sol_vec.save(args.result_dir.c_str());
+                sol_vec.save(args.result_dir);
                 if (proc_rank == hf_proc) {
-                    num_file.flush();
-                    den_file.flush();
-                    shift_file.flush();
-                    nkept_file.flush();
-                    prob_file.flush();
+                    num_file1.flush();
+                    den_file1.flush();
+                    num_file2.flush();
+                    den_file2.flush();
+                    obs_num_file.flush();
+                    obs_den_file.flush();
                 }
             }
         }
-        sol_vec.save(args.result_dir.c_str());
+        sol_vec.save(args.result_dir);
         if (proc_rank == hf_proc) {
-            num_file.close();
-            den_file.close();
-            shift_file.close();
-            nkept_file.close();
-            prob_file.close();
+            num_file1.close();
+            den_file1.close();
+            num_file2.close();
+            den_file2.close();
+            obs_num_file.close();
+            obs_den_file.close();
         }
-            
+
         MPI_Finalize();
     } catch (std::exception &ex) {
         std::cerr << "\nException : " << ex.what() << "\n\nPlease report this error to the developers through our GitHub repository: https://github.com/sgreene8/FRIES/ \n\n";
