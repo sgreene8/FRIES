@@ -157,11 +157,14 @@ void h_op_diag(DistVec<double> &vec, uint8_t dest_idx, double id_fac, double h_f
     double *vals_before_mult = vec.values();
     vec.set_curr_vec_idx(dest_idx);
     for (size_t det_idx = 0; det_idx < vec.curr_size(); det_idx++) {
+        double *target_val = vec[det_idx];
         double curr_val = vals_before_mult[det_idx];
         if (curr_val != 0) {
             double diag_el = vec.matr_el_at_pos(det_idx);
-            double *target_val = vec[det_idx];
             *target_val = curr_val * (id_fac + h_fac * diag_el);
+        }
+        else {
+            *target_val = 0;
         }
     }
 }

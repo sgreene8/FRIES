@@ -838,7 +838,7 @@ public:
      * \param [in] save_dir      Directory in which to store a file containing the length of the dense subspace on each MPI process
      * \return Size of the dense subspace
      */
-    size_t init_dense(const std::string &read_path, const char *save_dir) {
+    size_t init_dense(const std::string &read_path, const std::string &save_dir) {
         int n_procs = 1;
         int my_rank = 0;
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
