@@ -337,7 +337,7 @@ void sys_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
 }
 
 
-void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double sampl_val,
+void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm,
                      uint32_t n_samp, std::vector<bool> &keep_exact, std::mt19937 &mt_obj) {
     if (n_samp == 0) {
         for (size_t idx = 0; idx < vec_len; idx++) {
@@ -378,7 +378,7 @@ void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
             vec_max_offset++;
         }
         double bn = cum_prob - sampl_unit;
-        if (fabs(bn) > 1e-8) { // If not at the last sampling interval
+        if (vec_offset + vec_idx != vec_len) { // If not at the last sampling interval
             prob_idx--;
             cum_prob -= sampl_el[prob_idx];
         }
@@ -425,13 +425,13 @@ void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
             }
             // sample cross-border unit
             double tmp_val = vec_vals[vec_idx + vec_max_offset];
-            vec_vals[vec_idx + vec_max_offset] = sampl_val * ((tmp_val > 0) - (tmp_val < 0));
+            vec_vals[vec_idx + vec_max_offset] = sampl_unit * ((tmp_val > 0) - (tmp_val < 0));
         }
         else { // H_n is sampled and cross-border unit is passed on
                // deal with residual unit
             if (Hn == 0) { // residual unit was sampled
                 double tmp_val = vec_vals[resid_idx];
-                vec_vals[resid_idx] = sampl_val * ((tmp_val > 0) - (tmp_val < 0));
+                vec_vals[resid_idx] = sampl_unit * ((tmp_val > 0) - (tmp_val < 0));
             }
             prob_idx = 1;
             for (vec_offset = 0; vec_offset < vec_max_offset; vec_offset++) {
@@ -442,7 +442,7 @@ void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
                     }
                     else { // this element is sampled
                         double tmp_val = vec_vals[vec_idx + vec_offset];
-                        vec_vals[vec_idx + vec_offset] = sampl_val * ((tmp_val > 0) - (tmp_val < 0));
+                        vec_vals[vec_idx + vec_offset] = sampl_unit * ((tmp_val > 0) - (tmp_val < 0));
                     }
                     prob_idx++;
                 }
@@ -653,7 +653,7 @@ uint32_t piv_budget(double *loc_norms, uint32_t n_samp, std::mt19937 &mt_obj,
         
         std::vector<bool> keep(n_procs, false);
         if (tot_budget < n_samp) {
-            piv_comp_serial(weights.data(), n_procs, glob_norm * (n_samp - tot_budget) / n_samp, 1, n_samp - tot_budget, keep, mt_obj);
+            piv_comp_serial(weights.data(), n_procs, glob_norm * (n_samp - tot_budget) / n_samp, n_samp - tot_budget, keep, mt_obj);
         }
         
         for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {

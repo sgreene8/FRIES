@@ -98,14 +98,13 @@ void sys_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
  *                      and after compression (length \p vec_len)
  * \param [in] vec_len  Number of elements in the vector
  * \param [in] seg_norm  Sum of magnitudes of elements in this segment not preserved exactly
- * \param [in] sampl_val    Magnitude to assign to elements selected
  * \param [in] n_samp   Number of samples in pivotal resampling (just for this segment)
  * \param [in, out] keep_exact Array indicating elements to be preserved exactly
  *                      in compression; upon return, 1's indicate elements
  *                      zeroed in the compression
  * \param [in] mt_obj   A reference to an initialized MT object to use for random number generation
  */
-void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double sampl_val,
+void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm,
                      uint32_t n_samp, std::vector<bool> &keep_exact, std::mt19937 &mt_obj);
 
 

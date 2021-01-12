@@ -58,9 +58,15 @@ void compress_all(DistVec<double> &vectors, size_t start_idx, size_t end_idx, un
         }
 
         uint32_t loc_samp = piv_budget(loc_norms, n_samp, rn_gen, vec_comm);
-        double new_norm = adjust_probs(vectors.values(), vectors.curr_size(), loc_samp, n_samp * loc_norms[rank] / glob_norm, n_samp, glob_norm, keep_scratch);
-        piv_comp_serial(vectors.values(), vectors.curr_size(), new_norm, glob_norm / n_samp, loc_samp, keep_scratch, rn_gen);
-        
+        uint32_t check_tot = sum_mpi((int)loc_samp, rank, n_procs);
+        if (check_tot != n_samp) {
+            std::stringstream msg;
+            msg << "After pivotal budgeting, total number of elements across all processes (" << check_tot << ") does not equal input number of samples (" << n_samp << ")";
+            throw std::runtime_error(msg.str());
+        }
+        double new_norm = adjust_probs(vectors.values(), vectors.curr_size(), &loc_samp, n_samp * loc_norms[rank] / glob_norm, n_samp, glob_norm, keep_scratch);
+        piv_comp_serial(vectors.values(), vectors.curr_size(), new_norm, loc_samp, keep_scratch, rn_gen);
+
         for (size_t idx = 0; idx < vectors.curr_size(); idx++) {
             if (keep_scratch[idx]) {
                 keep_scratch[idx] = 0;
