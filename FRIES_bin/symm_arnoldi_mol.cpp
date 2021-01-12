@@ -99,6 +99,9 @@ int main(int argc, char * argv[]) {
         else if (args.mat_output == "npy") {
             mat_fmt = npy_out;
         }
+        else if (args.mat_output == "bin") {
+            mat_fmt = bin_out;
+        }
         else {
             throw std::runtime_error("out_format input argument must be either \"none\", \"txt\", \"npy\", or \"bin\"");
         }
@@ -379,6 +382,14 @@ int main(int argc, char * argv[]) {
                     dmat_file.write((char *) d_mat.data(), sizeof(double) * n_states * n_states);
                     bmat_file.flush();
                     dmat_file.flush();
+                }
+            }
+            if ((iteration + 1) % args.restart_int == 0) {
+                for (uint8_t vec_idx = 1; vec_idx < n_states; vec_idx++) {
+                    for (uint8_t prev_idx = 0; prev_idx < vec_idx; prev_idx++) {
+                        double dprod = sol_vec.internal_dot(vec_idx, prev_idx);
+                        sol_vec.add_vecs(vec_idx, prev_idx, -dprod);
+                    }
                 }
             }
         }
