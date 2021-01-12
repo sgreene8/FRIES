@@ -24,6 +24,7 @@ struct MyArgs : public argparse::Args {
     uint32_t btw_obs = kwarg("btw_obs", "Number of iterations to perform in between periods of calculating the observable.");
     uint32_t obs_des = kwarg("obs_des", "Orbital index of the destruction operator component of the observale operator.");
     uint32_t obs_cre = kwarg("obs_cre", "Orbital index of the creation operator component of the observale operator.");
+    double exponent = kwarg("exponent", "Exponent to use for importance-sampled compression operations").set_default(0);
     
     CONSTRUCTOR(MyArgs);
 };
@@ -250,7 +251,7 @@ int main(int argc, char * argv[]) {
                         
 #pragma mark Vector compression step
             if (calculating_obs) {
-                sol_vec.weight_vec(vec_idx, 3, 3);
+                sol_vec.weight_vec(vec_idx, 3, args.exponent);
             }
             unsigned int n_samp = args.target_nonz;
             double tmp_norm;
@@ -268,7 +269,7 @@ int main(int argc, char * argv[]) {
                 }
             }
             if (calculating_obs) {
-                sol_vec.weight_vec(vec_idx, 3, -3);
+                sol_vec.weight_vec(vec_idx, 3, -args.exponent);
             }
 
             h_op_diag(sol_vec, !vec_idx, 1, -eps);
