@@ -5,8 +5,6 @@
 #ifndef ndarr_h
 #define ndarr_h
 
-#include <stdlib.h>
-#include <stdio.h>
 #include <vector>
 #include <FRIES/math_utils.h>
 

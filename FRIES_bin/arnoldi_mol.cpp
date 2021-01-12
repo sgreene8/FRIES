@@ -56,7 +56,7 @@ void compress_all(DistVec<double> &vectors, size_t start_idx, size_t end_idx, un
         for (uint16_t proc_idx = 0; proc_idx < n_procs; proc_idx++) {
             glob_norm += loc_norms[proc_idx];
         }
-        
+
         uint32_t loc_samp = piv_budget(loc_norms, n_samp, rn_gen, vec_comm);
         double new_norm = adjust_probs(vectors.values(), vectors.curr_size(), loc_samp, n_samp * loc_norms[rank] / glob_norm, n_samp, glob_norm, keep_scratch);
         piv_comp_serial(vectors.values(), vectors.curr_size(), new_norm, glob_norm / n_samp, loc_samp, keep_scratch, rn_gen);
@@ -218,7 +218,6 @@ int main(int argc, char * argv[]) {
         sol_vec.fix_min_del_idx();
         
         std::vector<std::vector<uintmax_t>> trial_hashes(n_trial);
-        std::vector<std::vector<uintmax_t>> htrial_hashes(n_trial);
         for (uint8_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
             uint8_t tmp_orbs[n_elec_unf];
             DistVec<double> &curr_trial = trial_vecs[trial_idx];

@@ -197,18 +197,6 @@ void sys_obs(double *vec_vals, size_t vec_len, double *loc_norms, unsigned int n
  * \param [in] n_procs  Total number of MPI processes
  * \return The calculated sum
  */
-inline double sum_mpi(double local, int my_rank, int n_procs)  {
-    double rec_vals[n_procs];
-    rec_vals[my_rank] = local;
-    MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, rec_vals, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-    double global = 0;
-    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-        global += rec_vals[proc_idx];
-    }
-    return global;
-}
-
-
 inline double sum_mpi(double local, int my_rank, int n_procs, MPI_Comm comm)  {
     double rec_vals[n_procs];
     rec_vals[my_rank] = local;
@@ -218,6 +206,11 @@ inline double sum_mpi(double local, int my_rank, int n_procs, MPI_Comm comm)  {
         global += rec_vals[proc_idx];
     }
     return global;
+}
+
+
+inline double sum_mpi(double local, int my_rank, int n_procs)  {
+    return sum_mpi(local, my_rank, n_procs, MPI_COMM_WORLD);
 }
 
 

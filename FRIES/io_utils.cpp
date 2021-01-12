@@ -278,40 +278,7 @@ size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, int *vals)
 }
 
 size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, double *vals) {
-    int my_rank = 0;
-    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-    
-    if (my_rank == 0) {
-        std::string buffer(prefix);
-        buffer.append("dets");
-        size_t n_dets = read_dets(buffer, dets);
-        
-        buffer = prefix;
-        buffer.append("vals");
-        std::ifstream file_v(buffer);
-        if (!file_v.is_open()) {
-            std::string msg("Could not open file: ");
-            msg.append(buffer);
-            throw std::runtime_error(msg);
-        }
-        size_t n_vals = 0;
-        
-        while (file_v >> vals[n_vals]) {
-            n_vals++;
-        }
-        if (n_vals > n_dets) {
-            std::cerr << "Warning: fewer determinants than values read in\n";
-            return n_dets;
-        }
-        else if (n_vals < n_dets) {
-            std::cerr << "Warning: fewer values than determinants read in\n";
-        }
-        file_v.close();
-        return n_vals;
-    }
-    else {
-        return 0;
-    }
+    return load_vec_txt(prefix, dets, vals, MPI_COMM_WORLD);
 }
 
 size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, double *vals, MPI_Comm comm) {

@@ -180,12 +180,33 @@ protected:
     }
     
 public:
+
+    DistVec(size_t size, Adder<el_type> *adder, uint8_t n_bits, unsigned int n_elec,
+            std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr,
+            uint8_t n_vecs, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) :
+    values_(n_vecs, size),
+    curr_vec_idx_(0),
+    ini_success_(diag_fxn ? size : 0),
+    ini_fail_(diag_fxn ? size : 0),
+    max_size_(size), curr_size_(0),
+    occ_orbs_(size, n_elec),
+    adder_(adder),
+    n_nonz_(0),
+    indices_(size, CEILING(n_bits, 8)),
+    n_bits_(n_bits),
+    n_dense_(0),
+    nonini_occ_add(0),
+    diag_calc_(diag_fxn),
+    curr_shift_(shift_ptr),
+    matr_el_(size),
+    vec_hash_(size, rns_distinct),
+    proc_hash_(0, rns_common),
+    mpi_communicator_(adder->communicator()),
+    min_del_idx_(0) { }
     
-    DistVec(size_t size, size_t add_size, uint8_t n_bits,
-            unsigned int n_elec, int n_procs, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(new Adder<el_type>(add_size, n_procs, n_bits, MPI_COMM_WORLD)), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr), matr_el_(size), vec_hash_(size, rns_distinct), proc_hash_(0, rns_common), min_del_idx_(0), mpi_communicator_(MPI_COMM_WORLD) { }
-    
-    DistVec(size_t size, Adder<el_type> *adder, uint8_t n_bits,
-            unsigned int n_elec, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(1, size), curr_vec_idx_(0), ini_success_(0), ini_fail_(0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(adder), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(nullptr), curr_shift_(nullptr), matr_el_(size), vec_hash_(size, rns_distinct), proc_hash_(0, rns_common), mpi_communicator_(adder->communicator()), min_del_idx_(0) { }
+    DistVec(size_t size, Adder<el_type> *adder, uint8_t n_bits, unsigned int n_elec,
+            std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) :
+    DistVec(size, adder, n_bits, n_elec, nullptr, nullptr, 1, rns_common, rns_distinct) {}
     
     /*! \brief Constructor for DistVec object
      * \param [in] size         Maximum number of elements to be stored in the vector
@@ -200,11 +221,15 @@ public:
      * \param [in] rns_distinct A different vector of random numbers that need not be common to
      * all MPI processes, but should not be the same as \p rns_common
      */
-    DistVec(size_t size, size_t add_size, uint8_t n_bits,
-            unsigned int n_elec, int n_procs, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(new Adder<el_type>(add_size, n_procs, n_bits, MPI_COMM_WORLD)), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr), matr_el_(size), vec_hash_(size, rns_distinct), proc_hash_(0, rns_common), min_del_idx_(0), mpi_communicator_(MPI_COMM_WORLD) { }
+    DistVec(size_t size, size_t add_size, uint8_t n_bits, unsigned int n_elec, int n_procs,
+            std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs,
+            std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) :
+    DistVec(size, new Adder<el_type>(add_size, n_procs, n_bits, MPI_COMM_WORLD),
+            n_bits, n_elec, diag_fxn, shift_ptr, n_vecs, rns_common, rns_distinct) {}
     
-    DistVec(size_t size, Adder<el_type> *adder, uint8_t n_bits,
-            unsigned int n_elec, std::function<double(const uint8_t *)> diag_fxn, double *shift_ptr, uint8_t n_vecs, std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) : values_(n_vecs, size), curr_vec_idx_(0), ini_success_(diag_fxn ? size : 0), ini_fail_(diag_fxn ? size : 0), max_size_(size), curr_size_(0), occ_orbs_(size, n_elec), adder_(adder), n_nonz_(0), indices_(size, CEILING(n_bits, 8)), n_bits_(n_bits), n_dense_(0), nonini_occ_add(0), diag_calc_(diag_fxn), curr_shift_(shift_ptr), matr_el_(size), vec_hash_(size, rns_distinct), proc_hash_(0, rns_common), mpi_communicator_(adder->communicator()), min_del_idx_(0) { }
+    DistVec(size_t size, size_t add_size, uint8_t n_bits, unsigned int n_elec, int n_procs,
+            std::vector<uint32_t> rns_common, std::vector<uint32_t> rns_distinct) :
+    DistVec(size, add_size, n_bits, n_elec, n_procs, nullptr, nullptr, 1, rns_common, rns_distinct) {}
     
     uint8_t n_bits() {
         return n_bits_;
@@ -246,18 +271,6 @@ public:
         return numer;
     }
     
-    double dot(Matrix<uint8_t> &idx2, Matrix<double>::RowReference vals2, size_t num2,
-               std::vector<uintmax_t> &hashes2) {
-        double numer = 0;
-        for (size_t hf_idx = 0; hf_idx < num2; hf_idx++) {
-            ssize_t * ht_ptr = vec_hash_.read(idx2[hf_idx], hashes2[hf_idx], false);
-            if (ht_ptr) {
-                numer += vals2[hf_idx] * values_(curr_vec_idx_, *ht_ptr);
-            }
-        }
-        return numer;
-    }
-    
     /*! \brief Same as function above, except hash values are not provided
      */
     double dot(Matrix<uint8_t> &idx2, double *vals2, size_t num2) {
@@ -266,21 +279,6 @@ public:
         for (size_t hf_idx = 0; hf_idx < num2; hf_idx++) {
             uintmax_t hash_val = idx_to_hash(idx2[hf_idx], tmp_occ);
             ssize_t * ht_ptr = vec_hash_.read(idx2[hf_idx], hash_val, false);
-            if (ht_ptr) {
-                numer += vals2[hf_idx] * values_(curr_vec_idx_, *ht_ptr);
-            }
-        }
-        return numer;
-    }
-    
-    double dot(uint8_t *idx2, double *vals2, size_t num2) {
-        double numer = 0;
-        uint8_t tmp_occ[occ_orbs_.cols()];
-        uint8_t add_n_bytes = CEILING(n_bits_ + 1, 8);
-        for (size_t hf_idx = 0; hf_idx < num2; hf_idx++) {
-            uint8_t *curr_idx = &idx2[hf_idx * add_n_bytes];
-            uintmax_t hash_val = idx_to_hash(curr_idx, tmp_occ);
-            ssize_t * ht_ptr = vec_hash_.read(curr_idx, hash_val, false);
             if (ht_ptr) {
                 numer += vals2[hf_idx] * values_(curr_vec_idx_, *ht_ptr);
             }
@@ -374,10 +372,7 @@ public:
         unsigned int n_elec = (unsigned int)occ_orbs_.cols();
         uint8_t orbs[n_elec];
         gen_orb_list(idx, orbs);
-        uintmax_t hash_val = proc_hash_.hash_fxn(orbs, n_elec, NULL, 0);
-        int n_procs = 1;
-        MPI_Comm_size(mpi_communicator_, &n_procs);
-        return hash_val % n_procs;
+        return idx_to_proc(idx, orbs);
     }
     
     /*! \brief Hash function mapping vector index to MPI process
@@ -556,8 +551,14 @@ public:
     /*! \brief Add the vector at \p idx2 to the one at \p idx1
      */
     void add_vecs(uint8_t idx1, uint8_t idx2) {
+        add_vecs(idx1, idx2, 1);
+    }
+    
+    /*! \brief Add a constant times the vector at \p idx2 to the one at \p idx1
+     */
+    void add_vecs(uint8_t idx1, uint8_t idx2, el_type c) {
         for (size_t el_idx = 0; el_idx < curr_size_; el_idx++) {
-            values_(idx1, el_idx) += values_(idx2, el_idx);
+            values_(idx1, el_idx) += values_(idx2, el_idx) * c;
         }
     }
     

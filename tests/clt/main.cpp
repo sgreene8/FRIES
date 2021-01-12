@@ -18,9 +18,11 @@
 
 int main(int argc, const char * argv[]) {
     int proc_rank = 0;
+    int n_procs;
 
     MPI_Init(NULL, NULL);
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     
     unsigned int n_iter = 10000;
     std::ofstream out_file;

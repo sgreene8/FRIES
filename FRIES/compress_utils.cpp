@@ -27,65 +27,7 @@ int round_binomially(double p, unsigned int n, std::mt19937 &mt_obj) {
 
 double find_preserve(double *values, std::vector<size_t> &srt_idx, std::vector<bool> &keep_idx,
                      size_t count, unsigned int *n_samp, double *global_norm) {
-    double loc_one_norm = 0;
-    double glob_one_norm = 0;
-    size_t heap_count = count;
-    for (size_t det_idx = 0; det_idx < count; det_idx++) {
-        loc_one_norm += fabs(values[det_idx]);
-    }
-    int proc_rank = 0;
-    int n_procs = 1;
-    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-    
-    auto val_compare = [values](size_t i, size_t j){return fabs(values[i]) < fabs(values[j]); };
-    std::make_heap(srt_idx.begin(), srt_idx.begin() + heap_count, val_compare);
-    int loc_sampled, glob_sampled = 1;
-    int keep_going = 1;
-    
-    double el_magn = 0;
-    size_t max_idx;
-    *global_norm = sum_mpi(loc_one_norm, proc_rank, n_procs);
-    while (glob_sampled > 0) {
-        glob_one_norm = sum_mpi(loc_one_norm, proc_rank, n_procs);
-        loc_sampled = 0;
-        while (keep_going && heap_count > 0) {
-            max_idx = srt_idx[0];
-            el_magn = fabs(values[max_idx]);
-            if (el_magn >= glob_one_norm / (*n_samp - loc_sampled)) {
-                keep_idx[max_idx] = 1;
-                loc_sampled++;
-                loc_one_norm -= el_magn;
-                glob_one_norm -= el_magn;
-                
-                heap_count--;
-                if (heap_count) {
-                    std::pop_heap(srt_idx.begin(), srt_idx.begin() + heap_count + 1, val_compare);
-                }
-                else {
-                    keep_going = 0;
-                }
-            }
-            else{
-                keep_going = 0;
-            }
-        }
-        glob_sampled = sum_mpi(loc_sampled, proc_rank, n_procs);
-        (*n_samp) -= glob_sampled;
-        keep_going = 1;
-    }
-    loc_one_norm = 0;
-    if (glob_one_norm < 1e-9) {
-        *n_samp = 0;
-    }
-    else {
-        for (size_t det_idx = 0; det_idx < count; det_idx++) {
-            if (!keep_idx[det_idx]) {
-                loc_one_norm += fabs(values[det_idx]);
-            }
-        }
-    }
-    return loc_one_norm;
+    return find_preserve(values, srt_idx, keep_idx, count, n_samp, global_norm, MPI_COMM_WORLD);
 }
 
 double find_preserve(double *values, std::vector<size_t> &srt_idx, std::vector<bool> &keep_idx,
@@ -321,47 +263,7 @@ double find_keep_sub(double *values, unsigned int *n_div,
 
 void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
               unsigned int n_samp, std::vector<bool> &keep_exact, double rand_num) {
-    int n_procs = 1;
-    int proc_rank = 0;
-    double rn_sys = rand_num;
-    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
-    MPI_Bcast(&rn_sys, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    double tmp_glob_norm = 0;
-    for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-        tmp_glob_norm += loc_norms[proc_idx];
-    }
-    
-    double lbound;
-    if (n_samp > 0) {
-        lbound = seed_sys(loc_norms, &rn_sys, n_samp);
-    }
-    else {
-        lbound = 0;
-        rn_sys = INFINITY;
-    }
-    
-    loc_norms[proc_rank] = 0;
-    for (size_t det_idx = 0; det_idx < vec_len; det_idx++) {
-        double tmp_val = vec_vals[det_idx];
-        if (keep_exact[det_idx]) {
-            loc_norms[proc_rank] += fabs(tmp_val);
-            keep_exact[det_idx] = 0;
-        }
-        else if (tmp_val != 0) {
-            lbound += fabs(tmp_val);
-            if (rn_sys < lbound) {
-                vec_vals[det_idx] = tmp_glob_norm / n_samp * ((tmp_val > 0) - (tmp_val < 0));
-                loc_norms[proc_rank] += tmp_glob_norm / n_samp;
-                rn_sys += tmp_glob_norm / n_samp;
-            }
-            else {
-                vec_vals[det_idx] = 0;
-                keep_exact[det_idx] = 1;
-            }
-        }
-    }
-    MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+    sys_comp(vec_vals, vec_len, loc_norms, n_samp, keep_exact, rand_num, MPI_COMM_WORLD);
 }
 
 void sys_comp(double *vec_vals, size_t vec_len, double *loc_norms,
@@ -722,41 +624,7 @@ uint32_t sys_budget(double *loc_norms, uint32_t n_samp, double rand_num) {
 
 
 uint32_t piv_budget(double *loc_norms, uint32_t n_samp, std::mt19937 &mt_obj) {
-    int n_procs = 1;
-    int proc_rank = 0;
-    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
-    
-    std::vector<uint32_t> budgets(n_procs);
-    uint32_t proc_budget;
-    
-    if (proc_rank == 0) {
-        double glob_norm = 0;
-        for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-            glob_norm += loc_norms[proc_idx];
-        }
-        
-        uint32_t tot_budget = 0;
-        std::vector<double> weights(n_procs);
-        for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-            budgets[proc_idx] = loc_norms[proc_idx] / glob_norm * n_samp;
-            tot_budget += budgets[proc_idx];
-            weights[proc_idx] = loc_norms[proc_idx] - budgets[proc_idx] * glob_norm / n_samp;
-        }
-        
-        std::vector<bool> keep(n_procs, false);
-        if (tot_budget < n_samp) {
-            piv_comp_serial(weights.data(), n_procs, glob_norm * (n_samp - tot_budget) / n_samp, 1, n_samp - tot_budget, keep, mt_obj);
-        }
-
-        for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-            if (weights[proc_idx] > 0) {
-                budgets[proc_idx]++;
-            }
-        }
-    }
-    MPI_Scatter(budgets.data(), 1, MPI_UINT32_T, &proc_budget, 1, MPI_UINT32_T, 0, MPI_COMM_WORLD);
-    return proc_budget;
+    return piv_budget(loc_norms, n_samp, mt_obj, MPI_COMM_WORLD);
 }
 
 uint32_t piv_budget(double *loc_norms, uint32_t n_samp, std::mt19937 &mt_obj,
