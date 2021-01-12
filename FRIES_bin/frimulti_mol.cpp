@@ -88,6 +88,7 @@ int main(int argc, char * argv[]) {
         
         // Rn generator
         auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        std::cout << "seed on process " << proc_rank << " is " << seed << std::endl;
         std::mt19937 mt_obj((unsigned int)seed);
         
         // Solution vector
@@ -461,7 +462,7 @@ int main(int argc, char * argv[]) {
 
         MPI_Finalize();
     } catch (std::exception &ex) {
-        std::cerr << "\nException : " << ex.what() << "\n\nPlease report this error to the developers through our GitHub repository: https://github.com/sgreene8/FRIES/ \n\n";
+        std::cerr << "\nException : " << ex.what() << "\n\nPlease send a description of this error, a copy of the command-line arguments used, and the random number generator seeds printed for each process to the developers through our GitHub repository: https://github.com/sgreene8/FRIES/ \n\n";
     }
     return 0;
 }
