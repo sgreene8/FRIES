@@ -666,7 +666,7 @@ uint32_t piv_budget(double *loc_norms, uint32_t n_samp, std::mt19937 &mt_obj,
     return proc_budget;
 }
 
-double adjust_probs(double *vec_vals, size_t vec_len, uint32_t n_samp_loc,
+double adjust_probs(double *vec_vals, size_t vec_len, uint32_t *n_samp_loc,
                     double exp_nsamp_loc, uint32_t n_samp_tot, double tot_norm,
                     std::vector<bool> &keep_exact) {
     bool el_too_big = false;
@@ -682,7 +682,7 @@ double adjust_probs(double *vec_vals, size_t vec_len, uint32_t n_samp_loc,
     }
     if (el_too_big) {
         double counter = exp_nsamp_loc;
-        if (n_samp_loc > exp_nsamp_loc) {
+        if (*n_samp_loc > exp_nsamp_loc) {
             for (size_t vec_idx = 0; vec_idx < vec_len; vec_idx++) {
                 if (!keep_exact[vec_idx]) {
                     int8_t sign = 2 * (vec_vals[vec_idx] > 0) - 1;
@@ -692,11 +692,13 @@ double adjust_probs(double *vec_vals, size_t vec_len, uint32_t n_samp_loc,
                         vec_vals[vec_idx] /= resid;
                     }
                     else {
-                        counter += 1 - pi;
+                        counter -= pi;
                         vec_vals[vec_idx] = sign * sampling_unit;
+                        keep_exact[vec_idx] = true;
+                        (*n_samp_loc)--;
                     }
-                    if (counter >= n_samp_loc) {
-                        vec_vals[vec_idx] += sign * sampling_unit * (n_samp_loc - counter);
+                    if (counter >= *n_samp_loc) {
+                        vec_vals[vec_idx] += sign * sampling_unit * (*n_samp_loc - counter);
                         break;
                     }
                 }
@@ -716,14 +718,14 @@ double adjust_probs(double *vec_vals, size_t vec_len, uint32_t n_samp_loc,
                         counter -= pi;
                         vec_vals[vec_idx] = 0;
                     }
-                    if (counter <= n_samp_loc) {
-                        vec_vals[vec_idx] += sign * sampling_unit * (n_samp_loc - counter);
+                    if (counter <= *n_samp_loc) {
+                        vec_vals[vec_idx] += sign * sampling_unit * (*n_samp_loc - counter);
                         break;
                     }
                 }
             }
         }
-        return n_samp_loc * loc_norm / exp_nsamp_loc;
+        return *n_samp_loc * loc_norm / exp_nsamp_loc;
     }
     else {
         return loc_norm;

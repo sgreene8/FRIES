@@ -537,7 +537,7 @@ public:
         std::copy(keep_idx1_.begin(), keep_idx1_.end(), keep_idx2_.begin());
         std::copy(orig_vec_.begin(), orig_vec_.end(), tmp_vec_.begin());
         
-        double new_norm = adjust_probs(tmp_vec_.data(), tmp_vec_.size(), loc_nsamp, exp_nsamp_, n_samp_, glob_norm_, keep_idx2_);
+        double new_norm = adjust_probs(tmp_vec_.data(), tmp_vec_.size(), &loc_nsamp, exp_nsamp_, n_samp_, glob_norm_, keep_idx2_);
         sys_comp_serial(tmp_vec_.data(), tmp_vec_.size(), new_norm, glob_norm_ / n_samp_, loc_nsamp, keep_idx2_, gen_rn());
         
         for (size_t el_idx = 0; el_idx < tmp_vec_.size(); el_idx++) {
