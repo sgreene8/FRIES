@@ -4,7 +4,6 @@
  * Rayleigh quotients are constructed from the same random vector on the L & R sides
  */
 
-#include <cstdio>
 #include <iostream>
 #include <chrono>
 #include <FRIES/io_utils.hpp>

@@ -6,6 +6,7 @@
 #define ndarr_h
 
 #include <vector>
+#include <cstdlib>
 #include <FRIES/math_utils.h>
 
 /*! \brief A class for representing and manipulating matrices with variable dimension sizes

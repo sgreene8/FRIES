@@ -8,8 +8,6 @@
 #ifndef vec_utils_h
 #define vec_utils_h
 
-#include <cstdio>
-#include <cstring>
 #include <FRIES/det_hash.hpp>
 #include <FRIES/Hamiltonians/hub_holstein.hpp>
 #include <mpi.h>
