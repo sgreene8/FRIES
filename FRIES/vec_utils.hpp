@@ -1050,4 +1050,9 @@ double Adder<el_type>::perform_dot(DistVec<el_type> *parent_vec) {
     return d_prod;
 }
 
+
+void compress_vecs(DistVec<double> &vectors, size_t start_idx, size_t end_idx, unsigned int compress_size,
+                  MPI_Comm vec_comm, std::vector<size_t> &srt_scratch, std::vector<bool> &keep_scratch,
+                   std::vector<bool> &del_arr, std::mt19937 &rn_gen);
+
 #endif /* vec_utils_h */
