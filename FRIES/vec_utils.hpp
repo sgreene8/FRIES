@@ -499,6 +499,10 @@ public:
         min_del_idx_ = curr_size_;
     }
     
+    void set_min_del_idx(size_t idx) {
+        min_del_idx_ = idx;
+    }
+    
     /*! \returns The array used to store values in the DistVec object */
     el_type *values() const {
         return (el_type *) values_[curr_vec_idx_];

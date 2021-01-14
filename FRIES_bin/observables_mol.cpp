@@ -240,10 +240,12 @@ int main(int argc, char * argv[]) {
             if (iterat >= args.burn_in) {
                 if (((iterat - args.burn_in) % period_length) == args.n_obs) {
                     sol_vec.copy_vec(2, vec_idx);
+                    sol_vec.set_min_del_idx(0);
                 }
                 if (((iterat - args.burn_in) % period_length) == 0) {
                     one_elec_op(sol_vec, n_orb, args.obs_des, args.obs_cre, 3);
                     sol_vec.copy_vec(vec_idx, 2);
+                    sol_vec.fix_min_del_idx();
                 }
             }
             
