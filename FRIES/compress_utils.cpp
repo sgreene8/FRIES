@@ -654,11 +654,10 @@ uint32_t piv_budget(double *loc_norms, uint32_t n_samp, std::mt19937 &mt_obj,
         std::vector<bool> keep(n_procs, false);
         if (tot_budget < n_samp) {
             piv_comp_serial(weights.data(), n_procs, glob_norm * (n_samp - tot_budget) / n_samp, n_samp - tot_budget, keep, mt_obj);
-        }
-        
-        for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-            if (weights[proc_idx] > 0) {
-                budgets[proc_idx]++;
+            for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+                if (weights[proc_idx] > 0) {
+                    budgets[proc_idx]++;
+                }
             }
         }
     }

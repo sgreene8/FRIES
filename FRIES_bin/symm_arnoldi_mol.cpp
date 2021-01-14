@@ -229,6 +229,8 @@ int main(int argc, char * argv[]) {
         
         Matrix<double> d_mat(n_states, n_states);
         Matrix<double> b_mat(n_states, n_states);
+        Matrix<double> d_mat2(n_states, n_states);
+        Matrix<double> b_mat2(n_states, n_states);
         tmp_path.str(args.result_dir);
         tmp_path << "d_mat_" << samp_idx << ".npy";
         std::string dnpy_path(tmp_path.str());
