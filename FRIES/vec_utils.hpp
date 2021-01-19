@@ -467,7 +467,13 @@ public:
      * \param [in] pos          The position of the element to be deleted in \p indices_
      */
     void del_at_pos(size_t pos) {
-        if (pos >= min_del_idx_) {
+        bool all_zero = true;
+        for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
+            if (values_(vec_idx, pos) != 0) {
+                all_zero = false;
+            }
+        }
+        if (pos >= min_del_idx_ && all_zero) {
             uint8_t *idx = indices_[pos];
             uintmax_t hash_val = idx_to_hash(idx, occ_orbs_[pos]);
             push_stack(pos);
