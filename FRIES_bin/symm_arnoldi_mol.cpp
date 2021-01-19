@@ -231,11 +231,11 @@ int main(int argc, char * argv[]) {
         Matrix<double> b_mat(n_states, n_states);
         Matrix<double> d_mat2(n_states, n_states);
         Matrix<double> b_mat2(n_states, n_states);
-        tmp_path.str(args.result_dir);
-        tmp_path << "d_mat_" << samp_idx << ".npy";
+        tmp_path.str("");
+        tmp_path << args.result_dir << "d_mat_" << samp_idx << ".npy";
         std::string dnpy_path(tmp_path.str());
-        tmp_path.str(args.result_dir);
-        tmp_path << "b_mat_" << samp_idx << ".npy";
+        tmp_path.str("");
+        tmp_path << args.result_dir << "b_mat_" << samp_idx << ".npy";
         std::string bnpy_path(tmp_path.str());
         std::vector<double> norms(n_states);
         
@@ -273,6 +273,9 @@ int main(int argc, char * argv[]) {
                     *sol_vec[el_idx] /= norms[vec_idx];
                 }
             }
+                        
+#pragma mark Vector compression
+            compress_vecs(sol_vec, vec_half * n_states, (vec_half + 1) * n_states, args.target_nonz, samp_comm, srt_arr, keep_exact, del_all, mt_obj);
             
 #pragma mark Calculate overlap matrix
             for (uint8_t vecl_idx = 0; vecl_idx < n_states; vecl_idx++) {
@@ -281,9 +284,6 @@ int main(int argc, char * argv[]) {
                     d_mat(vecl_idx, vecr_idx) = sum_mpi(dprod, proc_rank, procs_per_vec, samp_comm);
                 }
             }
-            
-#pragma mark Vector compression
-            compress_vecs(sol_vec, vec_half * n_states, (vec_half + 1) * n_states, args.target_nonz, samp_comm, srt_arr, keep_exact, del_all, mt_obj);
             
 # pragma mark Matrix multiplication
             for (uint16_t vec_idx = 0; vec_idx < n_states; vec_idx++) {
@@ -309,7 +309,7 @@ int main(int argc, char * argv[]) {
                 max_n_dets = new_max_dets;
             }
         
-#pragma mark Krylov dot products
+#pragma mark Calculate hamiltonian matrix
             for (uint16_t vecl_idx = 0; vecl_idx < n_states; vecl_idx++) {
                 for (uint16_t vecr_idx = 0; vecr_idx < n_states; vecr_idx++) {
                     double dprod = sol_vec.internal_dot((!vec_half) * n_states + vecl_idx, vec_half * n_states + vecr_idx);
