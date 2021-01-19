@@ -51,6 +51,7 @@ double find_preserve(double *values, std::vector<size_t> &srt_idx, std::vector<b
     double el_magn = 0;
     size_t max_idx;
     *global_norm = sum_mpi(loc_one_norm, proc_rank, n_procs, comm);
+    bool recalc_norm = false;
     while (glob_sampled > 0) {
         glob_one_norm = sum_mpi(loc_one_norm, proc_rank, n_procs, comm);
         loc_sampled = 0;
@@ -77,6 +78,19 @@ double find_preserve(double *values, std::vector<size_t> &srt_idx, std::vector<b
         }
         glob_sampled = sum_mpi(loc_sampled, proc_rank, n_procs, comm);
         (*n_samp) -= glob_sampled;
+        if (glob_sampled == 0 && !recalc_norm) {
+            loc_one_norm = 0;
+            for (size_t el_idx = 0; el_idx < count; el_idx++) {
+                if (!keep_idx[el_idx]) {
+                    loc_one_norm += fabs(values[el_idx]);
+                }
+            }
+            glob_sampled = 1;
+            recalc_norm = true;
+        }
+        else {
+            recalc_norm = false;
+        }
         keep_going = 1;
     }
     loc_one_norm = 0;
@@ -357,7 +371,8 @@ void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm,
     size_t resid_idx = 0;
     double cum_prob;
     sampl_el[0] = 0; // residual element
-    while (vec_idx < vec_len) {
+    uint32_t samp_so_far = 0;
+    while (vec_idx < vec_len && samp_so_far < n_samp) {
         // build probability vector
         size_t prob_idx;
         size_t vec_offset = 0;
@@ -455,6 +470,16 @@ void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm,
         }
         vec_idx += vec_offset + 1;
         sampl_el[0] = bn; // residual element
+        samp_so_far++;
+    }
+    for (; vec_idx < vec_len; vec_idx++) {
+        if (!keep_exact[vec_idx]) {
+            vec_vals[vec_idx] = 0;
+            keep_exact[vec_idx] = true;
+        }
+        else {
+            keep_exact[vec_idx] = false;
+        }
     }
     // Zero the residual element
     if (resid_idx < vec_len) {
@@ -645,14 +670,29 @@ uint32_t piv_budget(double *loc_norms, uint32_t n_samp, std::mt19937 &mt_obj,
         
         uint32_t tot_budget = 0;
         std::vector<double> weights(n_procs);
+        uint32_t n_nonz = 0;
         for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
             budgets[proc_idx] = loc_norms[proc_idx] / glob_norm * n_samp;
             tot_budget += budgets[proc_idx];
             weights[proc_idx] = loc_norms[proc_idx] - budgets[proc_idx] * glob_norm / n_samp;
+            if (weights[proc_idx] < 1e-12) {
+                weights[proc_idx] = 0;
+            }
+            if (weights[proc_idx] > 0) {
+                n_nonz++;
+            }
+        }
+        if (n_nonz == (n_samp - tot_budget)) {
+            for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+                if (weights[proc_idx] > 0) {
+                    budgets[proc_idx]++;
+                }
+            }
+            tot_budget = n_samp;
         }
         
-        std::vector<bool> keep(n_procs, false);
         if (tot_budget < n_samp) {
+            std::vector<bool> keep(n_procs, false);
             piv_comp_serial(weights.data(), n_procs, glob_norm * (n_samp - tot_budget) / n_samp, n_samp - tot_budget, keep, mt_obj);
             for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
                 if (weights[proc_idx] > 0) {
