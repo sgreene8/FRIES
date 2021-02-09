@@ -26,7 +26,7 @@ struct MyArgs : public argparse::Args {
     std::string mat_output = kwarg("out_format", "A flag controlling the format for outputting the Hamiltonian and overlap matrices. Must be either 'none', in which case these matrices are not written to disk, 'txt', in which case they are outputted in text format, 'npy', in which case they are outputted in numpy format, or 'bin' for binary format").set_default<std::string>("none");
     uint32_t n_sample = kwarg("n_sample", "The number of independent vectors to simulate in parallel").set_default(1);
     std::string restart_technique = kwarg("restart_technique", "Specify whether to restart using the inverse of the Hamiltonian matrix in the subspace ('h_inv') or using the inverse of the R factor of a QR decomposition of this matrix ('r_inv').");
-    std::string normalization_technique = kwarg("norm_technique", "Specify how to normalize the iterates, i.e. not at all ('none'), individually by one-norm ('1-norm'), or by the max of all 1-norms ('max-1-norm')");
+    std::string normalization_technique = kwarg("norm_technique", "Specify how to normalize the iterates, i.e. not at all ('none'), individually by one-norm ('1-norm'), by the max of all 1-norms ('max-1-norm'), or using energy shifts like in DMC ('shifts')");
     
     CONSTRUCTOR(MyArgs);
 };
@@ -93,6 +93,10 @@ int main(int argc, char * argv[]) {
         MPI_Comm_split(MPI_COMM_WORLD, samp_idx, 0, &samp_comm);
         int samp_rank;
         MPI_Comm_rank(samp_comm, &samp_rank);
+        
+        // Parameters
+        double shift_damping = 0.05;
+        unsigned int shift_interval = 10;
         
         // Read in data files
         hf_input in_data;
@@ -260,11 +264,18 @@ int main(int argc, char * argv[]) {
         tmp_path.str("");
         tmp_path << args.result_dir << "b_mat_" << samp_idx << ".npy";
         std::string bnpy_path(tmp_path.str());
+        tmp_path.str("");
+        tmp_path << args.result_dir << "shifts_" << samp_idx << ".npy";
+        std::string shifts_path(tmp_path.str());
+        std::ofstream shift_f(shifts_path);
         std::vector<double> lapack_scratch((3 + n_trial + 32 * 2) * n_trial - 1);
         Matrix<double> evecs(n_trial, n_trial);
         std::vector<double> norms(n_trial);
+        std::vector<double> last_norms(n_trial);
         
         int vec_half = 0; // controls whether the current iterates are stored in the first or second half of the values_ matrix
+        
+        std::vector<double> en_shifts(n_trial);
         
         for (uint32_t iteration = 0; iteration < args.max_iter; iteration++) {
             if (proc_rank == 0) {
@@ -275,6 +286,19 @@ int main(int argc, char * argv[]) {
                 sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
                 double norm = sol_vec.local_norm();
                 norms[vec_idx] = sum_mpi(norm, samp_rank, procs_per_vec, samp_comm);
+            }
+            if (iteration == 0 && args.normalization_technique == "shifts") {
+                std::copy(norms.begin(), norms.end(), last_norms.begin());
+            }
+            if (args.normalization_technique == "shifts" && (iteration + 1) % 10 == 0) {
+                for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
+                    shift_f << en_shifts[vec_idx];
+                    if (vec_idx + 1 < n_trial) {
+                        shift_f << ",";
+                    }
+                    adjust_shift(&en_shifts[vec_idx], norms[vec_idx], &last_norms[vec_idx], 0, shift_damping / shift_interval / eps);
+                }
+                shift_f << '\n';
             }
             if (args.normalization_technique == "max-1-norm") {
                 double max_norm = 0;
@@ -287,7 +311,7 @@ int main(int argc, char * argv[]) {
                     norms[vec_idx] = max_norm;
                 }
             }
-            else if (args.normalization_technique == "none") {
+            else if (args.normalization_technique == "none" || args.normalization_technique == "shifts") {
                 for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                     norms[vec_idx] = 1;
                 }
@@ -317,7 +341,7 @@ int main(int argc, char * argv[]) {
                 int curr_idx = vec_half * n_trial + vec_idx;
                 int next_idx = (1 - vec_half) * n_trial + vec_idx;
                 sol_vec.set_curr_vec_idx(curr_idx);
-                h_op_diag(sol_vec, next_idx, 1, -eps);
+                h_op_diag(sol_vec, next_idx, 1 + eps * en_shifts[vec_idx], -eps);
                 sol_vec.set_curr_vec_idx(curr_idx);
                 h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, next_idx, -eps);
             }
@@ -342,6 +366,15 @@ int main(int argc, char * argv[]) {
                     sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
                     double d_prod = sol_vec.dot(curr_trial.indices(), curr_trial.values(), curr_trial.curr_size(), trial_hashes[trial_idx]);
                     b_mat(trial_idx, vec_idx) = sum_mpi(d_prod, samp_rank, procs_per_vec, samp_comm);
+                    if (trial_idx == vec_idx) {
+                        b_mat(trial_idx, trial_idx) -= eps * en_shifts[trial_idx] * d_mat(trial_idx, trial_idx);
+                    }
+                }
+            }
+            
+            if (iteration == 0 && args.normalization_technique == "shifts") {
+                for (uint16_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
+                    en_shifts[trial_idx] = (d_mat(trial_idx, trial_idx) - b_mat(trial_idx, trial_idx)) / eps / d_mat(trial_idx, trial_idx);
                 }
             }
             
@@ -378,6 +411,13 @@ int main(int argc, char * argv[]) {
                 else if (args.restart_technique == "r_inv") {
                     invr_inplace(evecs, lapack_scratch.data());
                 }
+                if (args.normalization_technique == "shifts") {
+                    for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
+                        sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
+                        double norm = sol_vec.local_norm();
+                        norms[vec_idx] = sum_mpi(norm, samp_rank, procs_per_vec, samp_comm);
+                    }
+                }
                 for (uint8_t eigen_idx = 0; eigen_idx < n_trial; eigen_idx++) {
                     sol_vec.set_curr_vec_idx((1 - vec_half) * n_trial + eigen_idx);
                     sol_vec.zero_vec();
@@ -388,6 +428,17 @@ int main(int argc, char * argv[]) {
                     }
                 }
                 vec_half = !vec_half;
+                
+                if (args.normalization_technique == "shifts") {
+                    for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
+                        sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
+                        double new_norm = sol_vec.local_norm();
+                        new_norm = sum_mpi(new_norm, samp_rank, procs_per_vec, samp_comm);
+                        for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
+                            *sol_vec[el_idx] *= norms[vec_idx] / new_norm;
+                        }
+                    }
+                }
             }
         }
         if (proc_rank == 0) {
