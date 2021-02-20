@@ -65,7 +65,7 @@ int main(int argc, char * argv[]) {
         
         std::vector<double> rdm_diag(tot_orb);
         if (args.rdm_path != nullptr) {
-            load_rdm(args.rdm_path->c_str(), rdm_diag.data());
+            load_rdm(*args.rdm_path, rdm_diag.data());
             std::copy(rdm_diag.begin() + n_frz / 2, rdm_diag.end(), rdm_diag.begin());
         }
         
@@ -99,14 +99,14 @@ int main(int argc, char * argv[]) {
         double last_one_norm = 0;
         
         if (args.load_dir != nullptr) {
-            load_proc_hash(args.load_dir->c_str(), proc_scrambler.data());
+            load_proc_hash(*args.load_dir, proc_scrambler.data());
         }
         else {
             if (proc_rank == 0) {
                 for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
                     proc_scrambler[det_idx] = mt_obj();
                 }
-                save_proc_hash(args.result_dir.c_str(), proc_scrambler.data(), 2 * n_orb);
+                save_proc_hash(args.result_dir, proc_scrambler.data(), 2 * n_orb);
             }
 
             MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
@@ -377,7 +377,7 @@ int main(int argc, char * argv[]) {
             }
             
             if ((iterat + 1) % save_interval == 0) {
-                sol_vec.save(args.result_dir.c_str());
+                sol_vec.save(args.result_dir);
                 if (proc_rank == hf_proc) {
                     num_file.flush();
                     den_file.flush();
@@ -387,7 +387,7 @@ int main(int argc, char * argv[]) {
                 }
             }
         }
-        sol_vec.save(args.result_dir.c_str());
+        sol_vec.save(args.result_dir);
         if (proc_rank == hf_proc) {
             num_file.close();
             den_file.close();

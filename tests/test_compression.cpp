@@ -5,7 +5,7 @@
 
 #include "catch.hpp"
 #include "inputs.hpp"
-#include <stdio.h>
+#include <fstream>
 #include <FRIES/compress_utils.hpp>
 
 TEST_CASE("Test alias method", "[alias]") {
@@ -25,10 +25,10 @@ TEST_CASE("Test alias method", "[alias]") {
 
     unsigned int cumu_samp[n_states];
     unsigned int iter_idx, samp_idx;
-    char buf[200];
-    sprintf(buf, "%s/alias.txt", out_path.c_str());
-    FILE *cumu_f = fopen(buf, "w");
-    REQUIRE(cumu_f != NULL);
+    std::string buf = out_path.append("alias.txt");
+    std::ofstream cumu_f(buf);
+    cumu_f << std::setprecision(10);
+    REQUIRE(cumu_f.is_open() == true);
     for (samp_idx = 0; samp_idx < n_states; samp_idx++) {
         cumu_samp[samp_idx] = 0;
     }
@@ -39,9 +39,9 @@ TEST_CASE("Test alias method", "[alias]") {
             cumu_samp[samples[samp_idx]]++;
         }
         for (samp_idx = 0; samp_idx < n_states; samp_idx++) {
-            fprintf(cumu_f, "%lf,", cumu_samp[samp_idx] / (iter_idx + 1.) / n_samp - probs[samp_idx]);
+            cumu_f << cumu_samp[samp_idx] / (iter_idx + 1.) / n_samp - probs[samp_idx] << ',';
         }
-        fprintf(cumu_f, "\n");
+        cumu_f << '\n';
     }
 
     double max_diff = 0;
@@ -54,7 +54,7 @@ TEST_CASE("Test alias method", "[alias]") {
     }
     REQUIRE(max_diff == Approx(0).margin(1e-3));
 
-    fclose(cumu_f);
+    cumu_f.close();
 }
 
 

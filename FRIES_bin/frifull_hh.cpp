@@ -330,7 +330,7 @@ int main(int argc, char * argv[]) {
                 }
             }
         }
-        sol_vec.save(args.result_dir.c_str());
+        sol_vec.save(args.result_dir);
         if (proc_rank == ref_proc) {
             num_file.close();
             den_file.close();

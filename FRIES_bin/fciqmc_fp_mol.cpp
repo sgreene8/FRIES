@@ -70,7 +70,6 @@ int main(int argc, char * argv[]) {
         MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
         
         uint32_t max_n_dets = args.max_n_dets;
-        const char *result_dir = args.result_dir.c_str();
         
         // Parameters
         double shift_damping = 0.05;
@@ -117,14 +116,14 @@ int main(int argc, char * argv[]) {
         double last_norm = 0;
         
         if (args.load_dir != nullptr) {
-            load_proc_hash(args.load_dir->c_str(), proc_scrambler.data());
+            load_proc_hash(*args.load_dir, proc_scrambler.data());
         }
         else {
             if (proc_rank == 0) {
                 for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
                     proc_scrambler[det_idx] = mt_obj();
                 }
-                save_proc_hash(result_dir, proc_scrambler.data(), 2 * n_orb);
+                save_proc_hash(args.result_dir, proc_scrambler.data(), 2 * n_orb);
             }
 
             MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
@@ -481,7 +480,7 @@ int main(int argc, char * argv[]) {
             
             // Save vector snapshot to disk
             if ((iterat + 1) % save_interval == 0) {
-                sol_vec.save(result_dir);
+                sol_vec.save(args.result_dir);
                 if (proc_rank == hf_proc) {
                     num_file.flush();
                     den_file.flush();
@@ -491,7 +490,7 @@ int main(int argc, char * argv[]) {
                 }
             }
         }
-        sol_vec.save(result_dir);
+        sol_vec.save(args.result_dir);
         if (proc_rank == hf_proc) {
             num_file.close();
             den_file.close();

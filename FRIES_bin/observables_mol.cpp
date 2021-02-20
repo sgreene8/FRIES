@@ -90,14 +90,14 @@ int main(int argc, char * argv[]) {
         double last_norm;
         
         if (args.load_dir != nullptr) {
-            load_proc_hash(args.load_dir->c_str(), proc_scrambler.data());
+            load_proc_hash(args.load_dir, proc_scrambler.data());
         }
         else {
             if (proc_rank == 0) {
                 for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
                     proc_scrambler[det_idx] = mt_obj();
                 }
-                save_proc_hash(args.result_dir.c_str(), proc_scrambler.data(), 2 * n_orb);
+                save_proc_hash(args.result_dir, proc_scrambler.data(), 2 * n_orb);
             }
 
             MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);

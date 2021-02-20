@@ -134,7 +134,7 @@ int main(int argc, char * argv[]) {
             for (size_t det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
                 proc_scrambler[det_idx] = mt_obj();
             }
-            save_proc_hash(args.result_dir.c_str(), proc_scrambler.data(), 2 * n_orb);
+            save_proc_hash(args.result_dir, proc_scrambler.data(), 2 * n_orb);
         }
 
         MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);

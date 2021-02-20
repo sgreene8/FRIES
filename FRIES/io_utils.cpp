@@ -126,13 +126,13 @@ void parse_hf_input(const std::string &hf_dir, hf_input *in_struct) {
     path = hf_dir;
     path.append("symm.txt");
     in_struct->symm = (uint8_t *)malloc(sizeof(uint8_t) * tot_orb);
-    read_csv(in_struct->symm, path.c_str());
+    read_csv(in_struct->symm, path);
     in_struct->symm = &(in_struct->symm[n_frz / 2]);
     
     path = hf_dir;
     path.append("hcore.txt");
     in_struct->hcore = new Matrix<double>(tot_orb, tot_orb);
-    size_t n_read = read_csv((*(in_struct->hcore)).data(), path.c_str());
+    size_t n_read = read_csv((*(in_struct->hcore)).data(), path);
     if (n_read < tot_orb * tot_orb) {
         std::stringstream msg;
         msg << "Could not read " << tot_orb * tot_orb << " elements from " << path;
@@ -142,7 +142,7 @@ void parse_hf_input(const std::string &hf_dir, hf_input *in_struct) {
     path = hf_dir;
     path.append("eris.txt");
     in_struct->eris = new FourDArr(tot_orb, tot_orb, tot_orb, tot_orb);
-    n_read = read_csv(in_struct->eris->data(), path.c_str());
+    n_read = read_csv(in_struct->eris->data(), path);
     if (n_read < tot_orb * tot_orb * tot_orb * tot_orb) {
         std::stringstream msg;
         msg << "Could not read " << tot_orb * tot_orb * tot_orb * tot_orb << " elements from " << path;

@@ -62,8 +62,6 @@ int main(int argc, char * argv[]) {
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
     try {
-        const char *result_dir = args.result_dir.c_str();
-        
         // Parameters
         double shift_damping = 0.05;
         unsigned int shift_interval = 10;
@@ -109,14 +107,14 @@ int main(int argc, char * argv[]) {
         double glob_norm;
         
         if (args.load_dir != nullptr) {
-            load_proc_hash(args.load_dir->c_str(), proc_scrambler.data());
+            load_proc_hash(*args.load_dir, proc_scrambler.data());
         }
         else {
             if (proc_rank == 0) {
                 for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
                     proc_scrambler[det_idx] = mt_obj();
                 }
-                save_proc_hash(args.result_dir.c_str(), proc_scrambler.data(), 2 * n_orb);
+                save_proc_hash(args.result_dir, proc_scrambler.data(), 2 * n_orb);
             }
 
             MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
@@ -151,7 +149,7 @@ int main(int argc, char * argv[]) {
         }
         DistVec<double> trial_vec(n_trial, n_trial, n_orb * 2, n_elec_unf, n_procs, proc_scrambler, vec_scrambler);
         DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2, proc_scrambler, vec_scrambler);
-        if (args.trial_path->c_str()) { // load trial vector from file
+        if (args.trial_path != nullptr) { // load trial vector from file
             for (det_idx = 0; det_idx < n_trial; det_idx++) {
                 trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
                 htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
@@ -445,7 +443,7 @@ int main(int argc, char * argv[]) {
             }
             
             if ((iterat + 1) % save_interval == 0) {
-                sol_vec.save(result_dir);
+                sol_vec.save(args.result_dir);
                 if (proc_rank == hf_proc) {
                     num_file.flush();
                     den_file.flush();
@@ -453,7 +451,7 @@ int main(int argc, char * argv[]) {
                 }
             }
         }
-        sol_vec.save(result_dir);
+        sol_vec.save(args.result_dir);
         if (proc_rank == hf_proc) {
             num_file.close();
             den_file.close();
