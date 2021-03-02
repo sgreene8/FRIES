@@ -783,6 +783,13 @@ void adjust_shift(double *shift, double one_norm, double *last_norm,
     }
 }
 
+void adjust_shift2(double *shift, double one_norm, double *last_norm,
+                   double damp_factor) {
+    double last_shift = *shift;
+    *shift = pow(last_shift, 1 - damp_factor) * pow(one_norm / *last_norm, damp_factor);
+    *last_norm = pow(*last_norm, damp_factor) * pow(one_norm / last_shift, 1 - damp_factor);
+}
+
 size_t sys_sub(double *values, unsigned int *n_div,
                const Matrix<double> &sub_weights, Matrix<bool> &keep_idx,
                uint16_t *sub_sizes,

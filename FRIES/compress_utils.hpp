@@ -393,6 +393,8 @@ size_t comp_sub(double *values, size_t count, unsigned int *n_div,
  */
 void adjust_shift(double *shift, double one_norm, double *last_norm,
                   double target_norm, double damp_factor);
+void adjust_shift2(double *shift, double one_norm, double *last_norm,
+                   double damp_factor);
 
 
 /*! \brief Set-up for the alias method for multinomial sampling
