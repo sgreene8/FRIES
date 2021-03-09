@@ -104,7 +104,7 @@ double calc_ref_ovlp(Matrix<uint8_t> &dets, T *vals, Matrix<uint8_t> &phonons,
         // that of the reference
         uint8_t last_elec_byte = CEILING(2 * n_sites, 8);
         uint8_t last_elec_mask = (1 << (2 * n_sites % 8)) - 1;
-        int elec_same = bit_str_equ(curr_det, ref_det, 2 * n_sites / 8) && (curr_det[last_elec_byte - 1] & last_elec_mask) == (ref_det[last_elec_byte - 1] & last_elec_mask);
+        int elec_same = !memcmp(curr_det, ref_det, 2 * n_sites / 8) && (curr_det[last_elec_byte - 1] & last_elec_mask) == (ref_det[last_elec_byte - 1] & last_elec_mask);
         if (elec_same) {
             uint8_t sites_found = 0;
             uint8_t site_elecs = 0;

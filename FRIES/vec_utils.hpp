@@ -169,12 +169,26 @@ protected:
     std::vector<double> matr_el_; ///< Array of pre-calculated diagonal matrix elements associated with each vector element
     std::function<double(const uint8_t *)> diag_calc_; ///< Pointer to a function used to calculate diagonal matrix elements for elements in this vector
     
-    virtual void initialize_at_pos(size_t pos, uint8_t *orbs) {
+    virtual void initialize_at_pos(size_t pos) {
         for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
             values_(vec_idx, pos) = 0;
         }
         matr_el_[pos] = NAN;
-        memcpy(occ_orbs_[pos], orbs, occ_orbs_.cols());
+//        memcpy(occ_orbs_[pos], orbs, occ_orbs_.cols());
+    }
+    
+    size_t get_idx() {
+        size_t ret_idx;
+        if (vec_stack_.empty()) {
+            if (curr_size_ >= max_size_) {
+                expand();
+            }
+            ret_idx = curr_size_;
+            return ret_idx;
+        }
+        ret_idx = vec_stack_.top();
+        vec_stack_.pop();
+        return ret_idx;
     }
     
 public:
@@ -452,13 +466,6 @@ public:
         vec_stack_.pop();
         return ret_idx;
     }
-    
-    /*! \brief Push an unused index in the \p indices_ array onto the stack
-     * \param [in] idx The index of the available element of the \p indices array
-     */
-    void push_stack(size_t idx) {
-        vec_stack_.push(idx);
-    }
 
     /*! \brief Delete an element from the vector
      *
@@ -476,7 +483,7 @@ public:
         if (pos >= min_del_idx_ && all_zero) {
             uint8_t *idx = indices_[pos];
             uintmax_t hash_val = idx_to_hash(idx, occ_orbs_[pos]);
-            push_stack(pos);
+            vec_stack_.push(pos);
             vec_hash_.del_entry(idx, hash_val);
             n_nonz_--;
         }
@@ -621,27 +628,27 @@ public:
     void add_elements(uint8_t *indices, el_type *vals, size_t count,
                       Matrix<bool>::RowReference successes) {
         uint8_t add_n_bytes = CEILING(n_bits_ + 1, 8);
-        uint8_t vec_n_bytes = indices_.cols();
-        uint8_t tmp_occ[occ_orbs_.cols()];
+        size_t next_idx = get_idx();
+        uint8_t *tmp_det = indices_[next_idx];
+        uint8_t *tmp_orbs = occ_orbs_[next_idx];
         for (size_t el_idx = 0; el_idx < count; el_idx++) {
             uint8_t *new_idx = &indices[el_idx * add_n_bytes];
             int ini_flag = read_bit(new_idx, n_bits_);
             if (ini_flag) {
                 zero_bit(new_idx, n_bits_);
             }
-            uintmax_t hash_val = idx_to_hash(new_idx, tmp_occ);
-            ssize_t *idx_ptr = vec_hash_.read(new_idx, hash_val, ini_flag);
+            std::copy(new_idx, new_idx + indices_.cols(), tmp_det);
+            uintmax_t hash_val = idx_to_hash(new_idx, tmp_orbs);
+            ssize_t *idx_ptr = vec_hash_.read(tmp_det, hash_val, ini_flag);
             if (idx_ptr && *idx_ptr == -1) {
-                *idx_ptr = pop_stack();
-                if (*idx_ptr == -1) {
-                    if (curr_size_ >= max_size_) {
-                        expand();
-                    }
-                    *idx_ptr = curr_size_;
+                initialize_at_pos(next_idx);
+                if (next_idx == curr_size_) {
                     curr_size_++;
                 }
-                memcpy(indices_[*idx_ptr], new_idx, vec_n_bytes);
-                initialize_at_pos(*idx_ptr, tmp_occ);
+                *idx_ptr = next_idx;
+                next_idx = get_idx();
+                tmp_det = indices_[next_idx];
+                tmp_orbs = occ_orbs_[next_idx];
                 n_nonz_++;
             }
             if (idx_ptr) {
@@ -659,13 +666,14 @@ public:
                 vals[el_idx] = 0;
             }
             if (!ini_flag && curr_shift_) {
-                vals[el_idx] /= (diag_calc_(tmp_occ) - *curr_shift_);
+                vals[el_idx] /= (diag_calc_(tmp_orbs) - *curr_shift_);
             }
             successes[el_idx] = (bool) idx_ptr;
         }
+        vec_stack_.push(next_idx);
     }
     
-    /*! \brief Get a pointer to a value in the \p values_ matric of the DistVec object
+    /*! \brief Get a pointer to a value in the \p values_ matrix of the DistVec object
      
      * \param [in] pos          The position of the corresponding index in the \p indices_ array
      */

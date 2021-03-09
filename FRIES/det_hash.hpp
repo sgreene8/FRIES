@@ -28,14 +28,6 @@ class HashTable {
     struct hash_entry {
         uint8_t *det; ///< key for the hash table in bit-string form
         el_type val; ///< index in main determinant array, or -1 if uninitialized
-        
-        hash_entry(uint8_t size) : val(-1) {
-            det = (uint8_t *)malloc(sizeof(uint8_t) * size);
-        }
-        
-        ~hash_entry() {
-            free(det);
-        }
     };
     
     std::vector<std::forward_list<hash_entry>> buckets_; ///< Vector of pointers to linked list of hash_entry structs at each positiion
@@ -67,14 +59,12 @@ public:
         
         unsigned int collisions = 0;
         el_type *ret_ptr = nullptr;
-        if (!list.empty()) {
-            for (hash_entry &entry : list) {
-                if (bit_str_equ(det, entry.det, idx_size_)) {
-                    ret_ptr = &entry.val;
-                    break;
-                }
-                collisions++;
+        for (hash_entry &entry : list) {
+            if (!memcmp(det, entry.det, idx_size_)) {
+                ret_ptr = &entry.val;
+                break;
             }
+            collisions++;
         }
         
         if (collisions > 20) {
@@ -83,9 +73,10 @@ public:
             std::cerr << "Line " << table_idx << " in the hash table has >20 hash collisions (det: " << det_str << ", hash: " << hash_val << ", " << (ret_ptr ? "found" : "not found") << ")\n";
         }
         if (!ret_ptr && create) {
-            list.emplace_front(idx_size_);
+            list.emplace_front();
             hash_entry &entry = list.front();
-            memcpy(entry.det, det, idx_size_);
+            entry.det = det;
+            entry.val = -1;
             ret_ptr = &entry.val;
         }
         return ret_ptr;
@@ -103,10 +94,8 @@ public:
              table_idx++) {
             unsigned int collisions = 0;
             std::forward_list<hash_entry> &list = buckets_[table_idx];
-            if (!list.empty()){
-                for (hash_entry &entry : list) {
-                    collisions++;
-                }
+            for (hash_entry &entry : list) {
+                collisions++;
             }
             file_p << collisions << "\n";
         }
@@ -126,7 +115,7 @@ public:
         std::forward_list<hash_entry> &list = buckets_[table_idx];
         uint8_t local_size = idx_size_;
         std::function<bool(const hash_entry&)> pred = [det, local_size](const hash_entry& value) {
-            return bit_str_equ(value.det, det, local_size);
+            return !memcmp(value.det, det, local_size);
         };
         list.remove_if(pred);
     }
