@@ -22,7 +22,7 @@ TEST_CASE("Test bit string math", "[binary]") {
     uint8_t bit_str2[3];
     memcpy(bit_str2, bit_str, 3);
     
-    REQUIRE(bit_str_equ(bit_str, bit_str2, 3) == 1);
+    REQUIRE((!memcmp(bit_str, bit_str2, 3)) == 1);
     REQUIRE(read_bit(bit_str, 11) == 1);
     REQUIRE(read_bit(bit_str, 10) == 0);
     
@@ -31,7 +31,7 @@ TEST_CASE("Test bit string math", "[binary]") {
     set_bit(bit_str2, 10);
     REQUIRE(read_bit(bit_str2, 10) == 1);
     
-    REQUIRE(bit_str_equ(bit_str, bit_str2, 3) == 0);
+    REQUIRE((!memcmp(bit_str, bit_str2, 3)) == 0);
 }
 
 
@@ -183,7 +183,7 @@ TEST_CASE("Test generation of Hartree-Fock bit strings", "[hf_bits]") {
     unsigned int n_elec = 18;
     
     gen_hf_bitstring(n_orb, n_elec, bit_str1);
-    REQUIRE(bit_str_equ(bit_str1, bit_str2, n_bytes) == 1);
+    REQUIRE((!memcmp(bit_str1, bit_str2, n_bytes)) == 1);
     
     n_elec = 20;
     n_orb = 18;
@@ -193,7 +193,7 @@ TEST_CASE("Test generation of Hartree-Fock bit strings", "[hf_bits]") {
     bit_str2[3] = 15;
     bit_str2[4] = 0;
     gen_hf_bitstring(n_orb, n_elec, bit_str1);
-    REQUIRE(bit_str_equ(bit_str1, bit_str2, n_bytes) == 1);
+    REQUIRE((!memcmp(bit_str1, bit_str2, n_bytes)) == 1);
     
     n_elec = 10;
     n_orb = 24;
@@ -205,7 +205,7 @@ TEST_CASE("Test generation of Hartree-Fock bit strings", "[hf_bits]") {
     bit_str2[4] = 0;
     bit_str2[5] = 0;
     gen_hf_bitstring(n_orb, n_elec, bit_str1);
-    REQUIRE(bit_str_equ(bit_str1, bit_str2, n_bytes) == 1);
+    REQUIRE((!memcmp(bit_str1, bit_str2, n_bytes)) == 1);
     
     n_elec = 10;
     n_orb = 26;
@@ -218,7 +218,7 @@ TEST_CASE("Test generation of Hartree-Fock bit strings", "[hf_bits]") {
     bit_str2[5] = 0;
     bit_str2[6] = 0;
     gen_hf_bitstring(n_orb, n_elec, bit_str1);
-    REQUIRE(bit_str_equ(bit_str1, bit_str2, n_bytes) == 1);
+    REQUIRE((!memcmp(bit_str1, bit_str2, n_bytes)) == 1);
 }
 
 
@@ -233,14 +233,14 @@ TEST_CASE("Test generation of Neel bit strings", "[neel_bits]") {
     str2[0] = 0b10010101;
     str2[1] = 0b1010;
     
-    REQUIRE(bit_str_equ(str1, str2, 2));
+    REQUIRE(!memcmp(str1, str2, 2));
     
     n_elec = 2;
     n_sites = 2;
     gen_neel_det_1D(n_sites, n_elec, 0, str1);
     str2[0] = 0b1001;
     
-    REQUIRE(bit_str_equ(str1, str2, 1));
+    REQUIRE(!memcmp(str1, str2, 1));
     
     n_elec = 8;
     n_sites = 8;
@@ -253,7 +253,7 @@ TEST_CASE("Test generation of Neel bit strings", "[neel_bits]") {
     gen_neel_det_1D(n_sites, n_elec, 0, str1);
     
     str2[0] = 0b10100101;
-    REQUIRE(bit_str_equ(str1, str2, 1));
+    REQUIRE(!memcmp(str1, str2, 1));
     
     n_sites = 10;
     n_elec = 10;

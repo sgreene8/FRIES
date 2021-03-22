@@ -69,7 +69,7 @@ public:
         el_type *ret_ptr = nullptr;
         if (!list.empty()) {
             for (hash_entry &entry : list) {
-                if (bit_str_equ(det, entry.det, idx_size_)) {
+                if (!memcmp(det, entry.det, idx_size_)) {
                     ret_ptr = &entry.val;
                     break;
                 }
@@ -126,7 +126,7 @@ public:
         std::forward_list<hash_entry> &list = buckets_[table_idx];
         uint8_t local_size = idx_size_;
         std::function<bool(const hash_entry&)> pred = [det, local_size](const hash_entry& value) {
-            return bit_str_equ(value.det, det, local_size);
+            return !memcmp(value.det, det, local_size);
         };
         list.remove_if(pred);
     }

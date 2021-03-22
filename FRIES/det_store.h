@@ -14,17 +14,6 @@
 extern "C" {
 #endif
 
-/*! \brief Test bit string equality
- *
- * \param [in] str1     First bit string to compare
- * \param [in] str2     Second bit string to compare
- * \param [in] n_bytes      Number of bytes represented in \p str1 and \p str2
- * \return 1 if str1 == str2, 0 otherwise
- */
-inline int bit_str_equ(uint8_t *str1, uint8_t *str2, uint8_t n_bytes)  {
-    return !memcmp(str1, str2, n_bytes);
-}
-
 
 /*! \brief Read the nth bit from a bit string
  * \param [in] bit_str      The bit string to read from

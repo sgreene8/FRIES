@@ -76,7 +76,7 @@ int main(int argc, char * argv[]) {
         double last_one_norm = 0;
         
         if (args.load_dir != nullptr) {
-            load_proc_hash(args.load_dir, proc_scrambler.data());
+            load_proc_hash(*args.load_dir, proc_scrambler.data());
         }
         else {
             if (proc_rank == 0) {
@@ -110,7 +110,7 @@ int main(int argc, char * argv[]) {
         
         // Initialize solution vector
         if (args.load_dir != nullptr) {
-            sol_vec.load(args.load_dir);
+            sol_vec.load(*args.load_dir);
         }
         else {
             if (ref_proc == proc_rank) {

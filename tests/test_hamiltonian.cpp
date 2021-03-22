@@ -161,7 +161,7 @@ TEST_CASE("Test calculation of overlap with neel state in Hubbard-Holstein", "[n
     bit_str2[1] = 0;
     
     // Returning correct neel state
-    REQUIRE(bit_str_equ(bit_str1, bit_str2, det_size));
+    REQUIRE(!memcmp(bit_str1, bit_str2, det_size));
     
     // Diagonal element for neel state should be zero
     REQUIRE(hub_diag(bit_str1, n_sites) == 0);
@@ -178,7 +178,7 @@ TEST_CASE("Test calculation of overlap with neel state in Hubbard-Holstein", "[n
     bit_str2[4] = 0;
     bzero(&bit_str2[5], 5);
     // Returning correct neel state
-    REQUIRE(bit_str_equ(bit_str1, bit_str2, det_size));
+    REQUIRE(!memcmp(bit_str1, bit_str2, det_size));
     
     // Diagonal element for neel state should be zero
     REQUIRE(hub_diag(bit_str1, n_sites) == 0);
@@ -195,7 +195,7 @@ TEST_CASE("Test calculation of overlap with neel state in Hubbard-Holstein", "[n
     bit_str2[4] = 0;
     
     // Returning correct neel state
-    REQUIRE(bit_str_equ(bit_str1, bit_str2, det_size));
+    REQUIRE(!memcmp(bit_str1, bit_str2, det_size));
     
     // Diagonal element for neel state should be zero
     REQUIRE(hub_diag(bit_str1, n_sites) == 0);
@@ -233,7 +233,7 @@ TEST_CASE("Test calculation of overlap with neel state in Hubbard-Holstein", "[n
     // Correctly identify a phonon excitation
     set_bit(dets[0], 8);
     zero_bit(dets[0], 7);
-    REQUIRE(bit_str_equ(bit_str1, dets[0], det_size));
+    REQUIRE(!memcmp(bit_str1, dets[0], det_size));
     set_bit(dets[0], 2 * n_sites);
     phonons(0, 0) = 1;
     REQUIRE(calc_ref_ovlp(dets, vals, phonons, 2, bit_str1, occ1, n_elec, n_sites, 10) == -20);
@@ -365,16 +365,16 @@ TEST_CASE("Test generation of phonon excitations/de-excitations in the Holstein 
     REQUIRE(sol_vec.det_from_ph(orig_det, new_det, 0, 1) == 1);
     correct_det[0] = 0b01101110;
     correct_det[1] = 0;
-    REQUIRE(bit_str_equ(new_det, correct_det, det_size));
+    REQUIRE(!memcmp(new_det, correct_det, det_size));
     
     REQUIRE(sol_vec.det_from_ph(orig_det, new_det, 1, 1) == 1);
     correct_det[0] = 0b00101110;
     correct_det[1] = 1;
-    REQUIRE(bit_str_equ(new_det, correct_det, det_size));
+    REQUIRE(!memcmp(new_det, correct_det, det_size));
     
     REQUIRE(sol_vec.det_from_ph(new_det, orig_det, 1, -1) == 1);
     correct_det[1] = 0;
-    REQUIRE(bit_str_equ(orig_det, correct_det, det_size));
+    REQUIRE(!memcmp(orig_det, correct_det, det_size));
     
     REQUIRE(sol_vec.det_from_ph(orig_det, new_det, 1, -1) == 0);
     
