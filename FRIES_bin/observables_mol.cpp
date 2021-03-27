@@ -90,7 +90,7 @@ int main(int argc, char * argv[]) {
         double last_norm;
         
         if (args.load_dir != nullptr) {
-            load_proc_hash(args.load_dir, proc_scrambler.data());
+            load_proc_hash(*args.load_dir, proc_scrambler.data());
         }
         else {
             if (proc_rank == 0) {

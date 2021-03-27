@@ -18,19 +18,9 @@
  * solution vector
  */
 template <class el_type>
-class HashTable {
-    /*! \brief Data structure used to store entries in the hash table
-     *
-     * The keys in the hash table are the bit-string representations of Slater
-     * determinants, and the values are the indices in the array representing the
-     * sparse vector, or -1 if the key has yet to be assigned an index
-     */
-    struct hash_entry {
-        uint8_t *det; ///< key for the hash table in bit-string form
-        el_type val; ///< index in main determinant array, or -1 if uninitialized
-    };
-    
-    std::vector<std::forward_list<hash_entry>> buckets_; ///< Vector of pointers to linked list of hash_entry structs at each positiion
+class HashTable {    
+    std::vector<std::vector<uint8_t>> buckets_dets_; ///< Vector containing the bit string indices for each bucket
+    std::vector<std::vector<el_type>> buckets_vals_; ///< Vector containing the values for each bucket
     std::vector<uint32_t> scrambler_; ///< array of random integers to use for hashing
     uint8_t idx_size_; ///< Number of bytes used to encode each bit string index in the hash table
 public:
@@ -40,7 +30,7 @@ public:
      * \param [in] table_size   Desired length of the hash table
      * \param [in] rand_ints    Vector of random integers to use for hashing (length must be >= # of spin orbitals in basis)
      */
-    HashTable(size_t table_size, const std::vector<uint32_t> rand_ints) : buckets_(table_size), scrambler_(rand_ints), idx_size_(CEILING(rand_ints.size(), 8)) {}
+    HashTable(size_t table_size, const std::vector<uint32_t> rand_ints) : buckets_dets_(table_size), buckets_vals_(table_size), scrambler_(rand_ints), idx_size_(CEILING(rand_ints.size(), 8)) {}
     
 
     /*! \brief Read value from hash table
@@ -54,14 +44,16 @@ public:
      * is false
      */
     el_type *read(uint8_t *det, uintmax_t hash_val, bool create){
-        size_t table_idx = hash_val % buckets_.size();
-        std::forward_list<hash_entry> &list = buckets_[table_idx];
+        size_t table_idx = hash_val % buckets_dets_.size();
+        std::vector<uint8_t> &row_dets = buckets_dets_[table_idx];
+        std::vector<el_type> &row_vals = buckets_vals_[table_idx];
+        size_t row_size = row_vals.size();
         
         unsigned int collisions = 0;
         el_type *ret_ptr = nullptr;
-        for (hash_entry &entry : list) {
-            if (!memcmp(det, entry.det, idx_size_)) {
-                ret_ptr = &entry.val;
+        for (size_t det_idx = 0; det_idx < row_size; det_idx++) {
+            if (!memcmp(det, &row_dets[det_idx * idx_size_], idx_size_)) {
+                ret_ptr = &row_vals[det_idx];
                 break;
             }
             collisions++;
@@ -73,11 +65,10 @@ public:
             std::cerr << "Line " << table_idx << " in the hash table has >20 hash collisions (det: " << det_str << ", hash: " << hash_val << ", " << (ret_ptr ? "found" : "not found") << ")\n";
         }
         if (!ret_ptr && create) {
-            list.emplace_front();
-            hash_entry &entry = list.front();
-            entry.det = det;
-            entry.val = -1;
-            ret_ptr = &entry.val;
+            row_dets.resize((row_size + 1) * idx_size_);
+            memcpy(&row_dets[idx_size_ * row_size], det, idx_size_);
+            row_vals.resize((row_size + 1), -1);
+            ret_ptr = &row_vals[row_size];
         }
         return ret_ptr;
     }
@@ -90,13 +81,9 @@ public:
         std::stringstream buffer;
         buffer << "hash" << my_rank << ".txt";
         std::ofstream file_p(buffer.str());
-        for (size_t table_idx = 0; table_idx < buckets_.size();
+        for (size_t table_idx = 0; table_idx < buckets_vals_.size();
              table_idx++) {
-            unsigned int collisions = 0;
-            std::forward_list<hash_entry> &list = buckets_[table_idx];
-            for (hash_entry &entry : list) {
-                collisions++;
-            }
+            unsigned int collisions = buckets_vals_[table_idx].size();
             file_p << collisions << "\n";
         }
         file_p.close();
@@ -111,13 +98,22 @@ public:
      *                          hash_fxn
      */
     void del_entry(uint8_t *det, uintmax_t hash_val) {
-        size_t table_idx = hash_val % buckets_.size();
-        std::forward_list<hash_entry> &list = buckets_[table_idx];
-        uint8_t local_size = idx_size_;
-        std::function<bool(const hash_entry&)> pred = [det, local_size](const hash_entry& value) {
-            return !memcmp(value.det, det, local_size);
-        };
-        list.remove_if(pred);
+        size_t table_idx = hash_val % buckets_vals_.size();
+        std::vector<uint8_t> &row_dets = buckets_dets_[table_idx];
+        std::vector<el_type> &row_vals = buckets_vals_[table_idx];
+        size_t row_size = row_vals.size();
+        for (size_t det_idx = 0; det_idx < row_size; det_idx++) {
+            if (!memcmp(det, &row_dets[det_idx * idx_size_], idx_size_)) {
+                if (det_idx < (row_size - 1)) {
+                    memcpy(&row_dets[det_idx], &row_dets[(row_size - 1) * idx_size_], idx_size_);
+                    row_vals[det_idx] = row_vals[row_size - 1];
+                }
+                row_size--;
+                row_dets.resize(row_size * idx_size_);
+                row_vals.resize(row_size);
+                return;
+            }
+        }
     }
     
 
