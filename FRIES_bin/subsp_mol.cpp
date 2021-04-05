@@ -24,7 +24,6 @@ struct MyArgs : public argparse::Args {
     uint32_t n_trial = kwarg("num_trial", "Number of trial vectors to use to calculate dot products with the iterates");
     uint32_t restart_int = kwarg("restart_int", "Number of multiplications by (1 - \eps H) to do in between restarts").set_default(10);
     std::string mat_output = kwarg("out_format", "A flag controlling the format for outputting the Hamiltonian and overlap matrices. Must be either 'none', in which case these matrices are not written to disk, 'txt', in which case they are outputted in text format, 'npy', in which case they are outputted in numpy format, or 'bin' for binary format").set_default<std::string>("none");
-    std::string restart_technique = kwarg("restart_technique", "Specify whether to restart using the inverse of the Hamiltonian matrix in the subspace ('h_inv') or using the inverse of the R factor of a QR decomposition of this matrix ('r_inv').");
     std::string normalization_technique = kwarg("norm_technique", "Specify how to normalize the iterates, i.e. not at all ('none'), individually by one-norm ('1-norm'), by the max of all 1-norms ('max-1-norm'), using energy shifts like in DMC ('shifts'), or using our new energy shift exp(S) technique ('new-shifts')");
     
     CONSTRUCTOR(MyArgs);
@@ -455,12 +454,7 @@ int main(int argc, char * argv[]) {
             
             if ((iteration + 1) % args.restart_int == 0) {
                 lapack_inout.copy_from(b_mat);
-                if (args.restart_technique == "h_inv") {
-                    inv_inplace(lapack_inout, lapack_scratch.data());
-                }
-                else if (args.restart_technique == "r_inv") {
-                    invr_inplace(lapack_inout, lapack_scratch.data());
-                }
+                invr_inplace(lapack_inout, lapack_scratch.data());
                 if (norm_technique == shifts || norm_technique == new_shifts) {
                     for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                         sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
