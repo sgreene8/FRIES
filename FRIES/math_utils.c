@@ -4,7 +4,6 @@
  */
 
 #include "math_utils.h"
-#include <nmmintrin.h>
 
 
 unsigned int bits_between(uint8_t *bit_str, uint8_t a, uint8_t b) {
@@ -58,8 +57,6 @@ unsigned int bits_between(uint8_t *bit_str, uint8_t a, uint8_t b) {
     return n_bits;
 }
 
-int _mm_popcnt_u32 (unsigned int a);
-
 uint8_t find_bits(const uint8_t *bit_str, uint8_t *bits, uint8_t n_bytes) {
     uint8_t n_bits = 0;
     uint8_t byte_idx;
@@ -72,7 +69,7 @@ uint8_t find_bits(const uint8_t *bit_str, uint8_t *bits, uint8_t n_bytes) {
         uint8_t byte2 = bit_str[byte_idx + 1];
         uint8_t byte2_nbits = _mm_popcnt_u32(byte2);
         
-        __m128i bit_vec = _mm_set_epi64x(byte_pos2[byte2], byte_pos2[byte1]);
+        __m128i bit_vec = _mm_set_epi64x(byte_pos[byte2], byte_pos[byte1]);
         bit_vec += bit_offset_v;
         uint8_t *vec_ptr = (uint8_t *)&bit_vec;
         
@@ -87,7 +84,7 @@ uint8_t find_bits(const uint8_t *bit_str, uint8_t *bits, uint8_t n_bytes) {
         uint8_t byte = bit_str[byte_idx];
         uint8_t byte_nbits = _mm_popcnt_u32(byte);
 
-        __m128i bit_vec = _mm_set_epi64x(0, byte_pos2[byte]);
+        __m128i bit_vec = _mm_set_epi64x(0, byte_pos[byte]);
         bit_vec += bit_offset_v;
         uint8_t *vec_ptr = (uint8_t *)&bit_vec;
 

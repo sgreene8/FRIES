@@ -182,8 +182,9 @@ double find_keep_sub(double *values, unsigned int *n_div,
                 }
             }
             uint8_t n_true = byte_nums[coarse_bool];
+            uint8_t *byte_row = (uint8_t *)&byte_pos[coarse_bool];
             for (size_t fine_idx = 0; fine_idx < n_true; fine_idx++) {
-                size_t det_idx = coarse_idx * coarse_size + byte_pos[coarse_bool][fine_idx];
+                size_t det_idx = coarse_idx * coarse_size + byte_row[fine_idx];
                 double el_magn = values[det_idx];
                 if (n_div[det_idx] > 0) {
                     keep_idx(det_idx, 0) = 1;
@@ -201,7 +202,7 @@ double find_keep_sub(double *values, unsigned int *n_div,
                     if (sub_sizes) {
                         n_sub = sub_sizes[det_idx];
                     }
-                    double coarse_wt = coarse_weights[byte_pos[coarse_bool][fine_idx]];
+                    double coarse_wt = coarse_weights[byte_row[fine_idx]];
                     
                     uint8_t *keep_row = keep_idx.row_ptr(det_idx);
                     for (size_t sub_coarse = 0; sub_coarse < (n_sub / 8); sub_coarse++) {
@@ -209,7 +210,7 @@ double find_keep_sub(double *values, unsigned int *n_div,
                         uint8_t row_bool = 0;
                         uint8_t n_not_kept = byte_nums[not_kept];
                         for (size_t sub_fine = 0; sub_fine < n_not_kept; sub_fine++) {
-                            uint8_t pos = byte_pos[not_kept][sub_fine];
+                            uint8_t pos = byte_row[sub_fine];
                             sub_magn = coarse_wt * subwt_row[sub_coarse * 8 + pos];
                             if (sub_magn >= glob_one_norm && fabs(sub_magn) > 1e-12) {
                                 row_bool += (1 << pos);
@@ -228,7 +229,7 @@ double find_keep_sub(double *values, unsigned int *n_div,
                         uint8_t row_bool = 0;
                         uint8_t n_not_kept = byte_nums[not_kept];
                         for (size_t sub_fine = 0; sub_fine < n_not_kept; sub_fine++) {
-                            uint8_t pos = byte_pos[not_kept][sub_fine];
+                            uint8_t pos = byte_row[sub_fine];
                             sub_magn = coarse_wt * subwt_row[sub_coarse * 8 + pos];
                             if (sub_magn >= glob_one_norm && fabs(sub_magn) > 1e-10) {
                                 row_bool += (1 << pos);
