@@ -110,7 +110,7 @@ int main(int argc, char * argv[]) {
          * - vector 2 is a saved snapshot for dot products
          * - vector 3 is the observable operator * the snapshot
          */
-        DistVec<double> sol_vec(args.max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 4, proc_scrambler, vec_scrambler);
+        DistVec<double> sol_vec(args.max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, 4, proc_scrambler, vec_scrambler);
         
         uint8_t hf_det[det_size];
         gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);

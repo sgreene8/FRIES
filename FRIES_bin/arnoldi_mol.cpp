@@ -178,7 +178,7 @@ int main(int argc, char * argv[]) {
         
         Adder<double> shared_adder(adder_size, procs_per_vec, n_orb * 2, samp_comm);
         
-        DistVec<double> sol_vec(args.max_n_dets, &shared_adder, n_orb * 2, n_elec_unf, diag_shortcut, nullptr, 2 * n_trial, proc_scrambler, vec_scrambler);
+        DistVec<double> sol_vec(args.max_n_dets, &shared_adder, n_orb * 2, n_elec_unf, diag_shortcut, 2 * n_trial, proc_scrambler, vec_scrambler);
         size_t det_size = CEILING(2 * n_orb, 8);
         
         uint8_t (*orb_indices1)[4] = (uint8_t (*)[4])malloc(sizeof(char) * 4 * num_ex);

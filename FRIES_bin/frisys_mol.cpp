@@ -27,7 +27,6 @@ struct MyArgs : public argparse::Args {
     std::shared_ptr<std::string> ini_path = kwarg("ini_vec", "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)");
     std::shared_ptr<std::string> trial_path = kwarg("trial_vec", "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text)");
     std::shared_ptr<std::string> determ_path = kwarg("det_space", "Path to a .txt file containing the determinants used to define the deterministic space to use in a semistochastic calculation.");
-    double pt_weight = kwarg("unbias", "The prefactor for adding corrections to the initiator bias.").set_default(0);
     
     CONSTRUCTOR(MyArgs);
 };
@@ -134,7 +133,7 @@ int main(int argc, char * argv[]) {
             vec_scrambler[det_idx] = mt_obj();
         }
         
-        DistVec<double> sol_vec(max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, &en_shift, 2, proc_scrambler, vec_scrambler);
+        DistVec<double> sol_vec(max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, 2, proc_scrambler, vec_scrambler);
         
         uint8_t hf_det[det_size];
         gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
@@ -157,7 +156,7 @@ int main(int argc, char * argv[]) {
         unsigned int tot_trial = sum_mpi((int) n_trial, proc_rank, n_procs);
         tot_trial = CEILING(tot_trial * 2, n_procs);
         DistVec<double> trial_vec(tot_trial, tot_trial, n_orb * 2, n_elec_unf, n_procs, proc_scrambler, vec_scrambler);
-        DistVec<double> htrial_vec(tot_trial * n_ex / n_procs, tot_trial * n_ex / n_procs, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2, proc_scrambler, vec_scrambler);
+        DistVec<double> htrial_vec(tot_trial * n_ex / n_procs, tot_trial * n_ex / n_procs, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, 2, proc_scrambler, vec_scrambler);
         if (args.trial_path != nullptr) { // load trial vector from file
             for (det_idx = 0; det_idx < n_trial; det_idx++) {
                 trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
@@ -641,9 +640,6 @@ int main(int argc, char * argv[]) {
             sol_vec.set_curr_vec_idx(1);
             sol_vec.zero_vec();
             size_t vec_size = sol_vec.curr_size();
-            if (args.pt_weight > 0) {
-                sol_vec.zero_ini();
-            }
             
             // The first time around, add only elements that came from noninitiators
             for (int add_ini = 0; add_ini < 2; add_ini++) {
@@ -651,7 +647,6 @@ int main(int argc, char * argv[]) {
                 samp_idx = 0;
                 while (num_added > 0) {
                     num_added = 0;
-                    size_t start_idx = samp_idx;
                     while (samp_idx < comp_len && num_added < adder_size) {
                         weight_idx = comp_idx[samp_idx][0];
                         det_idx = det_indices2[weight_idx];
@@ -758,13 +753,6 @@ int main(int argc, char * argv[]) {
                         samp_idx++;
                     }
                     sol_vec.perform_add();
-                    if (args.pt_weight) {
-                        for (size_t ini_idx = start_idx; ini_idx < samp_idx; ini_idx++) {
-                            if (orb_indices1[ini_idx][0]) {
-                                sol_vec.add_ini_weight(orb_indices1[ini_idx][1], det_indices1[ini_idx], det_indices2[comp_idx[ini_idx][0]]);
-                            }
-                        }
-                    }
                     num_added = sum_mpi(num_added, proc_rank, n_procs);
                 }
             }
@@ -791,11 +779,7 @@ int main(int argc, char * argv[]) {
                 double *curr_val = sol_vec[det_idx];
                 if (*curr_val != 0) {
                     double diag_el = sol_vec.matr_el_at_pos(det_idx);
-                    double pt_corr = 0;
-                    if (glob_norm >= target_norm) {
-                        pt_corr = args.pt_weight * (1 - sol_vec.get_pacc(det_idx));
-                    }
-                    *curr_val *= 1 - eps * (diag_el - en_shift + pt_corr);
+                    *curr_val *= 1 - eps * (diag_el - en_shift);
                 }
             }
             sol_vec.add_vecs(0, 1);

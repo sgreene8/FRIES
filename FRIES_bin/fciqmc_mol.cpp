@@ -125,7 +125,7 @@ int main(int argc, char * argv[]) {
             vec_scrambler[det_idx] = mt_obj();
         }
         
-        DistVec<int> sol_vec(max_n_dets, spawn_length, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 1, proc_scrambler, vec_scrambler);
+        DistVec<int> sol_vec(max_n_dets, spawn_length, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, 1, proc_scrambler, vec_scrambler);
         
         uint8_t hf_det[det_size];
         gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
@@ -150,7 +150,7 @@ int main(int argc, char * argv[]) {
             n_trial = 1;
         }
         DistVec<double> trial_vec(n_trial, n_trial, n_orb * 2, n_elec_unf, n_procs, proc_scrambler, vec_scrambler);
-        DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2, proc_scrambler, vec_scrambler);
+        DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, 2, proc_scrambler, vec_scrambler);
         if (args.trial_path != nullptr) { // load trial vector from file
             for (det_idx = 0; det_idx < n_trial; det_idx++) {
                 trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);

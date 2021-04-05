@@ -115,7 +115,7 @@ int main(int argc, char * argv[]) {
         for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
             vec_scrambler[det_idx] = mt_obj();
         }
-        DistVec<double> sol_vec(args.max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, NULL, 2, proc_scrambler, vec_scrambler);
+        DistVec<double> sol_vec(args.max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, 2, proc_scrambler, vec_scrambler);
         
         std::function<void(size_t, double *)> rdm_obs = [n_elec_unf, &sol_vec, n_orb](size_t idx, double *obs_vals) {
             uint8_t *orbs = sol_vec.orbs_at_pos(idx);
