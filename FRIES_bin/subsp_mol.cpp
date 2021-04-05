@@ -1,6 +1,6 @@
 /*! \file
  *
- * \brief FRI applied to Arnoldi method for calculating excited-state energies
+ * \brief FRI applied to subspace iteration for calculating excited-state energies
  */
 
 #include <iostream>
@@ -87,7 +87,7 @@ int main(int argc, char * argv[]) {
         }
         
         if (n_trial < 2) {
-            std::cerr << "Warning: Only 1 or 0 trial vectors were provided. Consider using the power method instead of Arnoldi in this case.\n";
+            std::cerr << "Warning: Only 1 or 0 trial vectors were provided. Consider using the power method instead of subspace iteration in this case.\n";
         }
     } catch (std::exception &ex) {
         std::cerr << "\nError parsing command line: " << ex.what() << "\n\n";
@@ -250,7 +250,7 @@ int main(int argc, char * argv[]) {
                 msg.append(args.result_dir);
                 throw std::runtime_error(msg);
             }
-            param_f << "Arnoldi calculation\nHF path: " << args.hf_path << "\nepsilon (imaginary time step): " << eps << "\nVector nonzero: " << args.target_nonz << "\n";
+            param_f << "Subspace iteration\nHF path: " << args.hf_path << "\nepsilon (imaginary time step): " << eps << "\nVector nonzero: " << args.target_nonz << "\n";
             param_f << "Path for trial vectors: " << args.trial_path << "\n";
             param_f << "Restart interval: " << args.restart_int << "\n";
             param_f.close();
