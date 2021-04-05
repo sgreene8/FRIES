@@ -102,7 +102,6 @@ void parse_hh_input(const std::string &hh_path, hh_input *in_struct);
  */
 size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, int *vals);
 size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, double *vals);
-size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, double *vals, MPI_Comm comm);
 
 
 /*! \brief Read an array of determinants from disk

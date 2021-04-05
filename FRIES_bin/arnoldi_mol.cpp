@@ -24,7 +24,6 @@ struct MyArgs : public argparse::Args {
     uint32_t n_trial = kwarg("num_trial", "Number of trial vectors to use to calculate dot products with the iterates");
     uint32_t restart_int = kwarg("restart_int", "Number of multiplications by (1 - \eps H) to do in between restarts").set_default(10);
     std::string mat_output = kwarg("out_format", "A flag controlling the format for outputting the Hamiltonian and overlap matrices. Must be either 'none', in which case these matrices are not written to disk, 'txt', in which case they are outputted in text format, 'npy', in which case they are outputted in numpy format, or 'bin' for binary format").set_default<std::string>("none");
-    uint32_t n_sample = kwarg("n_sample", "The number of independent vectors to simulate in parallel").set_default(1);
     std::string restart_technique = kwarg("restart_technique", "Specify whether to restart using the inverse of the Hamiltonian matrix in the subspace ('h_inv') or using the inverse of the R factor of a QR decomposition of this matrix ('r_inv').");
     std::string normalization_technique = kwarg("norm_technique", "Specify how to normalize the iterates, i.e. not at all ('none'), individually by one-norm ('1-norm'), by the max of all 1-norms ('max-1-norm'), using energy shifts like in DMC ('shifts'), or using our new energy shift exp(S) technique ('new-shifts')");
     
@@ -35,7 +34,6 @@ int main(int argc, char * argv[]) {
     MyArgs args(argc, argv);
     
     uint8_t n_trial = args.n_trial;
-    uint32_t n_sample = args.n_sample;
 
     enum {
         no_out,
@@ -99,28 +97,10 @@ int main(int argc, char * argv[]) {
     try {
         int n_procs = 1;
         int proc_rank = 0;
-        uint16_t procs_per_vec = 1;
         
         MPI_Init(NULL, NULL);
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
         MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
-        
-        procs_per_vec = n_procs / n_sample;
-        if (procs_per_vec * n_sample != n_procs) {
-            if (n_procs / procs_per_vec != n_sample) {
-                n_sample = n_procs / procs_per_vec;
-                std::cerr << "Increasing n_sample to " << n_sample << " in order to use more MPI processes\n";
-            }
-            if (n_sample * procs_per_vec != n_procs) {
-                std::cerr << "Warning: only " << n_sample * procs_per_vec << " MPI processes will be used\n";
-            }
-        }
-
-        int samp_idx = proc_rank / procs_per_vec;
-        MPI_Comm samp_comm;
-        MPI_Comm_split(MPI_COMM_WORLD, samp_idx, 0, &samp_comm);
-        int samp_rank;
-        MPI_Comm_rank(samp_comm, &samp_rank);
         
         // Parameters
 //        double shift_damping = 0.05;
@@ -153,7 +133,7 @@ int main(int argc, char * argv[]) {
         
         // Solution vector
         unsigned int num_ex = n_elec_unf * n_elec_unf * (n_orb - n_elec_unf / 2) * (n_orb - n_elec_unf / 2);
-        unsigned int spawn_length = args.target_nonz / procs_per_vec * num_ex / procs_per_vec / 4;
+        unsigned int spawn_length = args.target_nonz / n_procs * num_ex / n_procs / 4;
         size_t adder_size = spawn_length > 1000000 ? 1000000 : spawn_length;
         std::function<double(const uint8_t *)> diag_shortcut = [tot_orb, eris, h_core, n_frz, n_elec, hf_en](const uint8_t *occ_orbs) {
             return diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
@@ -176,7 +156,7 @@ int main(int argc, char * argv[]) {
             vec_scrambler[det_idx] = mt_obj();
         }
         
-        Adder<double> shared_adder(adder_size, procs_per_vec, n_orb * 2, samp_comm);
+        Adder<double> shared_adder(adder_size, n_procs, n_orb * 2);
         
         DistVec<double> sol_vec(args.max_n_dets, &shared_adder, n_orb * 2, n_elec_unf, diag_shortcut, 2 * n_trial, proc_scrambler, vec_scrambler);
         size_t det_size = CEILING(2 * n_orb, 8);
@@ -194,10 +174,10 @@ int main(int argc, char * argv[]) {
         for (uint8_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
             tmp_path << args.trial_path << std::setfill('0') << std::setw(2) << (int) trial_idx;
 
-            unsigned int loc_n_dets = (unsigned int) load_vec_txt(tmp_path.str(), *load_dets, load_vals, samp_comm);
+            unsigned int loc_n_dets = (unsigned int) load_vec_txt(tmp_path.str(), *load_dets, load_vals);
             size_t glob_n_dets = loc_n_dets;
 
-            MPI_Bcast(&glob_n_dets, 1, MPI_UNSIGNED, 0, samp_comm);
+            MPI_Bcast(&glob_n_dets, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
             trial_vecs.emplace_back(glob_n_dets, &shared_adder, n_orb * 2, n_elec_unf, proc_scrambler, vec_scrambler);
             
             for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
@@ -229,9 +209,9 @@ int main(int argc, char * argv[]) {
         std::ofstream bmat_file;
         std::ofstream dmat_file;
         
-        if (samp_rank == 0) {
+        if (proc_rank == 0) {
             if (mat_fmt == txt_out) {
-                tmp_path << args.result_dir << "b_mat_" << samp_idx << ".txt";
+                tmp_path << args.result_dir << "b_mat.txt";
                 bmat_file.open(tmp_path.str(), std::ios::app);
                 if (!bmat_file.is_open()) {
                     std::string msg("Could not open file for writing in directory ");
@@ -241,12 +221,12 @@ int main(int argc, char * argv[]) {
                 bmat_file << std::setprecision(14);
                 
                 tmp_path.str("");
-                tmp_path << args.result_dir << "d_mat_" << samp_idx << ".txt";
+                tmp_path << args.result_dir << "d_mat.txt";
                 dmat_file.open(tmp_path.str(), std::ios::app);
                 dmat_file << std::setprecision(14);
             }
             else if (mat_fmt == bin_out) {
-                tmp_path << args.result_dir << "b_mat_" << samp_idx << ".dat";
+                tmp_path << args.result_dir << "b_mat.dat";
                 bmat_file.open(tmp_path.str(), std::ios::app | std::ios::binary);
                 if (!bmat_file.is_open()) {
                     std::string msg("Could not open file for writing in directory ");
@@ -255,7 +235,7 @@ int main(int argc, char * argv[]) {
                 }
                 
                 tmp_path.str("");
-                tmp_path << args.result_dir << "d_mat_" << samp_idx << ".dat";
+                tmp_path << args.result_dir << "d_mat.dat";
                 dmat_file.open(tmp_path.str(), std::ios::app | std::ios::binary);
             }
         }
@@ -291,18 +271,14 @@ int main(int argc, char * argv[]) {
         Matrix<double> d_mat(n_trial, n_trial);
         Matrix<double> b_mat(n_trial, n_trial);
         tmp_path.str("");
-        tmp_path << args.result_dir << "d_mat_" << samp_idx << ".npy";
+        tmp_path << args.result_dir << "d_mat.npy";
         std::string dnpy_path(tmp_path.str());
         tmp_path.str("");
-        tmp_path << args.result_dir << "b_mat_" << samp_idx << ".npy";
+        tmp_path << args.result_dir << "b_mat.npy";
         std::string bnpy_path(tmp_path.str());
         tmp_path.str("");
-        tmp_path << args.result_dir << "shifts_" << samp_idx << ".txt";
+        tmp_path << args.result_dir << "shifts.txt";
         std::ofstream shift_f(tmp_path.str());
-        tmp_path.str("");
-        tmp_path << args.result_dir << "norms_" << samp_idx << ".txt";
-        std::ofstream norm_f(tmp_path.str());
-        norm_f << std::setprecision(14);
         
         std::vector<double> lapack_scratch((3 + n_trial + 32 * 2) * n_trial - 1);
         Matrix<double> lapack_inout(n_trial, n_trial);
@@ -316,7 +292,7 @@ int main(int argc, char * argv[]) {
         for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
             sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
             double norm = sol_vec.local_norm();
-            norm = sum_mpi(norm, samp_rank, procs_per_vec, samp_comm);
+            norm = sum_mpi(norm, proc_rank, n_procs, MPI_COMM_WORLD);
             for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
                 *sol_vec[el_idx] /= norm;
             }
@@ -330,13 +306,7 @@ int main(int argc, char * argv[]) {
             for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                 sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
                 double norm = sol_vec.local_norm();
-                norms[vec_idx] = sum_mpi(norm, samp_rank, procs_per_vec, samp_comm);
-                if (samp_rank == 0) {
-                    norm_f << norms[vec_idx];
-                    if (vec_idx + 1 < n_trial) {
-                        norm_f << ",";
-                    }
-                }
+                norms[vec_idx] = sum_mpi(norm, proc_rank, n_procs, MPI_COMM_WORLD);
             }
             
             if (iteration == 0) {
@@ -349,7 +319,7 @@ int main(int argc, char * argv[]) {
                 if (norm_technique == shifts) {
                     for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                         adjust_shift(&en_shifts[vec_idx], norms[vec_idx], &last_norms[vec_idx], 0, shift_damping / shift_interval / eps);
-                        if (samp_rank == 0) {
+                        if (proc_rank == 0) {
                             shift_f << en_shifts[vec_idx];
                             if (vec_idx + 1 < n_trial) {
                                 shift_f << ",";
@@ -360,7 +330,7 @@ int main(int argc, char * argv[]) {
                 if (norm_technique == new_shifts) {
                     for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                         adjust_shift2(&en_shifts[vec_idx], norms[vec_idx], &last_norms[vec_idx], shift_damping / shift_interval / eps);
-                        if (samp_rank == 0) {
+                        if (proc_rank == 0) {
                             shift_f << en_shifts[vec_idx];
                             if (vec_idx + 1 < n_trial) {
                                 shift_f << ",";
@@ -403,12 +373,12 @@ int main(int argc, char * argv[]) {
                 for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                     sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
                     double d_prod = sol_vec.dot(curr_trial.indices(), curr_trial.values(), curr_trial.curr_size(), trial_hashes[trial_idx]);
-                    d_mat(trial_idx, vec_idx) = sum_mpi(d_prod, samp_rank, procs_per_vec, samp_comm);
+                    d_mat(trial_idx, vec_idx) = sum_mpi(d_prod, proc_rank, n_procs, MPI_COMM_WORLD);
                 }
             }
             
 #pragma mark Vector compression
-            compress_vecs(sol_vec, vec_half * n_trial, (vec_half + 1) * n_trial, args.target_nonz, samp_comm, srt_arr, keep_exact, del_all, mt_obj);
+            compress_vecs(sol_vec, vec_half * n_trial, (vec_half + 1) * n_trial, args.target_nonz, srt_arr, keep_exact, del_all, mt_obj);
             
             int use_shifts = norm_technique == shifts ? 1 : 0;
                         
@@ -441,7 +411,7 @@ int main(int argc, char * argv[]) {
                 for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                     sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
                     double d_prod = sol_vec.dot(curr_trial.indices(), curr_trial.values(), curr_trial.curr_size(), trial_hashes[trial_idx]);
-                    b_mat(trial_idx, vec_idx) = sum_mpi(d_prod, samp_rank, procs_per_vec, samp_comm);
+                    b_mat(trial_idx, vec_idx) = sum_mpi(d_prod, proc_rank, n_procs, MPI_COMM_WORLD);
                     if (trial_idx == vec_idx) {
                         b_mat(trial_idx, trial_idx) -= eps * en_shifts[trial_idx] * use_shifts * d_mat(trial_idx, trial_idx);
                     }
@@ -454,7 +424,7 @@ int main(int argc, char * argv[]) {
                 }
             }
             
-            if (samp_rank == 0) {
+            if (proc_rank == 0) {
                 if (mat_fmt == npy_out) {
                     cnpy::npy_save(bnpy_path, b_mat.data(), {1, n_trial, n_trial}, "a");
                     cnpy::npy_save(dnpy_path, d_mat.data(), {1, n_trial, n_trial}, "a");
@@ -477,8 +447,6 @@ int main(int argc, char * argv[]) {
                     bmat_file.flush();
                     dmat_file.flush();
                 }
-                norm_f << '\n';
-                norm_f.flush();
                 if (norm_technique == shifts || norm_technique == new_shifts) {
                     shift_f << '\n';
                     shift_f.flush();
@@ -497,7 +465,7 @@ int main(int argc, char * argv[]) {
                     for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                         sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
                         double norm = sol_vec.local_norm();
-                        norms[vec_idx] = sum_mpi(norm, samp_rank, procs_per_vec, samp_comm);
+                        norms[vec_idx] = sum_mpi(norm, proc_rank, n_procs, MPI_COMM_WORLD);
                     }
                 }
                 for (uint8_t eigen_idx = 0; eigen_idx < n_trial; eigen_idx++) {
@@ -515,7 +483,7 @@ int main(int argc, char * argv[]) {
                     for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                         sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
                         double new_norm = sol_vec.local_norm();
-                        new_norm = sum_mpi(new_norm, samp_rank, procs_per_vec, samp_comm);
+                        new_norm = sum_mpi(new_norm, proc_rank, n_procs, MPI_COMM_WORLD);
                         for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
                             *sol_vec[el_idx] *= norms[vec_idx] / new_norm;
                         }
@@ -528,7 +496,6 @@ int main(int argc, char * argv[]) {
             dmat_file.close();
         }
         
-        MPI_Comm_free(&samp_comm);
         MPI_Finalize();
     } catch (std::exception &ex) {
         std::cerr << "\nException : " << ex.what() << "\n\nPlease send a description of this error, a copy of the command-line arguments used, and the random number generator seeds printed for each process to the developers through our GitHub repository: https://github.com/sgreene8/FRIES/ \n\n";

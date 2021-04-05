@@ -27,11 +27,6 @@ int round_binomially(double p, unsigned int n, std::mt19937 &mt_obj) {
 
 double find_preserve(double *values, std::vector<size_t> &srt_idx, std::vector<bool> &keep_idx,
                      size_t count, unsigned int *n_samp, double *global_norm) {
-    return find_preserve(values, srt_idx, keep_idx, count, n_samp, global_norm, MPI_COMM_WORLD);
-}
-
-double find_preserve(double *values, std::vector<size_t> &srt_idx, std::vector<bool> &keep_idx,
-                     size_t count, unsigned int *n_samp, double *global_norm, MPI_Comm comm)  {
     double loc_one_norm = 0;
     double glob_one_norm = 0;
     size_t heap_count = count;
@@ -40,8 +35,8 @@ double find_preserve(double *values, std::vector<size_t> &srt_idx, std::vector<b
     }
     int proc_rank = 0;
     int n_procs = 1;
-    MPI_Comm_rank(comm, &proc_rank);
-    MPI_Comm_size(comm, &n_procs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     
     auto val_compare = [values](size_t i, size_t j){return fabs(values[i]) < fabs(values[j]); };
     std::make_heap(srt_idx.begin(), srt_idx.begin() + heap_count, val_compare);
@@ -50,10 +45,10 @@ double find_preserve(double *values, std::vector<size_t> &srt_idx, std::vector<b
     
     double el_magn = 0;
     size_t max_idx;
-    *global_norm = sum_mpi(loc_one_norm, proc_rank, n_procs, comm);
+    *global_norm = sum_mpi(loc_one_norm, proc_rank, n_procs);
     bool recalc_norm = false;
     while (glob_sampled > 0) {
-        glob_one_norm = sum_mpi(loc_one_norm, proc_rank, n_procs, comm);
+        glob_one_norm = sum_mpi(loc_one_norm, proc_rank, n_procs);
         loc_sampled = 0;
         while (keep_going && heap_count > 0) {
             max_idx = srt_idx[0];
@@ -76,7 +71,7 @@ double find_preserve(double *values, std::vector<size_t> &srt_idx, std::vector<b
                 keep_going = 0;
             }
         }
-        glob_sampled = sum_mpi(loc_sampled, proc_rank, n_procs, comm);
+        glob_sampled = sum_mpi(loc_sampled, proc_rank, n_procs);
         (*n_samp) -= glob_sampled;
         if (glob_sampled == 0 && !recalc_norm) {
             loc_one_norm = 0;

@@ -278,12 +278,8 @@ size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, int *vals)
 }
 
 size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, double *vals) {
-    return load_vec_txt(prefix, dets, vals, MPI_COMM_WORLD);
-}
-
-size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, double *vals, MPI_Comm comm) {
     int my_rank = 0;
-    MPI_Comm_rank(comm, &my_rank);
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     
     if (my_rank == 0) {
         std::string buffer(prefix);

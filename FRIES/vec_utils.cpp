@@ -8,25 +8,25 @@
 #include "vec_utils.hpp"
 
 void compress_vecs(DistVec<double> &vectors, size_t start_idx, size_t end_idx, unsigned int compress_size,
-                  MPI_Comm vec_comm, std::vector<size_t> &srt_scratch, std::vector<bool> &keep_scratch,
+                  std::vector<size_t> &srt_scratch, std::vector<bool> &keep_scratch,
                   std::vector<bool> &del_arr, std::mt19937 &rn_gen) {
     int n_procs = 1;
     int rank = 0;
-    MPI_Comm_size(vec_comm, &n_procs);
-    MPI_Comm_rank(vec_comm, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     double loc_norms[n_procs];
     for (uint16_t vec_idx = start_idx; vec_idx < end_idx; vec_idx++) {
         double glob_norm;
         unsigned int n_samp = compress_size;
         vectors.set_curr_vec_idx(vec_idx);
-        loc_norms[rank] = find_preserve(vectors.values(), srt_scratch, keep_scratch, vectors.curr_size(), &n_samp, &glob_norm, vec_comm);
-        MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, vec_comm);
+        loc_norms[rank] = find_preserve(vectors.values(), srt_scratch, keep_scratch, vectors.curr_size(), &n_samp, &glob_norm);
+        MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
         glob_norm = 0;
         for (uint16_t proc_idx = 0; proc_idx < n_procs; proc_idx++) {
             glob_norm += loc_norms[proc_idx];
         }
 
-        uint32_t loc_samp = piv_budget(loc_norms, n_samp, rn_gen, vec_comm);
+        uint32_t loc_samp = piv_budget(loc_norms, n_samp, rn_gen);
         uint32_t check_tot = sum_mpi((int)loc_samp, rank, n_procs);
         if (check_tot != n_samp) {
             std::stringstream msg;
