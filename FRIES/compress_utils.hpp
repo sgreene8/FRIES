@@ -150,45 +150,6 @@ double adjust_probs(double *vec_vals, size_t vec_len, uint32_t *n_samp_loc,
                   std::vector<bool> &keep_exact);
 
 
-/*! \brief Systematic resampling of vector elements using an arbitrary (not necessarily uniform) probability distribution
- *
- * \param [in, out] vec_vals Elements in the vector (can be negative) before
- *                      and after compression (length \p vec_len)
- * \param [in] vec_len  Number of elements in the vector
- * \param [in, out] loc_norms Sum of magnitudes of elements on each MPI process
- *                      before and after compression
- * \param [in] n_samp   Number of samples in systematic resampling
- * \param [in, out] keep_exact Array indicating elements to be preserved exactly
- *                      in compression; upon return, 1's indicate elements
- *                      zeroed in the compression
- * \param [in] probs    Probability distribution used to generate the random number used for compression
- * \param [in] n_probs  Number of elements in \p probs
- * \param [in] rand_num A random number chosen uniformly on [0, 1). Only the
- *                      argument from the 0th MPI process is used.
- */
-void sys_comp_nonuni(double *vec_vals, size_t vec_len, double *loc_norms,
-                     unsigned int n_samp, std::vector<bool> &keep_exact,
-                     double *probs, size_t n_probs, double rand_num);
-
-
-/*! \brief Calculate the value of some diagonal observable that would be obtained if different values were used for
- *  the uniformly sampled random number inputted to systematic resampling
- *
- *  \param [in] vec_vals Elements in the vector (can be negative) to be compressed (length \p vec_len)
- * \param [in] vec_len  Number of elements in the vector
- * \param [in] loc_norms Sum of magnitudes of elements on each MPI process not preserved exactly
- * \param [in] n_samp   Number of samples in systematic resampling
- * \param [in] keep_exact Array indicating elements to be preserved exactly
- *                      in compression
- * \param [in] obs      Function that takes the index of an element in \p vec_vals and adds to an array the values of the observables
- * \param [out] obs_vals    The values of the observables for each of the possible random numbers that
- *              can be used in systematic compression
- */
-void sys_obs(double *vec_vals, size_t vec_len, double *loc_norms, unsigned int n_samp,
-             std::vector<bool> &keep_exact, std::function<void(size_t, double *)> obs,
-             Matrix<double> &obs_vals);
-
-
 /*! \brief Sum a variable across all MPI processes
  *
  * \param [in] local    local value to be summed

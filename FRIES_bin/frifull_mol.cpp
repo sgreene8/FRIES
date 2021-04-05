@@ -21,8 +21,6 @@ struct MyArgs : public argparse::Args {
     std::shared_ptr<std::string> load_dir = kwarg("load_dir", "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())");
     std::shared_ptr<std::string> ini_path = kwarg("ini_vec", "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)");
     std::shared_ptr<std::string> trial_path = kwarg("trial_vec", "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text)");
-    std::shared_ptr<std::string> rdm_path = kwarg("rdm_path", "Path to file from which to load the diagonal elements of the 1-RDM to use in compression");
-    double rdm_confidence = kwarg("kernel_confidence", "Parameter to use in the kernel function when using the 1-RDM to guide compression").set_default(0);
     
     CONSTRUCTOR(MyArgs);
 };
@@ -62,12 +60,6 @@ int main(int argc, char * argv[]) {
         uint8_t *symm = in_data.symm;
         Matrix<double> *h_core = in_data.hcore;
         FourDArr *eris = in_data.eris;
-        
-        std::vector<double> rdm_diag(tot_orb);
-        if (args.rdm_path != nullptr) {
-            load_rdm(*args.rdm_path, rdm_diag.data());
-            std::copy(rdm_diag.begin() + n_frz / 2, rdm_diag.end(), rdm_diag.begin());
-        }
         
         // Rn generator
         auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
@@ -282,10 +274,6 @@ int main(int argc, char * argv[]) {
             srt_arr[det_idx] = det_idx;
         }
         std::vector<bool> keep_exact(max_n_dets, false);
-        size_t num_rn_obs = (args.rdm_path != nullptr) ? 5 : 0;
-        Matrix<double> obs_vals(num_rn_obs, n_orb);
-        std::vector<double> obs_probs(num_rn_obs);
-        
         int vec_idx = 0;
         
         for (unsigned int iterat = 0; iterat < args.max_iter; iterat++) {
@@ -300,33 +288,6 @@ int main(int argc, char * argv[]) {
             if (proc_rank == hf_proc) {
                 nkept_file << args.target_nonz - n_samp << '\n';
             }
-            if (args.rdm_path != nullptr) {
-                sys_obs(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rdm_obs, obs_vals);
-                double two_norm = sol_vec.two_norm();
-                two_norm = sum_mpi(two_norm, proc_rank, n_procs);
-                double prob_norm = 0;
-                for (size_t rn_idx = 0; rn_idx < num_rn_obs; rn_idx++) {
-                    obs_probs[rn_idx] = 0;
-                    for (size_t obs_idx = 0; obs_idx < n_orb; obs_idx++) {
-                        double obs = sum_mpi(obs_vals(rn_idx, obs_idx), proc_rank, n_procs) / two_norm;
-                        obs_probs[rn_idx] += (obs - rdm_diag[obs_idx]) * (obs - rdm_diag[obs_idx]);
-                    }
-                    obs_probs[rn_idx] = exp(-obs_probs[rn_idx] / args.rdm_confidence / args.rdm_confidence);
-                    prob_norm += obs_probs[rn_idx];
-                }
-                for (size_t rn_idx = 0; rn_idx < num_rn_obs; rn_idx++) {
-                    obs_probs[rn_idx] /= prob_norm;
-                }
-                if ((iterat + 1) % 1000 == 0 && proc_rank == hf_proc) {
-                    for (size_t rn_idx = 0; rn_idx < num_rn_obs; rn_idx++) {
-                        prob_file << obs_probs[rn_idx];
-                        if (rn_idx + 1 < num_rn_obs) {
-                            prob_file << ',';
-                        }
-                    }
-                    prob_file << '\n';
-                }
-            }
             
             // Adjust shift
             if ((iterat + 1) % shift_interval == 0) {
@@ -340,12 +301,7 @@ int main(int argc, char * argv[]) {
             if (proc_rank == 0) {
                 rn_sys = mt_obj() / (1. + UINT32_MAX);
             }
-            if (args.rdm_path != nullptr) {
-                sys_comp_nonuni(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, obs_probs.data(), num_rn_obs, rn_sys);
-            }
-            else {
-                sys_comp(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
-            }
+            sys_comp(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
             for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
                 if (keep_exact[det_idx]) {
                     sol_vec.del_at_pos(det_idx);
