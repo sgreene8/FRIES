@@ -115,60 +115,6 @@ public:
     }
 };
 
-
-class NonuniComp : Sampler {
-    std::vector<double> orig_vec_;
-    std::vector<double> tmp_vec_;
-    std::vector<size_t> srt_idx_;
-    std::vector<bool> keep_idx1_;
-    std::vector<bool> keep_idx2_;
-    double loc_norm1_;
-    double loc_norm2_;
-    std::vector<double> probs_;
-public:
-    NonuniComp(size_t n_elem, unsigned int n_samp) : orig_vec_(n_elem), tmp_vec_(n_elem), srt_idx_(n_elem), keep_idx1_(n_elem), keep_idx2_(n_elem), Sampler(n_elem, n_samp), probs_(10) {
-        for (size_t el_idx = 0; el_idx < n_elem; el_idx++) {
-            orig_vec_[el_idx] = gen_rn() * 2 - 1;
-            srt_idx_[el_idx] = el_idx;
-        }
-        double glob_norm;
-        loc_norm1_ = find_preserve(orig_vec_.data(), srt_idx_, keep_idx1_, n_elem, &n_samp_, &glob_norm);
-        double prob_sum = 0;
-        for (double &x : probs_) {
-            x = gen_rn();
-            prob_sum += x;
-        }
-        for (double &x : probs_) {
-            x /= prob_sum;
-        }
-    }
-    
-    
-    void sample() override {
-        Sampler::sample();
-        std::copy(keep_idx1_.begin(), keep_idx1_.end(), keep_idx2_.begin());
-        std::copy(orig_vec_.begin(), orig_vec_.end(), tmp_vec_.begin());
-        loc_norm2_ = loc_norm1_;
-        double rn = gen_rn();
-        sys_comp_nonuni(tmp_vec_.data(), tmp_vec_.size(), &loc_norm2_, n_samp_, keep_idx2_, probs_.data(), probs_.size(), rn);
-        for (size_t el_idx = 0; el_idx < tmp_vec_.size(); el_idx++) {
-            accum_[el_idx] += tmp_vec_[el_idx];
-        }
-    }
-    
-    
-    double calc_max_diff() override {
-        double max = 0;
-        for (size_t el_idx = 0; el_idx < orig_vec_.size(); el_idx++) {
-            double diff = fabs(accum_[el_idx] / n_times_ - orig_vec_[el_idx]);
-            if (diff > max) {
-                max = diff;
-            }
-        }
-        return max;
-    }
-};
-
 class ParBudget : Sampler {
     std::vector<double> norms_;
     double tot_norm_;
