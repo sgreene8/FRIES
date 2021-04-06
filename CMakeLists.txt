@@ -4,14 +4,12 @@ project(FRIES LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 
-if(NOT ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Intel"))
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -Wno-unused-result")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wno-unused-result")
-endif()
-
-if(NOT (("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang") OR ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")))
+if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Intel")
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -restrict -xavx -Wno-unknown-pragmas")
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -xavx -Wno-unknown-pragmas")
+else()
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -Wno-unused-result -march=native")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wno-unused-result -march=native")
 endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
