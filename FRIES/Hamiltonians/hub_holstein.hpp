@@ -166,12 +166,12 @@ double calc_ref_ovlp(Matrix<uint8_t> &dets, T *vals, Matrix<uint8_t> &phonons,
                     mask &= (1 << (2 * n_sites % 8)) - 1;
                 }
                 
-                n_hop += byte_nums[mask];
+                n_hop += _mm_popcnt_u32(mask);
                 if (n_hop > 1) {
                     break;
                 }
                 
-                n_common += byte_nums[ref_det[byte_idx] & curr_det[byte_idx]];
+                n_common += _mm_popcnt_u32(ref_det[byte_idx] & curr_det[byte_idx]);
             }
             if (n_hop == 1 && n_common == (n_elec - 1)) {
                 result += vals[det_idx];

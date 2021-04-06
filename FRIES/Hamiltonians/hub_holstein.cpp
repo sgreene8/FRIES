@@ -109,11 +109,11 @@ unsigned int hub_diag(uint8_t *det, unsigned int n_sites) {
     for (byte_idx = 0; byte_idx < n_sites / 8; byte_idx++) {
         later_byte = det[n_sites / 8 + byte_idx] >> n_sites % 8;
         mask = later_byte & det[byte_idx];
-        n_overlap += byte_nums[mask];
+        n_overlap += _mm_popcnt_u32(mask);
 
         later_byte = det[n_sites / 8 + byte_idx + 1] << (8 - (n_sites % 8));
         mask = later_byte & det[byte_idx];
-        n_overlap += byte_nums[mask];
+        n_overlap += _mm_popcnt_u32(mask);
     }
     if (n_sites % 8) {
         later_byte = det[n_sites / 8 + byte_idx];
@@ -122,7 +122,7 @@ unsigned int hub_diag(uint8_t *det, unsigned int n_sites) {
         }
         later_byte >>= n_sites % 8;
         mask = later_byte & det[byte_idx];
-        n_overlap += byte_nums[mask];
+        n_overlap += _mm_popcnt_u32(mask);
     }
     
     if ((n_sites / 8 + byte_idx + 1) < CEILING(2 * n_sites, 8)) {
@@ -130,7 +130,7 @@ unsigned int hub_diag(uint8_t *det, unsigned int n_sites) {
         later_byte &= (1 << (2 * n_sites % 8)) - 1;
         later_byte <<= (8 - (n_sites % 8));
         mask = later_byte & det[byte_idx];
-        n_overlap += byte_nums[mask];
+        n_overlap += _mm_popcnt_u32(mask);
     }
     return n_overlap;
 }

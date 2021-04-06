@@ -176,7 +176,7 @@ double find_keep_sub(double *values, unsigned int *n_div,
                     coarse_bool += (coarse_weights[fine_idx] >= glob_one_norm) << fine_idx;
                 }
             }
-            uint8_t n_true = byte_nums[coarse_bool];
+            uint8_t n_true = _mm_popcnt_u32(coarse_bool);
             uint8_t *byte_row = (uint8_t *)&byte_pos[coarse_bool];
             for (size_t fine_idx = 0; fine_idx < n_true; fine_idx++) {
                 size_t det_idx = coarse_idx * coarse_size + byte_row[fine_idx];
@@ -203,7 +203,7 @@ double find_keep_sub(double *values, unsigned int *n_div,
                     for (size_t sub_coarse = 0; sub_coarse < (n_sub / 8); sub_coarse++) {
                         uint8_t not_kept = ~keep_row[sub_coarse];
                         uint8_t row_bool = 0;
-                        uint8_t n_not_kept = byte_nums[not_kept];
+                        uint8_t n_not_kept = _mm_popcnt_u32(not_kept);
                         for (size_t sub_fine = 0; sub_fine < n_not_kept; sub_fine++) {
                             uint8_t pos = byte_row[sub_fine];
                             sub_magn = coarse_wt * subwt_row[sub_coarse * 8 + pos];
@@ -222,7 +222,7 @@ double find_keep_sub(double *values, unsigned int *n_div,
                         uint8_t not_kept = ~keep_row[sub_coarse];
                         not_kept &= (1 << (n_sub % 8)) - 1;
                         uint8_t row_bool = 0;
-                        uint8_t n_not_kept = byte_nums[not_kept];
+                        uint8_t n_not_kept = _mm_popcnt_u32(not_kept);
                         for (size_t sub_fine = 0; sub_fine < n_not_kept; sub_fine++) {
                             uint8_t pos = byte_row[sub_fine];
                             sub_magn = coarse_wt * subwt_row[sub_coarse * 8 + pos];
