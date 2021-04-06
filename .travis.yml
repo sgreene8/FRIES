@@ -7,6 +7,7 @@ before_install:
   -in .ci/travis_deploy_key.enc -out .ci/travis_deploy_key -d
 - sudo apt-get install doxygen libopenmpi-dev openmpi-bin build-essential liblapack* libblas*
 - test -n $CC && unset CC
+- cat /proc/cpuinfo
 
 script: 
 - mkdir build
