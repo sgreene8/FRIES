@@ -7,6 +7,7 @@
 #include "inputs.hpp"
 #include <fstream>
 #include <FRIES/compress_utils.hpp>
+#include <iomanip>
 
 TEST_CASE("Test alias method", "[alias]") {
     using namespace test_inputs;
