@@ -1,6 +1,6 @@
 /*! \file
  *
- * \brief FRI applied to subspace iteration for calculating excited-state energies
+ * \brief FRI applied to subspace iteration for calculating excited-state energies. The Hamiltonian is not factorized
  */
 
 #include <iostream>
