@@ -304,19 +304,19 @@ size_t gen_hf_ex(uint8_t *hf_det, uint8_t *hf_occ, unsigned int num_elec,
     return num_hf_doub;
 }
 
-size_t count_singex(uint8_t *det, const uint8_t *occ_orbs, const uint8_t *orb_symm,
-                    unsigned int num_orb, const Matrix<uint8_t> &lookup_tabl,
-                    unsigned int num_elec) {
+size_t count_singex(uint8_t *det, const uint8_t *occ_orbs, uint32_t num_elec,
+                    SymmInfo *symm) {
     size_t num_ex = 0;
     unsigned int elec_idx, symm_idx;
     uint8_t elec_symm, elec_orb;
+    size_t num_orb = symm->symm_vec.size();
     int elec_spin;
     for (elec_idx = 0; elec_idx < num_elec; elec_idx++) {
         elec_orb = occ_orbs[elec_idx];
-        elec_symm = orb_symm[elec_orb % num_orb];
+        elec_symm = symm->symm_vec[elec_orb % num_orb];
         elec_spin = elec_orb / num_orb;
-        for (symm_idx = 0; symm_idx < lookup_tabl[elec_symm][0]; symm_idx++) {
-            if (!(read_bit(det, lookup_tabl[elec_symm][symm_idx + 1] +
+        for (symm_idx = 0; symm_idx < symm->symm_lookup[elec_symm][0]; symm_idx++) {
+            if (!(read_bit(det, symm->symm_lookup[elec_symm][symm_idx + 1] +
                            num_orb * elec_spin))) {
                 num_ex += 1;
             }

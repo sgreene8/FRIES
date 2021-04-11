@@ -12,19 +12,18 @@
 #include <FRIES/Hamiltonians/molecule.hpp>
 
 void count_symm_virt(unsigned int counts[][2], uint8_t *occ_orbs,
-                     unsigned int n_elec, unsigned int n_orb, unsigned int n_symm,
-                     const Matrix<uint8_t> &symm_table,
-                     uint8_t *orb_irreps) {
+                     unsigned int n_elec, SymmInfo *symm) {
     unsigned int i;
-    for (i = 0; i < n_symm; i++) {
-        counts[i][0] = symm_table(i, 0);
-        counts[i][1] = symm_table(i, 0);
+    size_t n_orb = symm->symm_vec.size();
+    for (i = 0; i < n_irreps; i++) {
+        counts[i][0] = symm->symm_lookup(i, 0);
+        counts[i][1] = symm->symm_lookup(i, 0);
     }
     for (i = 0; i < n_elec / 2; i++) {
-        counts[orb_irreps[occ_orbs[i]]][0] -= 1;
+        counts[symm->symm_vec[occ_orbs[i]]][0] -= 1;
     }
     for (; i < n_elec; i++) {
-        counts[orb_irreps[occ_orbs[i] - n_orb]][1] -= 1;
+        counts[symm->symm_vec[occ_orbs[i] - n_orb]][1] -= 1;
     }
 }
 
@@ -192,25 +191,27 @@ unsigned int _doub_choose_virt2(unsigned int spin_shift, uint8_t *det,
 
 
 unsigned int doub_multin(uint8_t *det, uint8_t *occ_orbs, unsigned int num_elec,
-                         uint8_t *orb_symm, unsigned int num_orb, const Matrix<uint8_t> &lookup_tabl,
+                         SymmInfo *symm,
                          unsigned int (* unocc_sym_counts)[2], unsigned int num_sampl,
                          std::mt19937 &mt_obj, uint8_t (* chosen_orbs)[4], double *prob_vec) {
     unsigned int i, a_symm, b_symm, a_spin, b_spin, sym_prod;
     unsigned int unocc1, unocc2, m_a_allow, m_a_b_allow, m_b_a_allow;
     orb_pair occ;
     unsigned int num_nonnull = 0;
+    std::vector<uint8_t> &orb_symm = symm->symm_vec;
+    uint32_t num_orb = (uint32_t) orb_symm.size();
     
     for (i = 0; i < num_sampl; i++) {
         occ = _choose_occ_pair(occ_orbs, num_elec, mt_obj);
         
         sym_prod = orb_symm[occ.orb1 % num_orb] ^ orb_symm[occ.orb2 % num_orb];
         
-        m_a_allow = _count_doub_virt(occ, orb_symm, num_orb, num_elec, unocc_sym_counts);
+        m_a_allow = _count_doub_virt(occ, symm->symm_vec.data(), num_orb, num_elec, unocc_sym_counts);
         
         if (m_a_allow == 0)
             continue;
         
-        unocc1 = _doub_choose_virt1(occ, det, orb_symm, num_orb, unocc_sym_counts, m_a_allow, mt_obj);
+        unocc1 = _doub_choose_virt1(occ, det, symm->symm_vec.data(), num_orb, unocc_sym_counts, m_a_allow, mt_obj);
         a_spin = unocc1 / num_orb; // spin of 1st virtual orbital chosen
         b_spin = occ.spin1 ^ occ.spin2 ^ a_spin; // 2nd virtual spin
         a_symm = orb_symm[unocc1 % num_orb];
@@ -219,7 +220,7 @@ unsigned int doub_multin(uint8_t *det, uint8_t *occ_orbs, unsigned int num_elec,
         m_a_b_allow = (unocc_sym_counts[b_symm][b_spin] - (sym_prod == 0 && a_spin == b_spin));
         
         // Choose second unoccupied orbital
-        unocc2 = _doub_choose_virt2(b_spin * num_orb, det, lookup_tabl[b_symm],
+        unocc2 = _doub_choose_virt2(b_spin * num_orb, det, symm->symm_lookup[b_symm],
                                     unocc1, m_a_b_allow, mt_obj);
         
         // Calculate probability of choosing this excitation
@@ -274,11 +275,13 @@ unsigned int _sing_choose_virt(uint8_t *det, const uint8_t *symm_row,
 
 
 unsigned int sing_multin(uint8_t *det, uint8_t *occ_orbs, unsigned int num_elec,
-                         uint8_t *orb_symm, unsigned int num_orb, const Matrix<uint8_t> &lookup_tabl,
+                         SymmInfo *symm,
                          unsigned int (* unocc_sym_counts)[2], unsigned int num_sampl,
                          std::mt19937 &mt_obj, uint8_t (* chosen_orbs)[2], double *prob_vec) {
     unsigned int delta_s, num_allowed, occ_orb, occ_symm, occ_spin;
     unsigned int m_allow[num_elec];
+    std::vector<uint8_t> &orb_symm = symm->symm_vec;
+    uint32_t num_orb = (uint32_t) orb_symm.size();
     
     delta_s = 0; // number of electrons with no symmetry-allowed excitations
     
@@ -300,7 +303,7 @@ unsigned int sing_multin(uint8_t *det, uint8_t *occ_orbs, unsigned int num_elec,
         occ_symm = orb_symm[occ_orb % num_orb];
         occ_spin = occ_orb / num_orb;
         
-        unsigned int virt_orb = _sing_choose_virt(det, lookup_tabl[occ_symm], occ_spin * num_orb, mt_obj);
+        unsigned int virt_orb = _sing_choose_virt(det, symm->symm_lookup[occ_symm], occ_spin * num_orb, mt_obj);
         
         prob_vec[j] = (1. / m_allow[elec_idx] / (num_elec - delta_s));
         chosen_orbs[j][0] = occ_orb;

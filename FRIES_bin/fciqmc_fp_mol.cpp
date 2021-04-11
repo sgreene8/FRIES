@@ -106,8 +106,7 @@ int main(int argc, char * argv[]) {
         size_t det_size = CEILING(2 * n_orb, 8);
         size_t det_idx;
         
-        Matrix<uint8_t> symm_lookup(n_irreps, n_orb + 1);
-        gen_symm_lookup(symm, symm_lookup);
+        SymmInfo symm_basis(symm, n_orb);
         unsigned int unocc_symm_cts[n_irreps][2];
         
         // Initialize hash function for processors and vector=
@@ -191,7 +190,7 @@ int main(int argc, char * argv[]) {
         // Count # single/double excitations from HF
         sol_vec.gen_orb_list(hf_det, tmp_orbs);
         size_t n_hf_doub = doub_ex_symm(hf_det, tmp_orbs, n_elec_unf, n_orb, doub_orbs, symm);
-        size_t n_hf_sing = count_singex(hf_det, tmp_orbs, symm, n_orb, symm_lookup, n_elec_unf);
+        size_t n_hf_sing = count_singex(hf_det, tmp_orbs, n_elec_unf, &symm_basis);
         double p_doub = (double) n_hf_doub / (n_hf_sing + n_hf_doub);
         
         size_t walker_idx;
@@ -358,8 +357,7 @@ int main(int argc, char * argv[]) {
                 
                 // spawning step
                 uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
-                count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf,
-                                n_orb, n_irreps, symm_lookup, symm);
+                count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf, &symm_basis);
                 n_doub = bin_sample(n_walk, p_doub, mt_obj);
                 n_sing = n_walk - n_doub;
                 
@@ -382,10 +380,10 @@ int main(int argc, char * argv[]) {
                 }
                 
                 if (qmc_dist == near_uni) {
-                    n_doub = doub_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_doub, mt_obj, doub_orbs, spawn_probs);
+                    n_doub = doub_multin(curr_det, occ_orbs, n_elec_unf, &symm_basis, unocc_symm_cts, n_doub, mt_obj, doub_orbs, spawn_probs);
                 }
                 else if (qmc_dist == heat_bath) {
-                    n_doub = hb_doub_multi(curr_det, occ_orbs, n_elec_unf, symm, hb_probs, symm_lookup, n_doub, mt_obj, doub_orbs, spawn_probs);
+                    n_doub = hb_doub_multi(curr_det, occ_orbs, n_elec_unf, &symm_basis, hb_probs, n_doub, mt_obj, doub_orbs, spawn_probs);
                 }
                 
                 for (walker_idx = 0; walker_idx < n_doub; walker_idx++) {
@@ -405,7 +403,7 @@ int main(int argc, char * argv[]) {
                     }
                 }
                 
-                n_sing = sing_multin(curr_det, occ_orbs, n_elec_unf, symm, n_orb, symm_lookup, unocc_symm_cts, n_sing, mt_obj, sing_orbs, spawn_probs);
+                n_sing = sing_multin(curr_det, occ_orbs, n_elec_unf, &symm_basis, unocc_symm_cts, n_sing, mt_obj, sing_orbs, spawn_probs);
                 
                 for (walker_idx = 0; walker_idx < n_sing; walker_idx++) {
                     matr_el = sing_matr_el_nosgn(sing_orbs[walker_idx], occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec_unf);

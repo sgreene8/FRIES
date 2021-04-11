@@ -93,22 +93,14 @@ int main(int argc, char * argv[]) {
         std::mt19937 mt_obj((unsigned int)seed);
         
         // Solution vector
-        unsigned int spawn_length = args.matr_samp * 4 / n_procs;
+        unsigned int spawn_length = matr_samp * 4 / n_procs;
         size_t adder_size = spawn_length > 1000000 ? 1000000 : spawn_length;
         std::function<double(const uint8_t *)> diag_shortcut = [tot_orb, eris, h_core, n_frz, n_elec, hf_en](const uint8_t *occ_orbs) {
             return diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
         };
         size_t det_size = CEILING(2 * n_orb, 8);
-        size_t det_idx;
         
-        Matrix<uint8_t> symm_lookup(n_irreps, n_orb + 1);
-        gen_symm_lookup(symm, symm_lookup);
-        unsigned int max_n_symm = 0;
-        for (det_idx = 0; det_idx < n_irreps; det_idx++) {
-            if (symm_lookup[det_idx][0] > max_n_symm) {
-                max_n_symm = symm_lookup[det_idx][0];
-            }
-        }
+        SymmInfo basis_symm(in_data.symm, n_orb);
         
         // Initialize hash function for processors and vector
         std::vector<uint32_t> proc_scrambler(2 * n_orb);
@@ -120,7 +112,7 @@ int main(int argc, char * argv[]) {
         }
         else {
             if (proc_rank == 0) {
-                for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
+                for (size_t det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
                     proc_scrambler[det_idx] = mt_obj();
                 }
                 save_proc_hash(args.result_dir, proc_scrambler.data(), 2 * n_orb);
@@ -129,7 +121,7 @@ int main(int argc, char * argv[]) {
             MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
         }
         std::vector<uint32_t> vec_scrambler(2 * n_orb);
-        for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
+        for (size_t det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
             vec_scrambler[det_idx] = mt_obj();
         }
         
@@ -158,7 +150,7 @@ int main(int argc, char * argv[]) {
         DistVec<double> trial_vec(tot_trial, tot_trial, n_orb * 2, n_elec_unf, n_procs, proc_scrambler, vec_scrambler);
         DistVec<double> htrial_vec(tot_trial * n_ex / n_procs, tot_trial * n_ex / n_procs, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, 2, proc_scrambler, vec_scrambler);
         if (args.trial_path != nullptr) { // load trial vector from file
-            for (det_idx = 0; det_idx < n_trial; det_idx++) {
+            for (size_t det_idx = 0; det_idx < n_trial; det_idx++) {
                 trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
                 htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
             }
@@ -174,7 +166,7 @@ int main(int argc, char * argv[]) {
         
         trial_vec.collect_procs();
         std::vector<uintmax_t> trial_hashes(trial_vec.curr_size());
-        for (det_idx = 0; det_idx < trial_vec.curr_size(); det_idx++) {
+        for (size_t det_idx = 0; det_idx < trial_vec.curr_size(); det_idx++) {
             trial_hashes[det_idx] = sol_vec.idx_to_hash(trial_vec.indices()[det_idx], tmp_orbs);
         }
         
@@ -185,14 +177,14 @@ int main(int argc, char * argv[]) {
         htrial_vec.add_vecs(0, 1);
         htrial_vec.collect_procs();
         std::vector<uintmax_t> htrial_hashes(htrial_vec.curr_size());
-        for (det_idx = 0; det_idx < htrial_vec.curr_size(); det_idx++) {
+        for (size_t det_idx = 0; det_idx < htrial_vec.curr_size(); det_idx++) {
             htrial_hashes[det_idx] = sol_vec.idx_to_hash(htrial_vec.indices()[det_idx], tmp_orbs);
         }
         
         // Count # single/double excitations from HF
         sol_vec.gen_orb_list(hf_det, tmp_orbs);
         size_t n_hf_doub = doub_ex_symm(hf_det, tmp_orbs, n_elec_unf, n_orb, orb_indices1, symm);
-        size_t n_hf_sing = count_singex(hf_det, tmp_orbs, symm, n_orb, symm_lookup, n_elec_unf);
+        size_t n_hf_sing = count_singex(hf_det, tmp_orbs, n_elec_unf, &basis_symm);
         double p_doub = (double) n_hf_doub / (n_hf_sing + n_hf_doub);
         
         std::string file_path;
@@ -266,7 +258,7 @@ int main(int argc, char * argv[]) {
             
             size_t n_dets = load_vec_txt(*args.ini_path, load_dets, load_vals);
             
-            for (det_idx = 0; det_idx < n_dets; det_idx++) {
+            for (size_t det_idx = 0; det_idx < n_dets; det_idx++) {
                 sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
             }
             n_dets++; // just to be safe
@@ -332,20 +324,8 @@ int main(int argc, char * argv[]) {
         }
         
         size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2) ? n_elec_unf : n_orb - n_elec_unf / 2;
-        Matrix<double> subwt_mem(spawn_length, n_states);
-        uint16_t *sub_sizes = (uint16_t *)malloc(sizeof(uint16_t) * spawn_length);
-        unsigned int *ndiv_vec = (unsigned int *)malloc(sizeof(unsigned int) * spawn_length);
-        double *comp_vec1 = (double *)malloc(sizeof(double) * spawn_length);
-        double *comp_vec2 = (double *)malloc(sizeof(double) * spawn_length);
-        size_t (*comp_idx)[2] = (size_t (*)[2])malloc(sizeof(size_t) * 2 * spawn_length);
-        size_t comp_len;
-        size_t *det_indices1 = (size_t *)malloc(sizeof(size_t) * 2 * spawn_length);
-        size_t *det_indices2 = &det_indices1[spawn_length];
-        uint8_t (*orb_indices2)[4] = (uint8_t (*)[4])malloc(sizeof(uint8_t) * 4 * spawn_length);
+        HBCompress comp_vecs(spawn_length, n_states);
         unsigned int unocc_symm_cts[n_irreps][2];
-        Matrix<bool> keep_idx(spawn_length, n_states);
-        double *wt_remain = (double *)calloc(spawn_length, sizeof(double));
-        size_t samp_idx, weight_idx;
         
         hb_info *hb_probs = set_up(tot_orb, n_orb, *eris);
         
@@ -353,12 +333,11 @@ int main(int argc, char * argv[]) {
         
         // Parameters for systematic sampling
         double rn_sys = 0;
-        double weight;
         int glob_n_nonz; // Number of nonzero elements in whole vector (across all processors)
         double loc_norms[n_procs];
         max_n_dets = (unsigned int)sol_vec.max_size();
         std::vector<size_t> srt_arr(max_n_dets);
-        for (det_idx = 0; det_idx < max_n_dets; det_idx++) {
+        for (size_t det_idx = 0; det_idx < max_n_dets; det_idx++) {
             srt_arr[det_idx] = det_idx;
         }
         std::vector<bool> keep_exact(max_n_dets, false);
@@ -369,7 +348,7 @@ int main(int argc, char * argv[]) {
         size_t *determ_from = (size_t *)malloc(determ_h_size * sizeof(size_t));
         Matrix<uint8_t> determ_to(determ_h_size, det_size);
         double *determ_matr_el = (double *)malloc(determ_h_size * sizeof(double));
-        for (det_idx = 0; det_idx < n_determ; det_idx++) {
+        for (size_t det_idx = 0; det_idx < n_determ; det_idx++) {
             uint8_t *curr_det = sol_vec.indices()[det_idx];
             uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
             uint8_t (*sing_ex_orbs)[2] = (uint8_t (*)[2])orb_indices1;
@@ -430,211 +409,15 @@ int main(int argc, char * argv[]) {
                 std::cerr << "Warning: target number of matrix samples " << args.matr_samp << " is less than number of nonzero vector elements (" << glob_n_nonz << ")\n";
             }
             
-#pragma mark Singles vs doubles
-            subwt_mem.reshape(spawn_length, 2);
-            keep_idx.reshape(spawn_length, 2);
-            for (det_idx = n_determ; det_idx < sol_vec.curr_size(); det_idx++) {
-                double *curr_el = sol_vec[det_idx];
-                weight = fabs(*curr_el);
-                n_ini += weight >= args.init_thresh;
-                comp_vec1[det_idx - n_determ] = weight;
-                if (weight > 0) {
-                    subwt_mem(det_idx - n_determ, 0) = p_doub;
-                    subwt_mem(det_idx - n_determ, 1) = (1 - p_doub);
-                    ndiv_vec[det_idx - n_determ] = 0;
-                }
-                else {
-                    ndiv_vec[det_idx - n_determ] = 1;
-                }
+            std::copy(sol_vec.values() + n_determ, sol_vec.values() + sol_vec.curr_size(), comp_vecs.vec1.begin());
+            for (size_t det_idx = n_determ; det_idx < sol_vec.curr_size(); det_idx++) {
+                comp_vecs.det_indices1[det_idx - n_determ] = det_idx;
             }
-            if (proc_rank == 0) {
-                rn_sys = mt_obj() / (1. + UINT32_MAX);
-            }
-            comp_len = comp_sub(comp_vec1, sol_vec.curr_size() - n_determ, ndiv_vec, subwt_mem, keep_idx, NULL, matr_samp - tot_dense_h, wt_remain, rn_sys, comp_vec2, comp_idx);
-            if (comp_len > spawn_length) {
-                fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
-            }
-            
-#pragma mark  First occupied orbital
-            subwt_mem.reshape(spawn_length, n_elec_unf - new_hb);
-            keep_idx.reshape(spawn_length, n_elec_unf - new_hb);
-            for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
-                det_idx = comp_idx[samp_idx][0] + n_determ;
-                det_indices1[samp_idx] = det_idx;
-                orb_indices1[samp_idx][0] = comp_idx[samp_idx][1];
-                uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
-                if (orb_indices1[samp_idx][0] == 0) { // double excitation
-                    ndiv_vec[samp_idx] = 0;
-                    double tot_weight = calc_o1_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs, new_hb);
-                    if (new_hb) {
-                        comp_vec2[samp_idx] *= tot_weight;
-                    }
-                }
-                else {
-                    count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf, n_orb, n_irreps, symm_lookup, symm);
-                    unsigned int n_occ = count_sing_allowed(occ_orbs, n_elec_unf, symm, n_orb, unocc_symm_cts);
-                    if (n_occ == 0) {
-                        ndiv_vec[samp_idx] = 1;
-                        comp_vec2[samp_idx] = 0;
-                    }
-                    else {
-                        ndiv_vec[samp_idx] = n_occ;
-                    }
-                }
-            }
-            
-            if (proc_rank == 0) {
-                rn_sys = mt_obj() / (1. + UINT32_MAX);
-            }
-            comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, subwt_mem, keep_idx, NULL, matr_samp - tot_dense_h, wt_remain, rn_sys, comp_vec1, comp_idx);
-            if (comp_len > spawn_length) {
-                fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
-            }
-            
-#pragma mark Unoccupied orbital (single); 2nd occupied (double)
-            for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
-                weight_idx = comp_idx[samp_idx][0];
-                det_idx = det_indices1[weight_idx];
-                det_indices2[samp_idx] = det_idx;
-                orb_indices2[samp_idx][0] = orb_indices1[weight_idx][0]; // single or double
-                orb_indices2[samp_idx][1] = comp_idx[samp_idx][1]; // first occupied orbital index (NOT converted to orbital below)
-                if (orb_indices2[samp_idx][1] >= n_elec_unf) {
-                    fprintf(stderr, "Error: chosen occupied orbital (first) is out of bounds\n");
-                    comp_vec1[samp_idx] = 0;
-                    ndiv_vec[samp_idx] = 1;
-                    continue;
-                }
-                uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
-                if (orb_indices2[samp_idx][0] == 0) { // double excitation
-                    ndiv_vec[samp_idx] = 0;
-                    if (qmc_dist == heat_bath) {
-                        calc_o2_probs(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs, orb_indices2[samp_idx][1]);
-                    }
-                    else {
-                        orb_indices2[samp_idx][1]++;
-                        sub_sizes[samp_idx] = orb_indices2[samp_idx][1];
-                        comp_vec1[samp_idx] *= calc_o2_probs_half(hb_probs, subwt_mem[samp_idx], n_elec_unf, occ_orbs, orb_indices2[samp_idx][1]);
-                    }
-                }
-                else { // single excitation
-                    count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf, n_orb, n_irreps, symm_lookup, symm);
-                    unsigned int n_virt = count_sing_virt(occ_orbs, n_elec_unf, symm, n_orb, unocc_symm_cts, &orb_indices2[samp_idx][1]);
-                    if (n_virt == 0) {
-                        ndiv_vec[samp_idx] = 1;
-                        comp_vec1[samp_idx] = 0;
-                    }
-                    else {
-                        ndiv_vec[samp_idx] = n_virt;
-                        orb_indices2[samp_idx][3] = n_virt; // number of allowed virtual orbitals
-                    }
-                }
-            }
-            if (proc_rank == 0) {
-                rn_sys = mt_obj() / (1. + UINT32_MAX);
-            }
-            comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, subwt_mem, keep_idx, new_hb ? sub_sizes : NULL, matr_samp - tot_dense_h, wt_remain, rn_sys, comp_vec2, comp_idx);
-            if (comp_len > spawn_length) {
-                fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
-            }
-            
-#pragma mark 1st unoccupied (double)
-            subwt_mem.reshape(spawn_length, n_orb - n_elec_unf / 2);
-            keep_idx.reshape(spawn_length, n_orb - n_elec_unf / 2);
-            for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
-                weight_idx = comp_idx[samp_idx][0];
-                det_idx = det_indices2[weight_idx];
-                det_indices1[samp_idx] = det_idx;
-                orb_indices1[samp_idx][0] = orb_indices2[weight_idx][0]; // single or double
-                uint8_t o1_idx = orb_indices2[weight_idx][1];
-                orb_indices1[samp_idx][1] = o1_idx; // 1st occupied index
-                uint8_t o2u1_orb = comp_idx[samp_idx][1]; // 2nd occupied orbital index (doubles), NOT converted to orbital below; unoccupied orbital index (singles)
-                orb_indices1[samp_idx][2] = o2u1_orb;
-                if (orb_indices1[samp_idx][0] == 0) { // double excitation
-                    if (o2u1_orb >= n_elec_unf) {
-                        fprintf(stderr, "Error: chosen occupied orbital (second) is out of bounds\n");
-                        comp_vec2[samp_idx] = 0;
-                        ndiv_vec[samp_idx] = 1;
-                        continue;
-                    }
-                    ndiv_vec[samp_idx] = 0;
-                    uint8_t *occ_tmp = sol_vec.orbs_at_pos(det_idx);
-                    //                orb_indices1[samp_idx][2] = occ_tmp[o2u1_orb];
-                    int o1_spin = o1_idx / (n_elec_unf / 2);
-                    int o2_spin = occ_tmp[o2u1_orb] / n_orb;
-                    double o1_orb = occ_tmp[o1_idx];
-                    double tot_weight = calc_u1_probs(hb_probs, subwt_mem[samp_idx], o1_orb, occ_tmp, n_elec_unf, new_hb && (o1_spin == o2_spin));
-                    if (new_hb) {
-                        comp_vec2[samp_idx] *= tot_weight;
-                    }
-                }
-                else { // single excitation
-                    uint8_t n_virt = orb_indices2[weight_idx][3];
-                    if (o2u1_orb >= n_virt) {
-                        comp_vec1[samp_idx] = 0;
-                        fprintf(stderr, "Error: index of chosen virtual orbital exceeds maximum\n");
-                    }
-                    orb_indices1[samp_idx][3] = n_virt;
-                    ndiv_vec[samp_idx] = 1;
-                }
-            }
-            if (proc_rank == 0) {
-                rn_sys = mt_obj() / (1. + UINT32_MAX);
-            }
-            comp_len = comp_sub(comp_vec2, comp_len, ndiv_vec, subwt_mem, keep_idx, NULL, matr_samp - tot_dense_h, wt_remain, rn_sys, comp_vec1, comp_idx);
-            if (comp_len > spawn_length) {
-                fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
-            }
-            
-#pragma mark 2nd unoccupied (double)
-            subwt_mem.reshape(spawn_length, max_n_symm);
-            keep_idx.reshape(spawn_length, max_n_symm);
-            for (samp_idx = 0; samp_idx < comp_len; samp_idx++) {
-                weight_idx = comp_idx[samp_idx][0];
-                det_idx = det_indices1[weight_idx];
-                det_indices2[samp_idx] = det_idx;
-                orb_indices2[samp_idx][0] = orb_indices1[weight_idx][0]; // single or double
-                uint8_t o1_idx = orb_indices1[weight_idx][1];
-                orb_indices2[samp_idx][1] = o1_idx; // 1st occupied index
-                uint8_t o2_idx = orb_indices1[weight_idx][2];
-                orb_indices2[samp_idx][2] = o2_idx; // 2nd occupied index (doubles); unoccupied orbital index (singles)
-                if (orb_indices2[samp_idx][0] == 0) { // double excitation
-                    uint8_t u1_orb = find_nth_virt(sol_vec.orbs_at_pos(det_idx), o1_idx / (n_elec_unf / 2), n_elec_unf, n_orb, comp_idx[samp_idx][1]);
-                    uint8_t *curr_det = sol_vec.indices()[det_idx];
-                    if (read_bit(curr_det, u1_orb)) { // now this really should never happen
-                        fprintf(stderr, "Error: occupied orbital chosen as 1st virtual\n");
-                        comp_vec1[samp_idx] = 0;
-                        ndiv_vec[samp_idx] = 1;
-                    }
-                    else {
-                        ndiv_vec[samp_idx] = 0;
-                        orb_indices2[samp_idx][3] = u1_orb;
-                        double tot_weight;
-                        uint8_t *occ_tmp = sol_vec.orbs_at_pos(det_idx);
-                        double o1_orb = occ_tmp[o1_idx];
-                        double o2_orb = occ_tmp[o2_idx];
-                        if (qmc_dist == heat_bath) {
-                            tot_weight = calc_u2_probs(hb_probs, subwt_mem[samp_idx], o1_orb, o2_orb, u1_orb, symm_lookup, symm, &sub_sizes[samp_idx]);
-                        }
-                        else {
-                            tot_weight = calc_u2_probs_half(hb_probs, subwt_mem[samp_idx], o1_orb, o2_orb, u1_orb, curr_det, symm_lookup, symm, &sub_sizes[samp_idx]);
-                        }
-                        if (new_hb || tot_weight == 0) {
-                            comp_vec1[samp_idx] *= tot_weight;
-                        }
-                    }
-                }
-                else {
-                    orb_indices2[samp_idx][3] = orb_indices1[weight_idx][3];
-                    ndiv_vec[samp_idx] = 1;
-                }
-            }
-            if (proc_rank == 0) {
-                rn_sys = mt_obj() / (1. + UINT32_MAX);
-            }
-            comp_len = comp_sub(comp_vec1, comp_len, ndiv_vec, subwt_mem, keep_idx, sub_sizes, matr_samp - tot_dense_h, wt_remain, rn_sys, comp_vec2, comp_idx);
-            if (comp_len > spawn_length) {
-                fprintf(stderr, "Error: insufficient memory allocated for matrix compression.\n");
-            }
+
+            size_t comp_len = sol_vec.curr_size() - n_determ;
+            comp_vecs.vec_len = comp_len;
+            apply_HBPP(sol_vec.occ_orbs(), sol_vec.indices(), &comp_vecs, hb_probs, &basis_symm, p_doub, new_hb, mt_obj, matr_samp - tot_dense_h);
+            comp_len = comp_vecs.vec_len;
             
             double *vals_before_mult = sol_vec.values();
             sol_vec.set_curr_vec_idx(1);
@@ -644,12 +427,12 @@ int main(int argc, char * argv[]) {
             // The first time around, add only elements that came from noninitiators
             for (int add_ini = 0; add_ini < 2; add_ini++) {
                 int num_added = 1;
-                samp_idx = 0;
+                size_t samp_idx = 0;
                 while (num_added > 0) {
                     num_added = 0;
                     while (samp_idx < comp_len && num_added < adder_size) {
-                        weight_idx = comp_idx[samp_idx][0];
-                        det_idx = det_indices2[weight_idx];
+                        size_t weight_idx = comp_vecs.comp_idx[samp_idx][0];
+                        size_t det_idx = comp_vecs.det_indices1[weight_idx];
                         double curr_val = vals_before_mult[det_idx];
                         uint8_t ini_flag = fabs(curr_val) >= args.init_thresh;
                         if (ini_flag != add_ini) {
@@ -658,30 +441,28 @@ int main(int argc, char * argv[]) {
                         }
                         uint8_t *curr_det = sol_vec.indices()[det_idx];
                         uint8_t new_det[det_size];
-                        //            int determ_flag = det_idx < n_determ;
                         uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
                         uint8_t new_occ[n_elec_unf];
-                        uint8_t o1_idx = orb_indices2[weight_idx][1];
-                        orb_indices1[samp_idx][0] = 0; // 1 if this element is added, 0 otherwise
-                        if (orb_indices2[weight_idx][0] == 0) { // double excitation
-                            uint8_t o2_idx = orb_indices2[weight_idx][2];
+                        uint8_t o1_idx = comp_vecs.orb_indices2[weight_idx][1];
+                        if (comp_vecs.orb_indices2[weight_idx][0] == 0) { // double excitation
+                            uint8_t o2_idx = comp_vecs.orb_indices2[weight_idx][2];
                             uint8_t doub_orbs[4];
                             doub_orbs[0] = occ_orbs[o1_idx];
                             doub_orbs[1] = occ_orbs[o2_idx];
-                            doub_orbs[2] = orb_indices2[weight_idx][3];
+                            doub_orbs[2] = comp_vecs.orb_indices2[weight_idx][3];
                             uint8_t u2_symm = symm[doub_orbs[0] % n_orb] ^ symm[doub_orbs[1] % n_orb] ^ symm[doub_orbs[2] % n_orb];
-                            doub_orbs[3] = symm_lookup[u2_symm][comp_idx[samp_idx][1] + 1] + n_orb * (doub_orbs[1] / n_orb);
+                            doub_orbs[3] = basis_symm.symm_lookup[u2_symm][comp_vecs.comp_idx[samp_idx][1] + 1] + n_orb * (doub_orbs[1] / n_orb);
                             if (read_bit(curr_det, doub_orbs[3])) { // chosen orbital is occupied; unsuccessful spawn
                                 if (new_hb) {
-                                    fprintf(stderr, "Error: occupied orbital chosen as second virtual in unnormalized heat-bath\n");
+                                    std::cerr << "Error: occupied orbital chosen as second virtual in unnormalized heat-bath\n";
                                 }
-                                comp_vec2[samp_idx] = 0;
+                                comp_vecs.vec2[samp_idx] = 0;
                                 samp_idx++;
                                 continue;
                             }
                             if (doub_orbs[2] == doub_orbs[3]) { // This shouldn't happen, but in case it does (e.g. by numerical error)
-                                fprintf(stderr, "Error: repeat virtual orbital chosen\n");
-                                comp_vec2[samp_idx] = 0;
+                                std::cerr << "Error: repeat virtual orbital chosen\n";
+                                comp_vecs.vec2[samp_idx] = 0;
                                 samp_idx++;
                                 continue;
                             }
@@ -704,20 +485,19 @@ int main(int argc, char * argv[]) {
                                 tot_weight = calc_unnorm_wt(hb_probs, doub_orbs);
                             }
                             else {
-                                tot_weight = calc_norm_wt(hb_probs, doub_orbs, occ_orbs, n_elec_unf, curr_det, symm_lookup, symm);
+                                tot_weight = calc_norm_wt(hb_probs, doub_orbs, occ_orbs, n_elec_unf, curr_det, &basis_symm);
                             }
-                            double add_el = unsigned_mat * -eps / p_doub / tot_weight * comp_vec2[samp_idx];
+                            double add_el = unsigned_mat * -eps / p_doub / tot_weight * comp_vecs.vec2[samp_idx];
                             if (fabs(add_el) > 1e-9) {
                                 if (curr_val < 0) {
                                     add_el *= -1;
                                 }
-                                memcpy(new_det, curr_det, det_size);
+                                std::copy(curr_det, curr_det + det_size, new_det);
                                 add_el *= doub_det_parity(new_det, doub_orbs);
                                 doub_orbs[0] = o1_idx;
                                 doub_orbs[1] = o2_idx;
                                 doub_ex_orbs(occ_orbs, new_occ, doub_orbs, n_elec_unf);
-                                det_indices1[samp_idx] = sol_vec.add(new_det, new_occ, add_el, ini_flag, (int *)&orb_indices1[samp_idx][1]);
-                                orb_indices1[samp_idx][0] = !ini_flag;
+                                sol_vec.add(new_det, new_occ, add_el, ini_flag);
                                 num_added++;
                             }
                         }
@@ -727,16 +507,16 @@ int main(int argc, char * argv[]) {
                             sing_orbs[0] = o1;
                             uint8_t u1_symm = symm[o1 % n_orb];
                             uint8_t spin = o1 / n_orb;
-                            sing_orbs[1] = virt_from_idx(curr_det, symm_lookup[u1_symm], n_orb * spin, orb_indices2[weight_idx][2]);
+                            sing_orbs[1] = virt_from_idx(curr_det, basis_symm.symm_lookup[u1_symm], n_orb * spin, comp_vecs.orb_indices2[weight_idx][2]);
                             double unsigned_mat = sing_matr_el_nosgn(sing_orbs, occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec_unf);
                             if (fabs(unsigned_mat) > 1e-9) {
-                                count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf, n_orb, n_irreps, symm_lookup, symm);
+                                count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf, &basis_symm);
                                 unsigned int n_occ = count_sing_allowed(occ_orbs, n_elec_unf, symm, n_orb, unocc_symm_cts);
-                                memcpy(new_det, curr_det, det_size);
-                                double add_el = unsigned_mat * -eps / (1 - p_doub) * n_occ * orb_indices2[weight_idx][3] * sing_det_parity(new_det, sing_orbs) * comp_vec2[samp_idx];
+                                std::copy(curr_det, curr_det + det_size, new_det);
+                                double add_el = unsigned_mat * -eps / (1 - p_doub) * n_occ * comp_vecs.orb_indices2[weight_idx][3] * sing_det_parity(new_det, sing_orbs) * comp_vecs.vec2[samp_idx];
                                 if (sing_orbs[1] == 255) {
-                                    fprintf(stderr, "Error: virtual orbital not found\n");
-                                    comp_vec2[samp_idx] = 0;
+                                    std::cerr << "Error: virtual orbital not found\n";
+                                    comp_vecs.vec2[samp_idx] = 0;
                                     samp_idx++;
                                     continue;
                                 }
@@ -745,8 +525,7 @@ int main(int argc, char * argv[]) {
                                 }
                                 sing_orbs[0] = o1_idx;
                                 sing_ex_orbs(occ_orbs, new_occ, sing_orbs, n_elec_unf);
-                                det_indices1[samp_idx] = sol_vec.add(new_det, new_occ, add_el, ini_flag, (int *)&orb_indices1[samp_idx][1]);
-                                orb_indices1[samp_idx][0] = !ini_flag;
+                                sol_vec.add(new_det, new_occ, add_el, ini_flag);
                                 num_added++;
                             }
                         }
@@ -766,8 +545,8 @@ int main(int argc, char * argv[]) {
             }
             
 #pragma mark Perform deterministic subspace multiplication
-            for (samp_idx = 0; samp_idx < determ_h_size; samp_idx++) {
-                det_idx = determ_from[samp_idx];
+            for (size_t samp_idx = 0; samp_idx < determ_h_size; samp_idx++) {
+                size_t det_idx = determ_from[samp_idx];
                 double mat_vec = vals_before_mult[det_idx] * determ_matr_el[samp_idx];
                 sol_vec.add(determ_to[samp_idx], mat_vec, 1);
             }
@@ -775,7 +554,7 @@ int main(int argc, char * argv[]) {
             
 #pragma mark Death/cloning step
             sol_vec.set_curr_vec_idx(0);
-            for (det_idx = 0; det_idx < vec_size; det_idx++) {
+            for (size_t det_idx = 0; det_idx < vec_size; det_idx++) {
                 double *curr_val = sol_vec[det_idx];
                 if (*curr_val != 0) {
                     double diag_el = sol_vec.matr_el_at_pos(det_idx);
@@ -783,6 +562,9 @@ int main(int argc, char * argv[]) {
                 }
             }
             sol_vec.add_vecs(0, 1);
+            sol_vec.set_curr_vec_idx(1);
+            sol_vec.zero_vec();
+            sol_vec.set_curr_vec_idx(0);
             
 #pragma mark Vector compression step
             unsigned int n_samp = args.target_nonz;
@@ -817,7 +599,7 @@ int main(int argc, char * argv[]) {
 
             MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
             sys_comp(&(sol_vec.values()[n_determ]), sol_vec.curr_size() - n_determ, loc_norms, n_samp, keep_exact, rn_sys);
-            for (det_idx = 0; det_idx < sol_vec.curr_size() - n_determ; det_idx++) {
+            for (size_t det_idx = 0; det_idx < sol_vec.curr_size() - n_determ; det_idx++) {
                 if (keep_exact[det_idx]) {
                     sol_vec.del_at_pos(det_idx + n_determ);
                     keep_exact[det_idx] = 0;

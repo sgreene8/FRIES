@@ -132,11 +132,13 @@ private:
 /*!
  * \brief Class for storing and manipulating a sparse vector
  * \tparam el_type Type of elements in the vector
- * Elements of the vector are distributed across many MPI processes, and hashing is used for efficient indexing
+ * Elements of the vector are distributed across many MPI processes, and hashing is used for efficient access.
+ * Each index is uniquely associated with a particular process, as determined its hash value.
  * This class allows for multiple element values to be associated with each vector index, allowing for the storage
  * of multiple sparse vectors in a single \p DistVec object. This is useful for manipulating multiple sparse
  * vectors that are likely to have many nonzero elements in common. The values for all vectors are stored in the
  * \p values_ matrix, and \p HashTable objects handle the indexing for the elements in all vectors.
+ * This class also supports much of the logic used in ran
  */
 template <class el_type>
 class DistVec {
@@ -155,7 +157,7 @@ protected:
     Matrix<uint8_t> occ_orbs_; ///< Matrix containing lists of occupied orbitals for each determniant index
     uint8_t n_bits_; ///< Number of bits used to encode each index of the vector
     HashTable<ssize_t> vec_hash_; ///< Hash table for quickly finding indices in \p indices_
-    HashTable<ssize_t> proc_hash_; ///< Container for a hash function for mapping determinants to processes
+    HashTable<ssize_t> proc_hash_; ///< Nothing is stored in this hash table, but its hash function is used to map indices to processes
     uint64_t nonini_occ_add; ///< Number of times an addition from a noninitiator determinant to an occupied determinant occurred
     std::vector<double> matr_el_; ///< Array of pre-calculated diagonal matrix elements associated with each vector element
     std::function<double(const uint8_t *)> diag_calc_; ///< Pointer to a function used to calculate diagonal matrix elements for elements in this vector
@@ -411,9 +413,8 @@ public:
         }
     }
     
-    size_t add(uint8_t *idx, uint8_t *orbs, el_type val, uint8_t ini_flag, int *proc_idx) {
-        *proc_idx = idx_to_proc(idx, orbs);
-        return adder_->add(idx, n_bits_, val, *proc_idx, ini_flag);
+    size_t add(uint8_t *idx, uint8_t *orbs, el_type val, uint8_t ini_flag) {
+        return adder_->add(idx, n_bits_, val, idx_to_proc(idx, orbs), ini_flag);
     }
 
     /*! \brief Incorporate elements from the Adder buffer into the vector
