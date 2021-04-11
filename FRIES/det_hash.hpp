@@ -105,7 +105,7 @@ public:
         for (size_t det_idx = 0; det_idx < row_size; det_idx++) {
             if (!memcmp(det, &row_dets[det_idx * idx_size_], idx_size_)) {
                 if (det_idx < (row_size - 1)) {
-                    memcpy(&row_dets[det_idx], &row_dets[(row_size - 1) * idx_size_], idx_size_);
+                    memcpy(&row_dets[det_idx * idx_size_], &row_dets[(row_size - 1) * idx_size_], idx_size_);
                     row_vals[det_idx] = row_vals[row_size - 1];
                 }
                 row_size--;
