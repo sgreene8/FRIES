@@ -450,3 +450,51 @@ TEST_CASE("Test evaluation of sampling weights for the new heat-bath distributio
     double weight = calc_unnorm_wt(hbtens, orbs);
     REQUIRE(weight == Approx(hbtens->d_same[I_J_TO_TRI(o2, o1)] / hbtens->s_norm * (hbtens->exch_sqrt[I_J_TO_TRI(min_o1_u1, max_o1_u1)] * hbtens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)]) / hbtens->exch_norms[o1] / hbtens->exch_norms[o2]).margin(1e-7));
 }
+TEST_CASE("Complete test of compression of un-normalized HB-PP factorization", "[new_hb_all]") {
+    // Testing for the Ne atom with core orbitals frozen
+    auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+    
+    std::mt19937 mt_obj((unsigned int)seed);
+    uint32_t n_orb = 22;
+    uint32_t n_frz = 2;
+    uint32_t n_elec = 10;
+    uint32_t n_elec_unf = n_elec - n_frz;
+    uint32_t tot_orb = n_orb + n_frz / 2;
+    size_t det_size = CEILING(2 * n_orb, 8);
+    size_t i, j, a, b;
+    
+    FourDArr eris(tot_orb, tot_orb, tot_orb, tot_orb);
+    
+    for (i = 0; i < tot_orb; i++) {
+        for (j = 0; j < tot_orb; j++) {
+            for (a = 0; a < tot_orb; a++) {
+                for (b = 0; b < tot_orb; b++) {
+                    eris(i, j, a, b) = mt_obj() / (1. + UINT32_MAX) - 0.5;
+                }
+            }
+        }
+    }
+    
+    hb_info *hbtens = set_up(tot_orb, n_orb, eris);
+    
+    Matrix<uint8_t> dets(1, det_size);
+    Matrix<uint8_t> occ_orbs(1, n_elec_unf);
+    gen_hf_bitstring(n_orb, n_elec - n_frz, dets[0]);
+    find_bits(dets[0], occ_orbs[0], det_size);
+    
+    uint8_t symm[] = {0, 5, 6, 7, 0, 5, 6, 7, 0, 0, 1, 2, 3, 5, 6, 7, 0, 0, 0, 1, 2, 3};
+    SymmInfo basis_symm(symm, n_orb);
+
+    uint32_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
+    size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2) ? n_elec_unf : n_orb - n_elec_unf / 2;
+    HBCompress comp_vecs(n_ex, n_states);
+    
+    comp_vecs.vec_len = 1;
+    comp_vecs.det_indices1[0] = 0;
+    comp_vecs.vec1[0] = 1;
+    apply_HBPP(occ_orbs, dets, &comp_vecs, hbtens, &basis_symm, 0.95, true, mt_obj, n_ex);
+    size_t comp_len = comp_vecs.vec_len;
+    for (size_t samp_idx = 0; samp_idx < comp_len; samp_idx++) {
+        REQUIRE(comp_vecs.vec1[samp_idx] == Approx(1).margin(1e-7));
+    }
+}

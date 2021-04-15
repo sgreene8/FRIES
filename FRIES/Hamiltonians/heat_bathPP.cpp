@@ -343,11 +343,16 @@ double calc_unnorm_wt(hb_info *tens, uint8_t *orbs) {
     int same_sp = (orbs[0] / n_orb) == (orbs[1] / n_orb);
     double weight;
     if (same_sp) {
-        weight = tens->d_same[I_J_TO_TRI(o1, o2)] * (tens->exch_sqrt[I_J_TO_TRI(min_o1_u1, max_o1_u1)] * tens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)]) / tens->s_norm / tens->exch_norms[o1] / tens->exch_norms[o2];
+        uint32_t o1o2 = I_J_TO_TRI(o1, o2);
+        uint32_t o1u1 = I_J_TO_TRI(min_o1_u1, max_o1_u1);
+        uint32_t o2u2 = I_J_TO_TRI(min_o2_u2, max_o2_u2);
+        weight = tens->d_same[o1o2] * (tens->exch_sqrt[o1u1] * tens->exch_sqrt[o2u2]) / tens->s_norm / tens->exch_norms[o1] / tens->exch_norms[o2];
     }
     else {
         double *diff_tab = tens->d_diff;
-        weight = (diff_tab[o1 * n_orb + o2]) * tens->exch_sqrt[I_J_TO_TRI(min_o1_u1, max_o1_u1)] * tens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)] / tens->s_norm / tens->exch_norms[o1] / tens->exch_norms[o2];
+        uint32_t o1u1idx = I_J_TO_TRI(min_o1_u1, max_o1_u1);
+        uint32_t o2u2idx = I_J_TO_TRI(min_o2_u2, max_o2_u2);
+        weight = (diff_tab[o2 * n_orb + o1]) * tens->exch_sqrt[o1u1idx] * tens->exch_sqrt[o2u2idx] / tens->s_norm / tens->exch_norms[o1] / tens->exch_norms[o2];
     }
     return weight;
 }
@@ -596,12 +601,10 @@ unsigned int hb_doub_multi(uint8_t *det, uint8_t *occ_orbs,
     return tot_sampled;
 }
 
-// copy values to vec1
-// initialize det_indices1
-// n_samp = matr_samp - tot_dense_h
+
 void apply_HBPP(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBCompress *comp_scratch,
-                hb_info *hb_probs, SymmInfo *symm,
-                double p_doub, bool new_hb, std::mt19937 &mt_obj, uint32_t n_samp) {
+                hb_info *hb_probs, SymmInfo *symm, double p_doub, bool new_hb,
+                std::mt19937 &mt_obj, uint32_t n_samp) {
     std::vector<double> &vec1 = comp_scratch->vec1;
     std::vector<double> &vec2 = comp_scratch->vec2;
     Matrix<double> &subwts = comp_scratch->subwts;
@@ -827,5 +830,70 @@ void apply_HBPP(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBCompress
     if (comp_len > spawn_length) {
         std::cerr << "Error: insufficient memory allocated for matrix compression.\n";
     }
-    comp_scratch->vec_len = comp_len;
+    
+    size_t num_success = 0;
+    for (size_t samp_idx = 0; samp_idx < comp_len; samp_idx++) {
+        size_t weight_idx = comp_idx[samp_idx][0];
+        size_t det_idx = det_indices1[weight_idx];
+        det_indices2[num_success] = det_idx;
+        uint8_t *occ_orbs = all_orbs[det_idx];
+        uint8_t *curr_det = all_dets[det_idx];
+        uint8_t o1_idx = orb_indices2[weight_idx][1];
+        if (orb_indices2[weight_idx][0] == 0) { // double excitation
+            uint8_t o2_idx = orb_indices2[weight_idx][2];
+            uint8_t o1_orb = occ_orbs[o1_idx];
+            uint8_t o2_orb = occ_orbs[o2_idx];
+            uint8_t u1_orb = orb_indices2[weight_idx][3];
+            uint8_t u2_symm = symm->symm_vec[o1_orb % n_orb] ^ symm->symm_vec[o2_orb % n_orb] ^ symm->symm_vec[u1_orb % n_orb];
+            uint8_t u2_orb = symm->symm_lookup[u2_symm][comp_idx[samp_idx][1] + 1] + n_orb * (o2_orb / n_orb);
+            if (read_bit(curr_det, u2_orb)) { // chosen orbital is occupied; unsuccessful spawn
+                if (new_hb) {
+                    std::cerr << "Error: occupied orbital chosen as second virtual in unnormalized heat-bath\n";
+                }
+                continue;
+            }
+            if (u1_orb == u2_orb) { // This shouldn't happen, but in case it does (e.g. by numerical error)
+                std::cerr << "Error: repeat virtual orbital chosen\n";
+                continue;
+            }
+            if (u1_orb > u2_orb) {
+                std::swap(u1_orb, u2_orb);
+            }
+            if (o1_orb > o2_orb) {
+                std::swap(o1_orb, o2_orb);
+            }
+            orb_indices1[num_success][0] = o1_orb;
+            orb_indices1[num_success][1] = o2_orb;
+            orb_indices1[num_success][2] = u1_orb;
+            orb_indices1[num_success][3] = u2_orb;
+            double tot_weight;
+            if (new_hb) {
+                tot_weight = calc_unnorm_wt(hb_probs, orb_indices1[num_success]);
+            }
+            else {
+                tot_weight = calc_norm_wt(hb_probs, orb_indices1[num_success], occ_orbs, n_elec, curr_det, symm);
+            }
+            vec1[num_success] = vec2[samp_idx] / tot_weight / p_doub;
+            num_success++;
+        }
+        else {
+            uint8_t o1_orb = occ_orbs[o1_idx];
+            orb_indices1[num_success][0] = o1_orb;
+            uint8_t u1_symm = symm->symm_vec[o1_orb % n_orb];
+            uint8_t spin = o1_orb / n_orb;
+            uint8_t u1_orb = virt_from_idx(curr_det, symm->symm_lookup[u1_symm], n_orb * spin, orb_indices2[weight_idx][2]);
+            if (u1_orb == 255) {
+                std::cerr << "Error: virtual orbital not found\n";
+                continue;
+            }
+            orb_indices1[num_success][1] = u1_orb;
+            orb_indices1[num_success][2] = orb_indices1[num_success][3] = 0;
+            count_symm_virt(unocc_symm_cts, occ_orbs, n_elec, symm);
+            unsigned int n_occ = count_sing_allowed(occ_orbs, n_elec, symm->symm_vec.data(), n_orb, unocc_symm_cts);
+            vec1[num_success] = vec2[samp_idx] / (1 - p_doub) * n_occ * orb_indices2[weight_idx][3];
+            num_success++;
+        }
+    }
+    
+    comp_scratch->vec_len = num_success;
 }

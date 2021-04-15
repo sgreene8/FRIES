@@ -127,12 +127,14 @@ int main(int argc, char * argv[]) {
         
         DistVec<double> sol_vec(max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, 2, proc_scrambler, vec_scrambler);
         
+        size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2) ? n_elec_unf : n_orb - n_elec_unf / 2;
+        HBCompress comp_vecs(spawn_length, n_states);
+        
         uint8_t hf_det[det_size];
         gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
         hf_proc = sol_vec.idx_to_proc(hf_det);
         
         uint8_t tmp_orbs[n_elec_unf];
-        uint8_t (*orb_indices1)[4] = (uint8_t (*)[4])malloc(sizeof(char) * 4 * spawn_length);
         
 # pragma mark Set up trial vector
         size_t n_trial;
@@ -171,7 +173,7 @@ int main(int argc, char * argv[]) {
         }
         
         // Calculate H * trial vector, and accumulate results on each processor
-        h_op_offdiag(htrial_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)orb_indices1, n_frz, n_elec_unf, 1, 1);
+        h_op_offdiag(htrial_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)comp_vecs.orb_indices1, n_frz, n_elec_unf, 1, 1);
         htrial_vec.set_curr_vec_idx(0);
         h_op_diag(htrial_vec, 0, 0, 1);
         htrial_vec.add_vecs(0, 1);
@@ -183,7 +185,7 @@ int main(int argc, char * argv[]) {
         
         // Count # single/double excitations from HF
         sol_vec.gen_orb_list(hf_det, tmp_orbs);
-        size_t n_hf_doub = doub_ex_symm(hf_det, tmp_orbs, n_elec_unf, n_orb, orb_indices1, symm);
+        size_t n_hf_doub = doub_ex_symm(hf_det, tmp_orbs, n_elec_unf, n_orb, comp_vecs.orb_indices1, symm);
         size_t n_hf_sing = count_singex(hf_det, tmp_orbs, n_elec_unf, &basis_symm);
         double p_doub = (double) n_hf_doub / (n_hf_sing + n_hf_doub);
         
@@ -323,10 +325,6 @@ int main(int argc, char * argv[]) {
             param_f.close();
         }
         
-        size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2) ? n_elec_unf : n_orb - n_elec_unf / 2;
-        HBCompress comp_vecs(spawn_length, n_states);
-        unsigned int unocc_symm_cts[n_irreps][2];
-        
         hb_info *hb_probs = set_up(tot_orb, n_orb, *eris);
         
         double last_one_norm = 0;
@@ -351,7 +349,7 @@ int main(int argc, char * argv[]) {
         for (size_t det_idx = 0; det_idx < n_determ; det_idx++) {
             uint8_t *curr_det = sol_vec.indices()[det_idx];
             uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
-            uint8_t (*sing_ex_orbs)[2] = (uint8_t (*)[2])orb_indices1;
+            uint8_t (*sing_ex_orbs)[2] = (uint8_t (*)[2])comp_vecs.orb_indices1;
             size_t ex_idx;
             
             size_t n_sing = sing_ex_symm(curr_det, occ_orbs, n_elec_unf, n_orb, sing_ex_orbs, symm);
@@ -373,7 +371,7 @@ int main(int argc, char * argv[]) {
                 n_determ_h++;
             }
             
-            uint8_t (*doub_ex_orbs)[4] = (uint8_t (*)[4])orb_indices1;
+            uint8_t (*doub_ex_orbs)[4] = (uint8_t (*)[4])comp_vecs.orb_indices1;
             size_t n_doub = doub_ex_symm(curr_det, occ_orbs, n_elec_unf, n_orb, doub_ex_orbs, symm);
             if (n_doub + n_determ_h > determ_h_size) {
                 std::cout << "Allocating more memory for deterministic part of Hamiltonian\n";
@@ -431,8 +429,7 @@ int main(int argc, char * argv[]) {
                 while (num_added > 0) {
                     num_added = 0;
                     while (samp_idx < comp_len && num_added < adder_size) {
-                        size_t weight_idx = comp_vecs.comp_idx[samp_idx][0];
-                        size_t det_idx = comp_vecs.det_indices1[weight_idx];
+                        size_t det_idx = comp_vecs.det_indices2[samp_idx];
                         double curr_val = vals_before_mult[det_idx];
                         uint8_t ini_flag = fabs(curr_val) >= args.init_thresh;
                         if (ini_flag != add_ini) {
@@ -442,90 +439,30 @@ int main(int argc, char * argv[]) {
                         uint8_t *curr_det = sol_vec.indices()[det_idx];
                         uint8_t new_det[det_size];
                         uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
-                        uint8_t new_occ[n_elec_unf];
-                        uint8_t o1_idx = comp_vecs.orb_indices2[weight_idx][1];
-                        if (comp_vecs.orb_indices2[weight_idx][0] == 0) { // double excitation
-                            uint8_t o2_idx = comp_vecs.orb_indices2[weight_idx][2];
-                            uint8_t doub_orbs[4];
-                            doub_orbs[0] = occ_orbs[o1_idx];
-                            doub_orbs[1] = occ_orbs[o2_idx];
-                            doub_orbs[2] = comp_vecs.orb_indices2[weight_idx][3];
-                            uint8_t u2_symm = symm[doub_orbs[0] % n_orb] ^ symm[doub_orbs[1] % n_orb] ^ symm[doub_orbs[2] % n_orb];
-                            doub_orbs[3] = basis_symm.symm_lookup[u2_symm][comp_vecs.comp_idx[samp_idx][1] + 1] + n_orb * (doub_orbs[1] / n_orb);
-                            if (read_bit(curr_det, doub_orbs[3])) { // chosen orbital is occupied; unsuccessful spawn
-                                if (new_hb) {
-                                    std::cerr << "Error: occupied orbital chosen as second virtual in unnormalized heat-bath\n";
-                                }
-                                comp_vecs.vec2[samp_idx] = 0;
-                                samp_idx++;
-                                continue;
-                            }
-                            if (doub_orbs[2] == doub_orbs[3]) { // This shouldn't happen, but in case it does (e.g. by numerical error)
-                                std::cerr << "Error: repeat virtual orbital chosen\n";
-                                comp_vecs.vec2[samp_idx] = 0;
-                                samp_idx++;
-                                continue;
-                            }
-                            if (doub_orbs[2] > doub_orbs[3]) {
-                                uint8_t tmp = doub_orbs[3];
-                                doub_orbs[3] = doub_orbs[2];
-                                doub_orbs[2] = tmp;
-                            }
-                            if (doub_orbs[0] > doub_orbs[1]) {
-                                uint8_t tmp = doub_orbs[1];
-                                doub_orbs[1] = doub_orbs[0];
-                                doub_orbs[0] = tmp;
-                                tmp = o1_idx;
-                                o1_idx = o2_idx;
-                                o2_idx = tmp;
-                            }
+                        if (!(comp_vecs.orb_indices1[samp_idx][2] == 0 && comp_vecs.orb_indices1[samp_idx][3] == 0)) { // double excitation
+                            uint8_t *doub_orbs = comp_vecs.orb_indices1[samp_idx];
                             double unsigned_mat = doub_matr_el_nosgn(doub_orbs, tot_orb, *eris, n_frz);
-                            double tot_weight;
-                            if (new_hb) {
-                                tot_weight = calc_unnorm_wt(hb_probs, doub_orbs);
-                            }
-                            else {
-                                tot_weight = calc_norm_wt(hb_probs, doub_orbs, occ_orbs, n_elec_unf, curr_det, &basis_symm);
-                            }
-                            double add_el = unsigned_mat * -eps / p_doub / tot_weight * comp_vecs.vec2[samp_idx];
+                            double add_el = unsigned_mat * -eps * comp_vecs.vec1[samp_idx];
                             if (fabs(add_el) > 1e-9) {
                                 if (curr_val < 0) {
                                     add_el *= -1;
                                 }
                                 std::copy(curr_det, curr_det + det_size, new_det);
                                 add_el *= doub_det_parity(new_det, doub_orbs);
-                                doub_orbs[0] = o1_idx;
-                                doub_orbs[1] = o2_idx;
-                                doub_ex_orbs(occ_orbs, new_occ, doub_orbs, n_elec_unf);
-                                sol_vec.add(new_det, new_occ, add_el, ini_flag);
+                                sol_vec.add(new_det, add_el, ini_flag);
                                 num_added++;
                             }
                         }
                         else { // single excitation
-                            uint8_t sing_orbs[2];
-                            uint8_t o1 = occ_orbs[o1_idx];
-                            sing_orbs[0] = o1;
-                            uint8_t u1_symm = symm[o1 % n_orb];
-                            uint8_t spin = o1 / n_orb;
-                            sing_orbs[1] = virt_from_idx(curr_det, basis_symm.symm_lookup[u1_symm], n_orb * spin, comp_vecs.orb_indices2[weight_idx][2]);
+                            uint8_t *sing_orbs = comp_vecs.orb_indices1[samp_idx];
                             double unsigned_mat = sing_matr_el_nosgn(sing_orbs, occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec_unf);
                             if (fabs(unsigned_mat) > 1e-9) {
-                                count_symm_virt(unocc_symm_cts, occ_orbs, n_elec_unf, &basis_symm);
-                                unsigned int n_occ = count_sing_allowed(occ_orbs, n_elec_unf, symm, n_orb, unocc_symm_cts);
                                 std::copy(curr_det, curr_det + det_size, new_det);
-                                double add_el = unsigned_mat * -eps / (1 - p_doub) * n_occ * comp_vecs.orb_indices2[weight_idx][3] * sing_det_parity(new_det, sing_orbs) * comp_vecs.vec2[samp_idx];
-                                if (sing_orbs[1] == 255) {
-                                    std::cerr << "Error: virtual orbital not found\n";
-                                    comp_vecs.vec2[samp_idx] = 0;
-                                    samp_idx++;
-                                    continue;
-                                }
+                                double add_el = unsigned_mat * -eps * sing_det_parity(new_det, sing_orbs) * comp_vecs.vec1[samp_idx];
                                 if (curr_val < 0) {
                                     add_el *= -1;
                                 }
-                                sing_orbs[0] = o1_idx;
-                                sing_ex_orbs(occ_orbs, new_occ, sing_orbs, n_elec_unf);
-                                sol_vec.add(new_det, new_occ, add_el, ini_flag);
+                                sol_vec.add(new_det, add_el, ini_flag);
                                 num_added++;
                             }
                         }
