@@ -147,4 +147,13 @@ void load_proc_hash(const std::string &path, unsigned int *proc_hash);
 void load_rdm(const std::string &path, double *vals);
 
 
+/*! \brief Load the last line of a CSV file into memory
+ *
+ * \param [in] path     Path of the file from which to load
+ * \param [out] vals        Values loaded from the file
+ * \return Number of elements loaded
+ */
+size_t load_last_line(const std::string &path, double *vals);
+
+
 #endif /* io_utils_h */

@@ -5,11 +5,10 @@
 
 #include "io_utils.hpp"
 
-size_t read_csv(double *data, const std::string &fname) {
-    std::ifstream in_f(fname);
-    std::string line;
+size_t read_csv_line(std::ifstream &file, double *data) {
     size_t n_read = 0;
-    while (std::getline(in_f, line)) {
+    std::string line;
+    if (std::getline(file, line)) {
         std::stringstream ss_line(line);
         while (ss_line.good()) {
             std::string substr;
@@ -23,11 +22,10 @@ size_t read_csv(double *data, const std::string &fname) {
     return n_read;
 }
 
-size_t read_csv(uint8_t *data, const std::string &fname) {
-    std::ifstream in_f(fname);
-    std::string line;
+size_t read_csv_line(std::ifstream &file, uint8_t *data) {
     size_t n_read = 0;
-    while (std::getline(in_f, line)) {
+    std::string line;
+    if (std::getline(file, line)) {
         std::stringstream ss_line(line);
         while (ss_line.good()) {
             std::string substr;
@@ -42,11 +40,10 @@ size_t read_csv(uint8_t *data, const std::string &fname) {
     return n_read;
 }
 
-size_t read_csv(int *data, const std::string &fname) {
-    std::ifstream in_f(fname);
-    std::string line;
+size_t read_csv_line(std::ifstream &file, int *data) {
     size_t n_read = 0;
-    while (std::getline(in_f, line)) {
+    std::string line;
+    if (std::getline(file, line)) {
         std::stringstream ss_line(line);
         while (ss_line.good()) {
             std::string substr;
@@ -55,6 +52,42 @@ size_t read_csv(int *data, const std::string &fname) {
             number >> data[n_read];
             n_read++;
         }
+    }
+    return n_read;
+}
+
+size_t read_csv(double *data, const std::string &fname) {
+    std::ifstream in_f(fname);
+    std::string line;
+    size_t n_read = 0;
+    size_t line_n_read = 1;
+    while (line_n_read) {
+        line_n_read = read_csv_line(in_f, &data[n_read]);
+        n_read += line_n_read;
+    }
+    return n_read;
+}
+
+size_t read_csv(uint8_t *data, const std::string &fname) {
+    std::ifstream in_f(fname);
+    std::string line;
+    size_t n_read = 0;
+    size_t line_n_read = 1;
+    while (line_n_read) {
+        line_n_read = read_csv_line(in_f, &data[n_read]);
+        n_read += line_n_read;
+    }
+    return n_read;
+}
+
+size_t read_csv(int *data, const std::string &fname) {
+    std::ifstream in_f(fname);
+    std::string line;
+    size_t n_read = 0;
+    size_t line_n_read = 1;
+    while (line_n_read) {
+        line_n_read = read_csv_line(in_f, &data[n_read]);
+        n_read += line_n_read;
     }
     return n_read;
 }
@@ -383,4 +416,33 @@ void load_rdm(const std::string &path, double *vals) {
         n_vals++;
     }
     file_p.close();
+}
+
+
+size_t load_last_line(const std::string &path, double *vals) {
+    // (see https://stackoverflow.com/questions/11876290/c-fastest-way-to-read-only-last-line-of-text-file)
+    std::ifstream in_f(path);
+    size_t n_read = 0;
+    if (in_f.is_open()) {
+        in_f.seekg(-1, std::ios_base::end);
+
+        bool keepLooping = true;
+        while(keepLooping) {
+            char ch;
+            in_f.get(ch);
+
+            if((int)in_f.tellg() <= 1) {
+                in_f.seekg(0);
+                keepLooping = false;
+            }
+            else if(ch == '\n') {
+                keepLooping = false;
+            }
+            else {
+                in_f.seekg(-2, std::ios_base::cur);
+            }
+        }
+        n_read = read_csv_line(in_f, vals);
+    }
+    return n_read;
 }
