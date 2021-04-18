@@ -25,6 +25,11 @@ target_link_libraries(subspfull_mol PRIVATE fries)
 target_link_libraries(subspfull_mol PRIVATE cnpy)
 target_link_libraries(subspfull_mol PRIVATE my_lapack)
 
+add_executable(subsp_mol subsp_mol.cpp)
+target_link_libraries(subsp_mol PRIVATE fries)
+target_link_libraries(subsp_mol PRIVATE cnpy)
+target_link_libraries(subsp_mol PRIVATE my_lapack)
+
 add_executable(observables_mol observables_mol.cpp)
 target_link_libraries(observables_mol PRIVATE fries)
 
@@ -40,6 +45,7 @@ install(
         frifull_hh
         frifull_mol
         subspfull_mol
+        subsp_mol
         frisys_hh
     RUNTIME
         DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}

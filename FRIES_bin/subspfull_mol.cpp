@@ -325,6 +325,10 @@ int main(int argc, char * argv[]) {
                             }
                         }
                     }
+                    if (proc_rank == 0) {
+                        shift_f << '\n';
+                        shift_f.flush();
+                    }
                 }
                 if (norm_technique == new_shifts) {
                     for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
@@ -335,6 +339,10 @@ int main(int argc, char * argv[]) {
                                 shift_f << ",";
                             }
                         }
+                    }
+                    if (proc_rank == 0) {
+                        shift_f << '\n';
+                        shift_f.flush();
                     }
                 }
             }
@@ -445,10 +453,6 @@ int main(int argc, char * argv[]) {
                     dmat_file.write((char *) d_mat.data(), sizeof(double) * n_trial * n_trial);
                     bmat_file.flush();
                     dmat_file.flush();
-                }
-                if (norm_technique == shifts || norm_technique == new_shifts) {
-                    shift_f << '\n';
-                    shift_f.flush();
                 }
             }
             
