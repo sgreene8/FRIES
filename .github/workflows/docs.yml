@@ -1,0 +1,26 @@
+name: Documentation
+ 
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  make-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Install packages
+      run: sudo apt-get install doxygen
+    
+    - name: Setup ssh
+      shell: bash
+      working-directory: ${{github.workspace}}
+      run: source .ci/setup-ssh.sh
+    
+    - name: Generate documentation
+      shell: bash
+      working-directory: ${{github.workspace}}
+      run: source .ci/generateDocumentation.sh
