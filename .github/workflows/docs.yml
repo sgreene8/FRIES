@@ -1,6 +1,10 @@
 name: Documentation
  
-on: [push]
+on:
+ push:
+  branches:
+   - master
+ 
 
 jobs:
   make-docs:
@@ -9,15 +13,18 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     
-    - name: Install packages
-      run: sudo apt-get install doxygen
+    - name: Setup
+      run: mkdir ${{github.workspace}}/code_docs
     
-    - name: Setup ssh
-      shell: bash
-      working-directory: ${{github.workspace}}
-      run: source .ci/setup-ssh.sh
+    - name: Doxygen Action
+      uses: mattnotmitt/doxygen-action@v1.3.0
+      with:
+        # Path to Doxyfile
+        doxyfile-path: ./docs/Doxyfile
+        working-directory: ./code_docs
     
-    - name: Generate documentation
-      shell: bash
-      working-directory: ${{github.workspace}}
-      run: source .ci/generateDocumentation.sh
+    - name: GH-Pages Publish
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./code_docs
