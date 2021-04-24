@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.6)
 
+project(FRIES_TEST LANGUAGES C CXX)
+
 set(CMAKE_CXX_STANDARD 17)
 
 add_executable(fries_test fries_test.cpp)
