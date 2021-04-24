@@ -602,15 +602,15 @@ unsigned int hb_doub_multi(uint8_t *det, uint8_t *occ_orbs,
 }
 
 
-void apply_HBPP(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBCompress *comp_scratch,
-                hb_info *hb_probs, SymmInfo *symm, double p_doub, bool new_hb,
-                std::mt19937 &mt_obj, uint32_t n_samp) {
+void apply_HBPP_sys(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBCompressSys *comp_scratch,
+                    hb_info *hb_probs, SymmInfo *symm, double p_doub, bool new_hb,
+                    std::mt19937 &mt_obj, uint32_t n_samp) {
     std::vector<double> &vec1 = comp_scratch->vec1;
     std::vector<double> &vec2 = comp_scratch->vec2;
     Matrix<double> &subwts = comp_scratch->subwts;
     Matrix<bool> &keep_sub = comp_scratch->keep_sub;
     std::vector<uint32_t> &ndiv = comp_scratch->ndiv;
-    std::vector<uint16_t> &nsub = comp_scratch->nsub;
+    std::vector<uint16_t> &nsub = comp_scratch->group_sizes;
     size_t comp_len = comp_scratch->vec_len;
     std::vector<size_t> &det_indices1 = comp_scratch->det_indices1;
     std::vector<size_t> &det_indices2 = comp_scratch->det_indices2;
@@ -667,7 +667,7 @@ void apply_HBPP(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBCompress
         }
         else {
             count_symm_virt(unocc_symm_cts, occ_orbs, n_elec, symm);
-            unsigned int n_occ = count_sing_allowed(occ_orbs, n_elec, symm->symm_vec.data(), n_orb, unocc_symm_cts);
+            uint32_t n_occ = count_sing_allowed(occ_orbs, n_elec, symm->symm_vec.data(), n_orb, unocc_symm_cts);
             if (n_occ == 0) {
                 ndiv[samp_idx] = 1;
                 vec2[samp_idx] = 0;
@@ -713,7 +713,7 @@ void apply_HBPP(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBCompress
         }
         else { // single excitation
             count_symm_virt(unocc_symm_cts, occ_orbs, n_elec, symm);
-            unsigned int n_virt = count_sing_virt(occ_orbs, n_elec, symm->symm_vec.data(), n_orb, unocc_symm_cts, &orb_indices2[samp_idx][1]);
+            uint32_t n_virt = count_sing_virt(occ_orbs, n_elec, symm->symm_vec.data(), n_orb, unocc_symm_cts, &orb_indices2[samp_idx][1]);
             if (n_virt == 0) {
                 ndiv[samp_idx] = 1;
                 vec1[samp_idx] = 0;
@@ -896,4 +896,325 @@ void apply_HBPP(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBCompress
     }
     
     comp_scratch->vec_len = num_success;
+}
+
+size_t collapse_long_(std::vector<double> &short_vec, std::vector<double> &long_vec,
+                      size_t short_len, size_t long_len, std::vector<bool> &keep_vec,
+                      std::vector<uint16_t> &group_sizes,
+                      std::function<void(size_t, size_t, size_t)> transfer_fxn) {
+    size_t n_short = 0;
+    size_t long_idx = 0;
+    for (size_t short_idx = 0; short_idx < short_len; short_idx++) {
+        for (size_t group_idx = 0; group_idx < group_sizes[short_idx]; group_idx++) {
+            if (!keep_vec[long_idx]) { // element was not zeroed in compression
+                short_vec[n_short] = long_vec[long_idx];
+                transfer_fxn(short_idx, n_short, group_idx);
+                n_short++;
+            }
+            keep_vec[long_idx] = false;
+            long_idx++;
+        }
+    }
+    return n_short;
+}
+
+void apply_HBPP_piv(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBCompressPiv *comp_scratch,
+                    hb_info *hb_probs, SymmInfo *symm, double p_doub, bool new_hb,
+                    std::mt19937 &mt_obj, uint32_t n_samp) {
+    std::vector<double> &short_vec = comp_scratch->vec1;
+    std::vector<double> &long_vec = comp_scratch->long_vec;
+    size_t n_short = comp_scratch->vec_len;
+    std::vector<size_t> &det_indices1 = comp_scratch->det_indices1;
+    std::vector<size_t> &det_indices2 = comp_scratch->det_indices2;
+    uint8_t (*orb_indices1)[4] = comp_scratch->orb_indices1;
+    uint8_t (*orb_indices2)[4] = comp_scratch->orb_indices2;
+    std::vector<size_t> &srt_arr = comp_scratch->cmp_srt;
+    std::vector<bool> &keep_arr = comp_scratch->keep_idx;
+    std::vector<uint16_t> &group_sizes = comp_scratch->group_sizes;
+    
+    int proc_rank = 0;
+    int n_procs = 1;
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+    uint32_t n_elec = (uint32_t) all_orbs.cols();
+    uint32_t n_orb = (uint32_t) hb_probs->n_orb;
+    unsigned int unocc_symm_cts[n_irreps][2];
+    
+    std::function<void(size_t, size_t, size_t)> transfer_fxn;
+    
+#pragma mark Singles vs doubles
+    size_t n_long = 0;
+    for (size_t short_idx = 0; short_idx < n_short; short_idx++) {
+        double weight = fabs(short_vec[short_idx]);
+        if (weight > 0) {
+            long_vec[n_long] = weight * p_doub;
+            n_long++;
+            long_vec[n_long] = weight * (1 - p_doub);
+            n_long++;
+            group_sizes[short_idx] = 2;
+        }
+        else {
+            group_sizes[short_idx] = 0;
+        }
+    }
+    piv_comp_parallel(long_vec.data(), n_long, n_samp, srt_arr, keep_arr, mt_obj);
+    transfer_fxn = [&det_indices1, &det_indices2, orb_indices1](size_t old_short, size_t new_short, size_t group) {
+        det_indices2[new_short] = det_indices1[old_short];
+        orb_indices1[new_short][0] = group;
+    };
+    n_short = collapse_long_(short_vec, long_vec, n_short, n_long, keep_arr, group_sizes, transfer_fxn);
+
+#pragma mark  First occupied orbital
+    n_long = 0;
+    for (size_t short_idx = 0; short_idx < n_short; short_idx++) {
+        size_t det_idx = det_indices1[short_idx];
+        uint8_t *occ_orbs = all_orbs[det_idx];
+        if (orb_indices1[short_idx][0] == 0) { // double excitation
+            group_sizes[short_idx] = n_elec - new_hb;
+            double tot_weight = calc_o1_probs(hb_probs, &long_vec[n_long], n_elec, occ_orbs, new_hb);
+            for (size_t prob_idx = 0; prob_idx < n_elec - new_hb; prob_idx++) {
+                long_vec[n_long + prob_idx] *= short_vec[short_idx] * (new_hb ? tot_weight : 1);
+            }
+            n_long += n_elec - new_hb;
+        }
+        else { // single excitation
+            count_symm_virt(unocc_symm_cts, occ_orbs, n_elec, symm);
+            uint32_t n_occ = count_sing_allowed(occ_orbs, n_elec, symm->symm_vec.data(), n_orb, unocc_symm_cts);
+            group_sizes[short_idx] = n_occ;
+            if (n_occ != 0) {
+                for (size_t orb_idx = 0; orb_idx < n_occ; orb_idx++) {
+                    long_vec[n_long + orb_idx] = short_vec[short_idx] / n_occ;
+                }
+                n_long += n_occ;
+            }
+        }
+    }
+    piv_comp_parallel(long_vec.data(), n_long, n_samp, srt_arr, keep_arr, mt_obj);
+    transfer_fxn = [&det_indices1, &det_indices2, orb_indices1, orb_indices2](size_t old_short, size_t new_short, size_t group) {
+        det_indices2[new_short] = det_indices1[old_short];
+        orb_indices2[new_short][0] = orb_indices1[old_short][0]; // single or double
+        orb_indices2[new_short][1] = group; // first occupied orbital index (NOT converted to orbital below)
+    };
+    n_short = collapse_long_(short_vec, long_vec, n_short, n_long, keep_arr, group_sizes, transfer_fxn);
+
+#pragma mark Unoccupied orbital (single); 2nd occupied (double)
+    n_long = 0;
+    for (size_t short_idx = 0; short_idx < n_short; short_idx++) {
+        size_t det_idx = det_indices2[short_idx];
+        if (orb_indices2[short_idx][1] >= n_elec) {
+            std::cerr << "Error: chosen occupied orbital (first) is out of bounds\n";
+            group_sizes[short_idx] = 0;
+            continue;
+        }
+        uint8_t *occ_orbs = all_orbs[det_idx];
+        if (orb_indices2[short_idx][0] == 0) { // double excitation
+            double tot_weight = 1;
+            uint16_t n_o2;
+            if (new_hb) {
+                orb_indices2[short_idx][1]++;
+                n_o2 = orb_indices2[short_idx][1];
+                tot_weight = calc_o2_probs_half(hb_probs, &long_vec[n_long], n_elec, occ_orbs, n_o2);
+            }
+            else {
+                n_o2 = n_elec;
+                calc_o2_probs(hb_probs, &long_vec[n_long], n_elec, occ_orbs, orb_indices2[short_idx][1]);
+            }
+            for (size_t prob_idx = 0; prob_idx < n_o2; prob_idx++) {
+                long_vec[n_long + prob_idx] *= tot_weight * short_vec[short_idx];
+            }
+            group_sizes[short_idx] = n_o2;
+            n_long += n_o2;
+        }
+        else { // single excitation
+            count_symm_virt(unocc_symm_cts, occ_orbs, n_elec, symm);
+            uint32_t n_virt = count_sing_virt(occ_orbs, n_elec, symm->symm_vec.data(), n_orb, unocc_symm_cts, &orb_indices2[short_idx][1]);
+            if (n_virt == 0) {
+                group_sizes[short_idx] = 0;
+            }
+            else {
+                group_sizes[short_idx] = n_virt;
+                orb_indices2[short_idx][3] = n_virt; // number of allowed virtual orbitals
+                for (size_t prob_idx = 0; prob_idx < n_virt; prob_idx++) {
+                    long_vec[n_long + prob_idx] = short_vec[short_idx] / n_virt;
+                }
+                n_long += n_virt;
+            }
+        }
+    }
+    piv_comp_parallel(long_vec.data(), n_long, n_samp, srt_arr, keep_arr, mt_obj);
+    transfer_fxn = [&det_indices1, &det_indices2, orb_indices1, orb_indices2](size_t old_short, size_t new_short, size_t group) {
+        bool single = orb_indices2[old_short][0] == 1;
+        det_indices2[new_short] = det_indices1[old_short];
+        orb_indices1[new_short][0] = orb_indices2[old_short][0]; // single or double
+        orb_indices1[new_short][1] = orb_indices2[old_short][1]; // first occupied orbital index
+        orb_indices1[new_short][2] = group; // 2nd occupied orbital index (doubles), NOT converted to orbital below; unoccupied orbital index (singles)
+        if (single) {
+            orb_indices1[new_short][3] = orb_indices2[old_short][3];
+        }
+    };
+    n_short = collapse_long_(short_vec, long_vec, n_short, n_long, keep_arr, group_sizes, transfer_fxn);
+
+    #pragma mark 1st unoccupied (double)
+    n_long = 0;
+    for (size_t short_idx = 0; short_idx < n_short; short_idx++) {
+        size_t det_idx = det_indices2[short_idx];
+        uint8_t o2u1_orb = orb_indices1[short_idx][2];
+        if (orb_indices1[short_idx][0] == 0) { // double excitation
+            if (o2u1_orb >= n_elec) {
+                std::cerr << "Error: chosen occupied orbital (second) is out of bounds\n";
+                group_sizes[short_idx] = 0;
+                continue;
+            }
+            uint8_t *occ_tmp = all_orbs[det_idx];
+            uint8_t o1_idx = orb_indices1[short_idx][1];
+            int o1_spin = o1_idx / (n_elec / 2);
+            int o2_spin = occ_tmp[o2u1_orb] / n_orb;
+            uint8_t o1_orb = occ_tmp[o1_idx];
+            double tot_weight = calc_u1_probs(hb_probs, &long_vec[n_long], o1_orb, occ_tmp, n_elec, new_hb && (o1_spin == o2_spin));
+            uint32_t n_virt = n_orb - n_elec / 2;
+            group_sizes[short_idx] = n_virt;
+            for (size_t prob_idx = 0; prob_idx < n_virt; prob_idx++) {
+                long_vec[n_long + prob_idx] *= short_vec[short_idx] * (new_hb ? tot_weight : 1);
+            }
+            n_long += n_virt;
+        }
+        else { // single excitation
+            uint8_t n_virt = orb_indices1[short_idx][3];
+            if (o2u1_orb >= n_virt) {
+                group_sizes[short_idx] = 0;
+                std::cerr << "Error: index of chosen virtual orbital exceeds maximum\n";
+            }
+            group_sizes[short_idx] = 1;
+            long_vec[n_long] = short_vec[short_idx];
+            n_long++;
+        }
+    }
+    piv_comp_parallel(long_vec.data(), n_long, n_samp, srt_arr, keep_arr, mt_obj);
+    transfer_fxn = [&det_indices1, &det_indices2, orb_indices1, orb_indices2](size_t old_short, size_t new_short, size_t group) {
+        bool single = orb_indices1[old_short][0] == 1;
+        det_indices1[new_short] = det_indices2[old_short];
+        orb_indices2[new_short][0] = orb_indices1[old_short][0]; // single or double
+        orb_indices2[new_short][1] = orb_indices1[old_short][1]; // first occupied orbital index
+        orb_indices2[new_short][2] = orb_indices1[old_short][2]; // 2nd occupied index (doubles); unoccupied orbital index (singles)
+        if (single) {
+            orb_indices2[new_short][3] = orb_indices1[old_short][3];
+        }
+        else {
+            orb_indices2[new_short][3] = group;
+        }
+    };
+    n_short = collapse_long_(short_vec, long_vec, n_short, n_long, keep_arr, group_sizes, transfer_fxn);
+
+#pragma mark 2nd unoccupied (double)
+    n_long = 0;
+    for (size_t short_idx = 0; short_idx < n_short; short_idx++) {
+        size_t det_idx = det_indices1[short_idx];
+        uint8_t o1_idx = orb_indices2[short_idx][1];
+        if (orb_indices2[short_idx][0] == 0) { // double excitation
+            uint8_t u1_orb = find_nth_virt(all_orbs[det_idx], o1_idx / (n_elec / 2), n_elec, n_orb, orb_indices2[short_idx][3]);
+            uint8_t *curr_det = all_dets[det_idx];
+            if (read_bit(curr_det, u1_orb)) { // now this really should never happen
+                std::cerr << "Error: occupied orbital chosen as 1st virtual\n";
+                group_sizes[short_idx] = 0;
+            }
+            else {
+                orb_indices2[short_idx][3] = u1_orb;
+                double tot_weight;
+                uint8_t *occ_tmp = all_orbs[det_idx];
+                uint8_t o1_orb = occ_tmp[o1_idx];
+                uint8_t o2_orb = occ_tmp[orb_indices2[short_idx][2]];
+                uint16_t n_probs;
+                if (new_hb) {
+                    tot_weight = calc_u2_probs_half(hb_probs, &long_vec[n_long], o1_orb, o2_orb, u1_orb, curr_det, symm, &n_probs);
+                }
+                else {
+                    tot_weight = calc_u2_probs(hb_probs, &long_vec[n_long], o1_orb, o2_orb, u1_orb, symm, &n_probs);
+                }
+                for (size_t prob_idx = 0; prob_idx < n_probs; prob_idx++) {
+                    long_vec[n_long + prob_idx] *= short_vec[short_idx] * (new_hb ? tot_weight : 1);
+                }
+                group_sizes[short_idx] = n_probs;
+                n_long += n_probs;
+            }
+        }
+        else { // single excitation
+            group_sizes[short_idx] = 1;
+            long_vec[n_long] = short_vec[short_idx];
+            n_long++;
+        }
+    }
+    piv_comp_parallel(long_vec.data(), n_long, n_samp, srt_arr, keep_arr, mt_obj);
+    
+    size_t old_short_len = n_short;
+    n_short = 0;
+    size_t long_idx = 0;
+    for (size_t short_idx = 0; short_idx < old_short_len; short_idx++) {
+        for (size_t group_idx = 0; group_idx < group_sizes[short_idx]; group_idx++) {
+            if (!keep_arr[long_idx]) {
+                short_vec[n_short] = long_vec[long_idx];
+                size_t det_idx = det_indices1[short_idx];
+                det_indices2[n_short] = det_idx;
+                uint8_t *occ_orbs = all_orbs[det_idx];
+                uint8_t *curr_det = all_dets[det_idx];
+                uint8_t o1_idx = orb_indices2[short_idx][1];
+                if (orb_indices2[short_idx][0] == 0) { // double excitation
+                    uint8_t o2_idx = orb_indices2[short_idx][2];
+                    uint8_t o1_orb = occ_orbs[o1_idx];
+                    uint8_t o2_orb = occ_orbs[o2_idx];
+                    uint8_t u1_orb = orb_indices2[short_idx][3];
+                    uint8_t u2_symm = symm->symm_vec[o1_orb % n_orb] ^ symm->symm_vec[o2_orb % n_orb] ^ symm->symm_vec[u1_orb % n_orb];
+                    uint8_t u2_orb = symm->symm_lookup[u2_symm][group_idx + 1] + n_orb * (o2_orb / n_orb);
+                    if (read_bit(curr_det, u2_orb)) { // chosen orbital is occupied; unsuccessful spawn
+                        if (new_hb) {
+                            std::cerr << "Error: occupied orbital chosen as second virtual in unnormalized heat-bath\n";
+                        }
+                        continue;
+                    }
+                    if (u1_orb == u2_orb) { // This shouldn't happen, but in case it does (e.g. by numerical error)
+                        std::cerr << "Error: repeat virtual orbital chosen\n";
+                        continue;
+                    }
+                    if (u1_orb > u2_orb) {
+                        std::swap(u1_orb, u2_orb);
+                    }
+                    if (o1_orb > o2_orb) {
+                        std::swap(o1_orb, o2_orb);
+                    }
+                    orb_indices1[n_short][0] = o1_orb;
+                    orb_indices1[n_short][1] = o2_orb;
+                    orb_indices1[n_short][2] = u1_orb;
+                    orb_indices1[n_short][3] = u2_orb;
+                    double tot_weight;
+                    if (new_hb) {
+                        tot_weight = calc_unnorm_wt(hb_probs, orb_indices1[n_short]);
+                    }
+                    else {
+                        tot_weight = calc_norm_wt(hb_probs, orb_indices1[n_short], occ_orbs, n_elec, curr_det, symm);
+                    }
+                    short_vec[n_short] = long_vec[long_idx] / tot_weight / p_doub;
+                    n_short++;
+                }
+                else {
+                    uint8_t o1_orb = occ_orbs[o1_idx];
+                    orb_indices1[n_short][0] = o1_orb;
+                    uint8_t u1_symm = symm->symm_vec[o1_orb % n_orb];
+                    uint8_t spin = o1_orb / n_orb;
+                    uint8_t u1_orb = virt_from_idx(curr_det, symm->symm_lookup[u1_symm], n_orb * spin, orb_indices2[short_idx][2]);
+                    if (u1_orb == 255) {
+                        std::cerr << "Error: virtual orbital not found\n";
+                        continue;
+                    }
+                    orb_indices1[n_short][1] = u1_orb;
+                    orb_indices1[n_short][2] = orb_indices1[n_short][3] = 0;
+                    count_symm_virt(unocc_symm_cts, occ_orbs, n_elec, symm);
+                    unsigned int n_occ = count_sing_allowed(occ_orbs, n_elec, symm->symm_vec.data(), n_orb, unocc_symm_cts);
+                    short_vec[n_short] = long_vec[long_idx] / (1 - p_doub) * n_occ * orb_indices2[short_idx][3];
+                    n_short++;
+                }
+            }
+            keep_arr[long_idx] = false;
+            long_idx++;
+        }
+    }
+    comp_scratch->vec_len = n_short;
 }

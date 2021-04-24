@@ -450,6 +450,8 @@ TEST_CASE("Test evaluation of sampling weights for the new heat-bath distributio
     double weight = calc_unnorm_wt(hbtens, orbs);
     REQUIRE(weight == Approx(hbtens->d_same[I_J_TO_TRI(o2, o1)] / hbtens->s_norm * (hbtens->exch_sqrt[I_J_TO_TRI(min_o1_u1, max_o1_u1)] * hbtens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)]) / hbtens->exch_norms[o1] / hbtens->exch_norms[o2]).margin(1e-7));
 }
+
+
 TEST_CASE("Complete test of compression of un-normalized HB-PP factorization", "[new_hb_all]") {
     // Testing for the Ne atom with core orbitals frozen
     auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
@@ -487,14 +489,29 @@ TEST_CASE("Complete test of compression of un-normalized HB-PP factorization", "
 
     uint32_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
     size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2) ? n_elec_unf : n_orb - n_elec_unf / 2;
-    HBCompress comp_vecs(n_ex, n_states);
     
-    comp_vecs.vec_len = 1;
-    comp_vecs.det_indices1[0] = 0;
-    comp_vecs.vec1[0] = 1;
-    apply_HBPP(occ_orbs, dets, &comp_vecs, hbtens, &basis_symm, 0.95, true, mt_obj, n_ex);
-    size_t comp_len = comp_vecs.vec_len;
+    HBCompressSys sys_vecs(n_ex, n_states);
+    sys_vecs.vec_len = 1;
+    sys_vecs.det_indices1[0] = 0;
+    sys_vecs.vec1[0] = 1;
+    apply_HBPP_sys(occ_orbs, dets, &sys_vecs, hbtens, &basis_symm, 0.95, true, mt_obj, n_ex);
+    size_t comp_len = sys_vecs.vec_len;
     for (size_t samp_idx = 0; samp_idx < comp_len; samp_idx++) {
-        REQUIRE(comp_vecs.vec1[samp_idx] == Approx(1).margin(1e-7));
+        REQUIRE(sys_vecs.vec1[samp_idx] == Approx(1).margin(1e-7));
+    }
+    
+    
+    HBCompressPiv piv_vecs(n_ex, n_states);
+    piv_vecs.vec_len = 1;
+    piv_vecs.det_indices1[0] = 0;
+    piv_vecs.vec1[0] = 1;
+    apply_HBPP_piv(occ_orbs, dets, &piv_vecs, hbtens, &basis_symm, 0.95, true, mt_obj, n_ex);
+    comp_len = piv_vecs.vec_len;
+    for (size_t samp_idx = 0; samp_idx < comp_len; samp_idx++) {
+        REQUIRE(piv_vecs.vec1[samp_idx] == Approx(1).margin(1e-7));
+        REQUIRE(piv_vecs.orb_indices1[samp_idx][0] == sys_vecs.orb_indices1[samp_idx][0]);
+        REQUIRE(piv_vecs.orb_indices1[samp_idx][1] == sys_vecs.orb_indices1[samp_idx][1]);
+        REQUIRE(piv_vecs.orb_indices1[samp_idx][2] == sys_vecs.orb_indices1[samp_idx][2]);
+        REQUIRE(piv_vecs.orb_indices1[samp_idx][3] == sys_vecs.orb_indices1[samp_idx][3]);
     }
 }

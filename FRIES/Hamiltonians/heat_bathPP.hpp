@@ -247,41 +247,67 @@ unsigned int hb_doub_multi(uint8_t *det, uint8_t *occ_orbs,
  * hierarchical Hamiltonian factorization
  */
 struct HBCompress {
-    std::vector<double> vec1; ///< Vector of array values after compression
-    std::vector<double> vec2; ///< Vector of array values after compression
-    size_t vec_len; ///< Number of values presently in the compression array
+    std::vector<double> vec1; ///< Vector elements before and after compression
+    size_t vec_len; ///< Number of nonzero elements before and after compression
     
     // The following are used to index the values in each compression array
-    std::vector<size_t> det_indices1; ///< Denotes the index of the Slater determinant from which the excitation originated
-    std::vector<size_t> det_indices2;
-    uint8_t (*orb_indices1)[4]; ///< 0th index is 0 for double/1 for single, 1st is 1st occ, 2nd is 1st virt/2nd occ, 3rd is nothing/1st virt
-    uint8_t (*orb_indices2)[4];
+    // Before compression, elements are indexed by Slater determinants
+    // After compression, elements are indexed by orbitals indicating single or double excitations from Slater determinants
+    std::vector<size_t> det_indices1; ///< Before compression, indicates the index in another data structure of the Slater determinant index
+    std::vector<size_t> det_indices2; ///< After compression, indicates the index in another data structure of the Slater determinant index
+    uint8_t (*orb_indices1)[4]; ///< Orbital indices after compression: 0th index is 0 for double/1 for single, 1st is 1st occ, 2nd is 1st virt/2nd occ, 3rd is nothing/1st virt
+    uint8_t (*orb_indices2)[4]; ///< Intermediate orbital indices
     
-    // The values in the array to be compressed are defined as products of the values in
-    // the vec1/vec2 arrays with "subweights"
-    Matrix<double> subwts; ///< The matrix of these subweights. Row indices correspond to values in vec1/vec2, column indices correspond to subweight indices
-    // If ndiv[idx] != 0, the subweights for idx are all equal, and the number of such subweights is ndiv[idx]
-    std::vector<uint32_t> ndiv;
-    std::vector<uint16_t> nsub; ///< If the number of subweights for a given row is less than subwts.cols(), this array tells you how many subweights there are for that row
-    Matrix<bool> keep_sub; ///< Indicates which elements are to be preserved exactly in compression
-    std::vector<double> wt_remain; ///< The sum of magnitudes of elements in each row that were not marked for exact preservation
+    // In hierarchical Hamiltonian factorizations, each element gives rise to a number of other elements upon multiplication
+    // This array contains the number of elements in each of these "groups"
+    std::vector<uint16_t> group_sizes;
     
-    size_t (*comp_idx)[2]; ///< After compression, contains the indices of nonzero elements remaining. 0th index denotes index of element in vec1/vec2, and 1st denotes subweight index
-    
-    HBCompress(size_t length, size_t n_subwt) : vec1(length), vec2(length), det_indices1(length),
-    det_indices2(length), subwts(length, n_subwt), ndiv(length), nsub(length),
-    keep_sub(length, n_subwt), wt_remain(length) {
+    HBCompress(size_t length) : vec1(length), det_indices1(length), det_indices2(length), group_sizes(length) {
         orb_indices1 = (uint8_t (*)[4]) malloc(sizeof(uint8_t) * 4 * length);
         orb_indices2 = (uint8_t (*)[4]) malloc(sizeof(uint8_t) * 4 * length);
-        comp_idx = (size_t (*)[2]) malloc(sizeof(size_t) * 2 * length);
     }
-    
     ~HBCompress() {
         free(orb_indices1);
         free(orb_indices2);
+    }
+};
+
+/*! \brief When performing systematic compression, vector elements after each multiplication are represented by subweights:
+ * Each element is represented as a product of an element in either \p vec1 or \p vec2 and a "subweight"
+ */
+struct HBCompressSys : HBCompress {
+    std::vector<double> vec2; ///< Intermediate array to hold values after compressions
+    
+    Matrix<double> subwts; ///< Matrix of subweights. Row indices correspond to values in vec1/vec2, column indices correspond to subweight indices
+    std::vector<uint32_t> ndiv; ///< If \p ndiv[idx] != 0, the subweights for idx are all equal, and the number of such subweights is \p ndiv[idx] . The corresponding row of \p subwts is not used.
+    Matrix<bool> keep_sub; ///< Indicates which elements are to be preserved exactly in compression
+    std::vector<double> wt_remain; ///< The sum of magnitudes of elements in each row that were not marked for exact preservation
+    
+    size_t (*comp_idx)[2]; ///< Used to index elements of nonzero elements after each compression. The first index in each row is the index in vec1/vec2, and the 2nd index is a subweight index.
+    
+    HBCompressSys(size_t length, size_t n_subwt) : vec2(length),
+        subwts(length, n_subwt), ndiv(length), keep_sub(length, n_subwt),
+        wt_remain(length),  HBCompress(length) {
+        comp_idx = (size_t (*)[2]) malloc(sizeof(size_t) * 2 * length);
+    }
+    ~HBCompressSys() {
         free(comp_idx);
     }
 };
+
+/*! \brief When performing pivotal compression, multiplication by Hamiltonian matrix factor is performed explicitly.
+ * No subweights. The vector is sequentially expanded into \p long_vec by a matrix multiplication and then compressed
+ *  and transferred back to \p vec1
+ */
+struct HBCompressPiv : HBCompress {
+    std::vector<double> long_vec;
+    std::vector<bool> keep_idx; ///< Marks indices to be preserved exactly in compression
+    std::vector<size_t> cmp_srt; ///< Scratch array used in compression
+    
+    HBCompressPiv(size_t length, size_t n_subwt) : long_vec(length * n_subwt),
+        keep_idx(length * n_subwt), cmp_srt(length * n_subwt), HBCompress(length) {}
+};
+
 
 /*! \brief Apply the heat-bath power-pitzer Hamiltonian matrix factors to an initial vector, compressing after multiplication by each factor
  *
@@ -295,9 +321,12 @@ struct HBCompress {
  * \param [in] mt_obj   For generating random numbers
  * \param [in] n_samp  Number of nonzero elements to keep in compression operations
  */
-void apply_HBPP(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBCompress *comp_scratch,
-                hb_info *hb_probs, SymmInfo *symm, double p_doub, bool new_hb,
-                std::mt19937 &mt_obj, uint32_t n_samp);
+void apply_HBPP_sys(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBCompressSys *comp_scratch,
+                    hb_info *hb_probs, SymmInfo *symm, double p_doub, bool new_hb,
+                    std::mt19937 &mt_obj, uint32_t n_samp);
+void apply_HBPP_piv(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBCompressPiv *comp_scratch,
+                    hb_info *hb_probs, SymmInfo *symm, double p_doub, bool new_hb,
+                    std::mt19937 &mt_obj, uint32_t n_samp);
 
 
 #endif /* heat_bathPP_h */

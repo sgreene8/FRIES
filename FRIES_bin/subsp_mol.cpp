@@ -127,14 +127,13 @@ int main(int argc, char * argv[]) {
             vec_scrambler[proc_idx] = mt_obj();
         }
         
-//        Adder<double> shared_adder(adder_size, n_procs, n_orb * 2);
         // first n_trial are trial vecs
         // next n_trial are H * trial_ves
         // next 2 * n_trial are used in multiplization
         DistVec<double> sol_vec(args.max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, 4 * n_trial, proc_scrambler, vec_scrambler);
         
         size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2) ? n_elec_unf : n_orb - n_elec_unf / 2;
-        HBCompress comp_vecs(spawn_length, n_states);
+        HBCompressSys comp_vecs(spawn_length, n_states);
         
         uint8_t hf_det[det_size];
         gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
@@ -411,7 +410,7 @@ int main(int argc, char * argv[]) {
                     std::cerr << "Error: insufficient memory allocated for matrix compression.\n";
                 }
                 comp_vecs.vec_len = comp_len;
-                apply_HBPP(sol_vec.occ_orbs(), sol_vec.indices(), &comp_vecs, hb_probs, &basis_symm, p_doub, true, mt_obj, matr_samp);
+                apply_HBPP_sys(sol_vec.occ_orbs(), sol_vec.indices(), &comp_vecs, hb_probs, &basis_symm, p_doub, true, mt_obj, matr_samp);
                 comp_len = comp_vecs.vec_len;
                 
                 double *vals_before_mult = sol_vec.values();

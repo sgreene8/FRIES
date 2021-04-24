@@ -385,7 +385,7 @@ int main(int argc, char * argv[]) {
 
             size_t comp_len = sol_vec.curr_size() - n_determ;
             comp_vecs.vec_len = comp_len;
-            apply_HBPP(sol_vec.occ_orbs(), sol_vec.indices(), &comp_vecs, hb_probs, &basis_symm, p_doub, new_hb, mt_obj, matr_samp - tot_dense_h);
+            apply_HBPP_sys(sol_vec.occ_orbs(), sol_vec.indices(), &comp_vecs, hb_probs, &basis_symm, p_doub, new_hb, mt_obj, matr_samp - tot_dense_h);
             comp_len = comp_vecs.vec_len;
             
             double *vals_before_mult = sol_vec.values();
