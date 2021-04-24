@@ -275,7 +275,7 @@ double seed_sys(double *norms, double *rn, unsigned int n_samp);
  * \return sum of magnitudes of elements on this local MPI process that are not
  * preserved exactly
  */
-double find_keep_sub(double *values, unsigned int *n_div,
+double find_keep_sub(double *values, uint32_t *n_div,
                      const Matrix<double> &sub_weights, Matrix<bool> &keep_idx,
                      uint16_t *sub_sizes,
                      size_t count, unsigned int *n_samp, double *wt_remain);

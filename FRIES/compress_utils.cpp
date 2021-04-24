@@ -32,6 +32,7 @@ double find_preserve(double *values, std::vector<size_t> &srt_idx, std::vector<b
     size_t heap_count = count;
     for (size_t det_idx = 0; det_idx < count; det_idx++) {
         loc_one_norm += fabs(values[det_idx]);
+        srt_idx[det_idx] = det_idx;
     }
     int proc_rank = 0;
     int n_procs = 1;
@@ -50,7 +51,7 @@ double find_preserve(double *values, std::vector<size_t> &srt_idx, std::vector<b
     while (glob_sampled > 0) {
         glob_one_norm = sum_mpi(loc_one_norm, proc_rank, n_procs);
         loc_sampled = 0;
-        while (keep_going && heap_count > 0) {
+        while (keep_going && heap_count > 0 && glob_one_norm >= 0) {
             max_idx = srt_idx[0];
             el_magn = fabs(values[max_idx]);
             if (el_magn >= glob_one_norm / (*n_samp - loc_sampled)) {
@@ -125,7 +126,7 @@ double seed_sys(double *norms, double *rn, unsigned int n_samp) {
 }
 
 
-double find_keep_sub(double *values, unsigned int *n_div,
+double find_keep_sub(double *values, uint32_t *n_div,
                      const Matrix<double> &sub_weights, Matrix<bool> &keep_idx,
                      uint16_t *sub_sizes,
                      size_t count, unsigned int *n_samp, double *wt_remain) {
@@ -388,6 +389,8 @@ void piv_samp_serial(double *vec_vals, size_t vec_len, double seg_norm,
             }
             else {
                 vec_vals[idx] = 0;
+            }
+            if (vec_vals[idx] == 0) {
                 keep_exact[idx] = true;
             }
         }

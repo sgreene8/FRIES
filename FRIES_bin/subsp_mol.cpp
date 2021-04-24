@@ -238,9 +238,6 @@ int main(int argc, char * argv[]) {
             max_n_dets = sol_vec.max_size();
         }
         std::vector<size_t> srt_arr(max_n_dets);
-        for (size_t det_idx = 0; det_idx < max_n_dets; det_idx++) {
-            srt_arr[det_idx] = det_idx;
-        }
         std::vector<bool> keep_exact(max_n_dets, false);
         std::vector<bool> del_all(max_n_dets, true);
         
@@ -477,9 +474,7 @@ int main(int argc, char * argv[]) {
                     keep_exact.resize(new_max_dets, false);
                     srt_arr.resize(new_max_dets);
                     del_all.resize(new_max_dets);
-                    for (; max_n_dets < new_max_dets; max_n_dets++) {
-                        srt_arr[max_n_dets] = max_n_dets;
-                    }
+                    max_n_dets = new_max_dets;
                 }
                 
                 sol_vec.set_curr_vec_idx(curr_idx);

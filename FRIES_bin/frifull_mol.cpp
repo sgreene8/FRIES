@@ -270,9 +270,6 @@ int main(int argc, char * argv[]) {
         double loc_norms[n_procs];
         size_t max_n_dets = sol_vec.max_size();
         std::vector<size_t> srt_arr(max_n_dets);
-        for (det_idx = 0; det_idx < max_n_dets; det_idx++) {
-            srt_arr[det_idx] = det_idx;
-        }
         std::vector<bool> keep_exact(max_n_dets, false);
         int vec_idx = 0;
         
@@ -327,9 +324,7 @@ int main(int argc, char * argv[]) {
             if (new_max_dets > max_n_dets) {
                 keep_exact.resize(new_max_dets, false);
                 srt_arr.resize(new_max_dets);
-                for (; max_n_dets < new_max_dets; max_n_dets++) {
-                    srt_arr[max_n_dets] = max_n_dets;
-                }
+                max_n_dets = new_max_dets;
             }
             
             if ((iterat + 1) % save_interval == 0) {

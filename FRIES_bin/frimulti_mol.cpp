@@ -311,9 +311,6 @@ int main(int argc, char * argv[]) {
         double lbound;
         double weight;
         std::vector<size_t> srt_arr(args.max_n_dets);
-        for (det_idx = 0; det_idx < args.max_n_dets; det_idx++) {
-            srt_arr[det_idx] = det_idx;
-        }
         std::vector<bool> keep_exact(args.max_n_dets, false);
         
         unsigned int iterat;
