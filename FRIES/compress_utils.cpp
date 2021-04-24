@@ -349,7 +349,37 @@ void sys_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
 }
 
 
-void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm,
+void piv_comp_parallel(double *vec_vals, size_t vec_len, uint32_t compress_size,
+                       std::vector<size_t> &srt_scratch, std::vector<bool> &keep_scratch,
+                       std::mt19937 &rn_gen) {
+    int n_procs = 1;
+    int rank = 0;
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    double loc_norms[n_procs];
+
+    unsigned int n_samp = compress_size;
+    double glob_norm;
+    loc_norms[rank] = find_preserve(vec_vals, srt_scratch, keep_scratch, vec_len, &n_samp, &glob_norm);
+    MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+    glob_norm = 0;
+    for (uint16_t proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        glob_norm += loc_norms[proc_idx];
+    }
+    
+    uint32_t loc_samp = piv_budget(loc_norms, n_samp, rn_gen);
+    uint32_t check_tot = sum_mpi((int)loc_samp, rank, n_procs);
+    if (check_tot != n_samp) {
+        std::stringstream msg;
+        msg << "After pivotal budgeting, total number of elements across all processes (" << check_tot << ") does not equal input number of samples (" << n_samp << ")";
+        throw std::runtime_error(msg.str());
+    }
+    double new_norm = adjust_probs(vec_vals, vec_len, &loc_samp, n_samp * loc_norms[rank] / glob_norm, n_samp, glob_norm, keep_scratch);
+    piv_samp_serial(vec_vals, vec_len, new_norm, loc_samp, keep_scratch, rn_gen);
+}
+
+
+void piv_samp_serial(double *vec_vals, size_t vec_len, double seg_norm,
                      uint32_t n_samp, std::vector<bool> &keep_exact, std::mt19937 &mt_obj) {
     if (n_samp == 0) {
         for (size_t idx = 0; idx < vec_len; idx++) {
@@ -562,7 +592,7 @@ uint32_t piv_budget(double *loc_norms, uint32_t n_samp, std::mt19937 &mt_obj,
         
         if (tot_budget < n_samp) {
             std::vector<bool> keep(n_procs, false);
-            piv_comp_serial(weights.data(), n_procs, glob_norm * (n_samp - tot_budget) / n_samp, n_samp - tot_budget, keep, mt_obj);
+            piv_samp_serial(weights.data(), n_procs, glob_norm * (n_samp - tot_budget) / n_samp, n_samp - tot_budget, keep, mt_obj);
             for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
                 if (weights[proc_idx] > 0) {
                     budgets[proc_idx]++;

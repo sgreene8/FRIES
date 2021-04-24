@@ -108,7 +108,7 @@ TEST_CASE("Test that compression does nothing when target number of nonzeros is 
     }
     
     std::fill(vec_keep.begin(), vec_keep.end(), true);
-    piv_comp_serial(input1.data(), input_len, 0, 0, vec_keep, mt_obj);
+    piv_samp_serial(input1.data(), input_len, 0, 0, vec_keep, mt_obj);
     
     for (size_t el_idx = 0; el_idx < input_len; el_idx++) {
         REQUIRE(input1[el_idx] == Approx(input2[el_idx]).margin(1e-5));

@@ -341,7 +341,7 @@ public:
         Sampler::sample();
         std::copy(keep_idx1_.begin(), keep_idx1_.end(), keep_idx2_.begin());
         std::copy(orig_vec_.begin(), orig_vec_.end(), tmp_vec_.begin());
-        piv_comp_serial(tmp_vec_.data(), tmp_vec_.size(), one_norm_, n_samp_, keep_idx2_, mt_obj);
+        piv_samp_serial(tmp_vec_.data(), tmp_vec_.size(), one_norm_, n_samp_, keep_idx2_, mt_obj);
         for (size_t el_idx = 0; el_idx < tmp_vec_.size(); el_idx++) {
             accum_[el_idx] += tmp_vec_[el_idx];
         }

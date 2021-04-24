@@ -104,8 +104,27 @@ void sys_comp_serial(double *vec_vals, size_t vec_len, double seg_norm, double s
  *                      zeroed in the compression
  * \param [in] mt_obj   A reference to an initialized MT object to use for random number generation
  */
-void piv_comp_serial(double *vec_vals, size_t vec_len, double seg_norm,
+void piv_samp_serial(double *vec_vals, size_t vec_len, double seg_norm,
                      uint32_t n_samp, std::vector<bool> &keep_exact, std::mt19937 &mt_obj);
+
+
+/*! \brief Parallel budgeting + pivotal compression of vector elements on all processes
+ *
+ * \param [in, out] vec_vals Elements in the vector (can be negative) before
+ *                      and after compression (length \p vec_len)
+ * \param [in] vec_len  Number of elements in the vector
+ * \param [in] compress_size    Desired number of nonzero elements after compression
+ * \param [in] srt_scratch  An array of indices that will be used to build the heap,
+ *                      must be initialized with integers from 0 to count - 1 in
+ *                      any order (length \p count)
+ * \param [in, out] keep_scratch   Upon input, all elements must be 0
+ *                      (length \p count); upon return, 1's indicate elements
+ *                      zeroed in the compression
+ * \param [in] rn_gen   A reference to an initialized MT object to use for random number generation
+ */
+void piv_comp_parallel(double *vec_vals, size_t vec_len, uint32_t compress_size,
+                       std::vector<size_t> &srt_scratch, std::vector<bool> &keep_scratch,
+                       std::mt19937 &rn_gen);
 
 
 
