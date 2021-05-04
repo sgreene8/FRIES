@@ -128,7 +128,7 @@ int main(int argc, char * argv[]) {
         DistVec<double> sol_vec(max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, 2, proc_scrambler, vec_scrambler);
         
         size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2) ? n_elec_unf : n_orb - n_elec_unf / 2;
-        HBCompress comp_vecs(spawn_length, n_states);
+        HBCompressSys comp_vecs(spawn_length, n_states);
         
         uint8_t hf_det[det_size];
         gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
