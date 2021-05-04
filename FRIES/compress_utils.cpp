@@ -368,14 +368,22 @@ void piv_comp_parallel(double *vec_vals, size_t vec_len, uint32_t compress_size,
         glob_norm += loc_norms[proc_idx];
     }
     
-    uint32_t loc_samp = piv_budget(loc_norms, n_samp, rn_gen);
-    uint32_t check_tot = sum_mpi((int)loc_samp, rank, n_procs);
-    if (check_tot != n_samp) {
-        std::stringstream msg;
-        msg << "After pivotal budgeting, total number of elements across all processes (" << check_tot << ") does not equal input number of samples (" << n_samp << ")";
-        throw std::runtime_error(msg.str());
+    uint32_t loc_samp;
+    double new_norm;
+    if (n_samp == 0) {
+        loc_samp = 0;
+        new_norm = 0;
     }
-    double new_norm = adjust_probs(vec_vals, vec_len, &loc_samp, n_samp * loc_norms[rank] / glob_norm, n_samp, glob_norm, keep_scratch);
+    else {
+        loc_samp = piv_budget(loc_norms, n_samp, rn_gen);
+        uint32_t check_tot = sum_mpi((int)loc_samp, rank, n_procs);
+        if (check_tot != n_samp) {
+            std::stringstream msg;
+            msg << "After pivotal budgeting, total number of elements across all processes (" << check_tot << ") does not equal input number of samples (" << n_samp << ")";
+            throw std::runtime_error(msg.str());
+        }
+        new_norm = adjust_probs(vec_vals, vec_len, &loc_samp, n_samp * loc_norms[rank] / glob_norm, n_samp, glob_norm, keep_scratch);
+    }
     piv_samp_serial(vec_vals, vec_len, new_norm, loc_samp, keep_scratch, rn_gen);
 }
 
