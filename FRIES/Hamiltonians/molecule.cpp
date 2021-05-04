@@ -19,7 +19,7 @@ double doub_matr_el_nosgn(uint8_t *chosen_orbs, unsigned int n_orbs,
     
     double mat_el = eris(sp0, sp1, sp2, sp3);
     if (same_sp)
-    mat_el -= eris(sp0, sp1, sp3, sp2);
+        mat_el -= eris(sp0, sp1, sp3, sp2);
     return mat_el;
 }
 
