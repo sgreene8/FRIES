@@ -8,6 +8,9 @@
 
 void gen_hf_bitstring(unsigned int n_orb, unsigned int n_elec, uint8_t *det) {
     uint8_t byte_idx;
+    for (byte_idx = 0; byte_idx < CEILING(2 * n_orb, 8); byte_idx++) {
+        det[byte_idx] = 0;
+    }
     for (byte_idx = 0; byte_idx < (n_elec / 2 / 8); byte_idx++) {
         det[byte_idx] = 255;
     }
@@ -20,13 +23,18 @@ void gen_hf_bitstring(unsigned int n_orb, unsigned int n_elec, uint8_t *det) {
     }
     
     byte_idx = n_orb / 8;
-    det[byte_idx] |= ~((1 << (n_orb % 8)) - 1);
+    uint8_t n_elec_mid = 8 - (n_orb % 8);
+    if (n_elec_mid > n_elec / 2) {
+        n_elec_mid = n_elec / 2;
+    }
+    uint8_t elec_mid = (1 << ((n_orb % 8) + n_elec_mid)) - (1 << (n_orb % 8));
+    det[byte_idx] |= elec_mid;
     byte_idx++;
     for (; byte_idx < ((n_orb + n_elec / 2) / 8); byte_idx++) {
         det[byte_idx] = 255;
     }
     byte_idx = (n_orb + n_elec / 2) / 8;
-    det[byte_idx] = (1 << ((n_orb + n_elec / 2) % 8)) - (1 << ((n_orb / 8 == byte_idx) ? (n_orb % 8) : 0));
+    det[byte_idx] |= (1 << ((n_orb + n_elec / 2) % 8)) - (1 << ((n_orb / 8 == byte_idx) ? (n_orb % 8) : 0));
     
     for (byte_idx++; byte_idx < CEILING(2 * n_orb, 8); byte_idx++) {
         det[byte_idx] = 0;

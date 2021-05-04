@@ -182,6 +182,7 @@ TEST_CASE("Test generation of Hartree-Fock bit strings", "[hf_bits]") {
     unsigned int n_orb = 11;
     unsigned int n_elec = 18;
     
+    std::fill(bit_str1, bit_str1 + n_bytes, 255);
     gen_hf_bitstring(n_orb, n_elec, bit_str1);
     REQUIRE((!memcmp(bit_str1, bit_str2, n_bytes)) == 1);
     
@@ -192,6 +193,7 @@ TEST_CASE("Test generation of Hartree-Fock bit strings", "[hf_bits]") {
     bit_str2[2] = 252;
     bit_str2[3] = 15;
     bit_str2[4] = 0;
+    std::fill(bit_str1, bit_str1 + n_bytes, 255);
     gen_hf_bitstring(n_orb, n_elec, bit_str1);
     REQUIRE((!memcmp(bit_str1, bit_str2, n_bytes)) == 1);
     
@@ -204,6 +206,7 @@ TEST_CASE("Test generation of Hartree-Fock bit strings", "[hf_bits]") {
     bit_str2[3] = 31;
     bit_str2[4] = 0;
     bit_str2[5] = 0;
+    std::fill(bit_str1, bit_str1 + n_bytes, 255);
     gen_hf_bitstring(n_orb, n_elec, bit_str1);
     REQUIRE((!memcmp(bit_str1, bit_str2, n_bytes)) == 1);
     
@@ -217,6 +220,7 @@ TEST_CASE("Test generation of Hartree-Fock bit strings", "[hf_bits]") {
     bit_str2[4] = 0;
     bit_str2[5] = 0;
     bit_str2[6] = 0;
+    std::fill(bit_str1, bit_str1 + n_bytes, 255);
     gen_hf_bitstring(n_orb, n_elec, bit_str1);
     REQUIRE((!memcmp(bit_str1, bit_str2, n_bytes)) == 1);
 }
