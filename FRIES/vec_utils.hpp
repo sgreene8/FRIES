@@ -161,12 +161,14 @@ protected:
     uint64_t nonini_occ_add; ///< Number of times an addition from a noninitiator determinant to an occupied determinant occurred
     std::vector<double> matr_el_; ///< Array of pre-calculated diagonal matrix elements associated with each vector element
     std::function<double(const uint8_t *)> diag_calc_; ///< Pointer to a function used to calculate diagonal matrix elements for elements in this vector
+    std::vector<bool> active_pos_; ///< Boolean vector indicating which indices are currently in the vector's hash table
     
     virtual void initialize_at_pos(size_t pos, uint8_t *orbs) {
         for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
             values_(vec_idx, pos) = 0;
         }
         matr_el_[pos] = NAN;
+        active_pos_[pos] = true;
         memcpy(occ_orbs_[pos], orbs, occ_orbs_.cols());
     }
     
@@ -182,6 +184,7 @@ public:
     adder_(adder),
     n_nonz_(0),
     indices_(size, CEILING(n_bits, 8)),
+    active_pos_(size),
     n_bits_(n_bits),
     n_dense_(0),
     nonini_occ_add(0),
@@ -338,6 +341,7 @@ public:
         size_t new_max = max_size_ * 2;
         std::cout << "Increasing storage capacity in vector to " << new_max << "\n";
         indices_.reshape(new_max, indices_.cols());
+        active_pos_.resize(new_max);
         matr_el_.resize(new_max);
         occ_orbs_.reshape(new_max, occ_orbs_.cols());
         
@@ -443,6 +447,9 @@ public:
      * \param [in] pos          The position of the element to be deleted in \p indices_
      */
     void del_at_pos(size_t pos) {
+        if (!active_pos_[pos]) {
+            return;
+        }
         bool all_zero = true;
         for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
             if (values_(vec_idx, pos) != 0) {
@@ -455,6 +462,7 @@ public:
             vec_stack_.push(pos);
             vec_hash_.del_entry(idx, hash_val);
             n_nonz_--;
+            active_pos_[pos] = false;
         }
     }
     
