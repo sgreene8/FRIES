@@ -101,3 +101,22 @@ void sing_ex_orbs(uint8_t *restrict curr_orbs, uint8_t *restrict new_orbs,
     new_sorted(curr_orbs + spin_shift, new_orbs + spin_shift, n_elec / 2, ex_orbs[0] - spin_shift, ex_orbs[1]);
     memcpy(new_orbs + n_elec / 2 - spin_shift, curr_orbs + n_elec / 2 - spin_shift, n_elec / 2);
 }
+
+
+void flip_spins(uint8_t *det_in, uint8_t *det_out, uint8_t n_orb) {
+    uint8_t mid_byte_idx = n_orb / 8;
+    uint8_t mid_bit_offset = n_orb % 8;
+    uint8_t n_bytes = CEILING(2 * n_orb, 8);
+    det_out[mid_byte_idx] = 0;
+    for (uint8_t byte_idx = 0; byte_idx < mid_byte_idx + (n_orb % 8 != 0); byte_idx++) {
+        det_out[byte_idx] = det_in[byte_idx + mid_byte_idx] >> mid_bit_offset;
+        if (mid_bit_offset > 0) {
+            det_out[byte_idx] |= det_in[byte_idx + mid_byte_idx + 1] << (8 - mid_bit_offset);
+        }
+    }
+    det_out[mid_byte_idx] |= det_in[0] << mid_bit_offset;
+    for (uint8_t byte_idx = mid_byte_idx + 1; byte_idx < n_bytes; byte_idx++) {
+        det_out[byte_idx] = det_in[byte_idx - mid_byte_idx - 1] >> (8 - mid_bit_offset);
+        det_out[byte_idx] |= det_in[byte_idx - mid_byte_idx] << mid_bit_offset;
+    }
+}

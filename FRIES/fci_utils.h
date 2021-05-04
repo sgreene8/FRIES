@@ -113,6 +113,9 @@ int excite_sign(uint8_t cre_op, uint8_t des_op, uint8_t *det);
 uint8_t find_nth_virt(uint8_t *occ_orbs, int spin, uint8_t n_elec,
                       uint8_t n_orb, uint8_t n);
 
+
+void flip_spins(uint8_t *det_in, uint8_t *det_out, uint8_t n_orb);
+
     
 #ifdef __cplusplus
 }
