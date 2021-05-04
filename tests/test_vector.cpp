@@ -315,3 +315,38 @@ TEST_CASE("Test encoding and decoding of Holstein basis states", "[phonon_bits]"
     REQUIRE(excite_det[0] == 0b10001001);
     REQUIRE(excite_det[1] == 0);
 }
+
+
+TEST_CASE("Test adding elements to vector", "[vector_add]") {
+    uint8_t n_orb = 4;
+    uint8_t n_elec = 2;
+    uint8_t det_size = 1;
+    uint8_t bit_str1[det_size];
+    std::vector<uint32_t> proc_scrambler = {1, 2, 3, 4, 5, 6, 7, 8};
+    std::vector<uint32_t> vec_scrambler = {8, 7, 6, 5, 4, 3, 2, 1};
+    
+    DistVec<int> vec(2, 2, n_orb * 2, n_elec, 1, proc_scrambler, vec_scrambler);
+    
+    std::fill(bit_str1, bit_str1 + det_size, 255);
+    gen_hf_bitstring(n_orb, n_elec, bit_str1);
+    REQUIRE(bit_str1[0] == 0b00010001);
+    
+    vec.add(bit_str1, 1, 1);
+    vec.perform_add();
+    REQUIRE(*vec[0] == 1);
+    REQUIRE(!memcmp(bit_str1, vec.indices()[0], det_size));
+    
+    vec.add(bit_str1, 1, 1);
+    vec.perform_add();
+    REQUIRE(*vec[0] == 2);
+    
+    bit_str1[0] = 0b00100001;
+    vec.add(bit_str1, -1, 1);
+    vec.perform_add();
+    REQUIRE(*vec[1] == -1);
+    REQUIRE(!memcmp(bit_str1, vec.indices()[1], det_size));
+    
+    vec.add(bit_str1, -1, 1);
+    vec.perform_add();
+    REQUIRE(*vec[1] == -2);
+}

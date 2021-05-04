@@ -12,17 +12,31 @@
 #include <functional>
 #include <mpi.h>
 #include <sstream>
+#include <stack>
 
 
 /*! \brief Hash table used to to index Slater determinant indices in the
  * solution vector
  */
 template <class el_type>
-class HashTable {    
-    std::vector<std::vector<uint8_t>> buckets_dets_; ///< Vector containing the bit string indices for each bucket
-    std::vector<std::vector<el_type>> buckets_vals_; ///< Vector containing the values for each bucket
+class HashTable {
+    struct HashEntry {
+        uint8_t *bit_string_;
+        el_type value_;
+        
+        HashEntry(size_t idx_size) : value_(-1) {
+            bit_string_ = (uint8_t *)malloc(idx_size * sizeof(uint8_t));
+        };
+        ~HashEntry() {
+            free(bit_string_);
+        }
+    };
+    
+    std::vector<std::forward_list<HashEntry *>> buckets_; ///< Vector containing the hash entries for each bucket
     std::vector<uint32_t> scrambler_; ///< array of random integers to use for hashing
     uint8_t idx_size_; ///< Number of bytes used to encode each bit string index in the hash table
+    std::stack<HashEntry *> recycler_;
+    
 public:
 
     /*! \brief Constructor for the hash table
@@ -30,7 +44,7 @@ public:
      * \param [in] table_size   Desired length of the hash table
      * \param [in] rand_ints    Vector of random integers to use for hashing (length must be >= # of spin orbitals in basis)
      */
-    HashTable(size_t table_size, const std::vector<uint32_t> rand_ints) : buckets_dets_(table_size), buckets_vals_(table_size), scrambler_(rand_ints), idx_size_(CEILING(rand_ints.size(), 8)) {}
+    HashTable(size_t table_size, const std::vector<uint32_t> rand_ints) : buckets_(table_size), scrambler_(rand_ints), idx_size_(CEILING(rand_ints.size(), 8)) {}
     
 
     /*! \brief Read value from hash table
@@ -44,16 +58,14 @@ public:
      * is false
      */
     el_type *read(uint8_t *det, uintmax_t hash_val, bool create){
-        size_t table_idx = hash_val % buckets_dets_.size();
-        std::vector<uint8_t> &row_dets = buckets_dets_[table_idx];
-        std::vector<el_type> &row_vals = buckets_vals_[table_idx];
-        size_t row_size = row_vals.size();
+        size_t table_idx = hash_val % buckets_.size();
+        std::forward_list<HashEntry *> &row = buckets_[table_idx];
         
-        unsigned int collisions = 0;
+        uint32_t collisions = 0;
         el_type *ret_ptr = nullptr;
-        for (size_t det_idx = 0; det_idx < row_size; det_idx++) {
-            if (!memcmp(det, &row_dets[det_idx * idx_size_], idx_size_)) {
-                ret_ptr = &row_vals[det_idx];
+        for (HashEntry *entry : row) {
+            if (!memcmp(det, entry->bit_string_, idx_size_)) {
+                ret_ptr = &entry->value_;
                 break;
             }
             collisions++;
@@ -65,10 +77,18 @@ public:
             std::cerr << "Line " << table_idx << " in the hash table has >20 hash collisions (det: " << det_str << ", hash: " << hash_val << ", " << (ret_ptr ? "found" : "not found") << ")\n";
         }
         if (!ret_ptr && create) {
-            row_dets.resize((row_size + 1) * idx_size_);
-            memcpy(&row_dets[idx_size_ * row_size], det, idx_size_);
-            row_vals.resize((row_size + 1), -1);
-            ret_ptr = &row_vals[row_size];
+            HashEntry *new_entry;
+            if (recycler_.empty()) {
+                new_entry = new HashEntry(idx_size_);
+            }
+            else {
+                new_entry = recycler_.top();
+                recycler_.pop();
+                new_entry->value_ = -1;
+            }
+            std::copy(det, det + idx_size_, new_entry->bit_string_);
+            row.push_front(new_entry);
+            ret_ptr = &new_entry->value_;
         }
         return ret_ptr;
     }
@@ -81,9 +101,13 @@ public:
         std::stringstream buffer;
         buffer << "hash" << my_rank << ".txt";
         std::ofstream file_p(buffer.str());
-        for (size_t table_idx = 0; table_idx < buckets_vals_.size();
+        for (size_t table_idx = 0; table_idx < buckets_.size();
              table_idx++) {
-            unsigned int collisions = buckets_vals_[table_idx].size();
+            uint16_t collisions = 0;
+            std::forward_list<HashEntry *> row = buckets_[table_idx];
+            for (HashEntry *entry : row) {
+                collisions++;
+            }
             file_p << collisions << "\n";
         }
         file_p.close();
@@ -98,20 +122,26 @@ public:
      *                          hash_fxn
      */
     void del_entry(uint8_t *det, uintmax_t hash_val) {
-        size_t table_idx = hash_val % buckets_vals_.size();
-        std::vector<uint8_t> &row_dets = buckets_dets_[table_idx];
-        std::vector<el_type> &row_vals = buckets_vals_[table_idx];
-        size_t row_size = row_vals.size();
-        for (size_t det_idx = 0; det_idx < row_size; det_idx++) {
-            if (!memcmp(det, &row_dets[det_idx * idx_size_], idx_size_)) {
-                if (det_idx < (row_size - 1)) {
-                    memcpy(&row_dets[det_idx * idx_size_], &row_dets[(row_size - 1) * idx_size_], idx_size_);
-                    row_vals[det_idx] = row_vals[row_size - 1];
+        size_t table_idx = hash_val % buckets_.size();
+        std::forward_list<HashEntry *> &row = buckets_[table_idx];
+        if (!row.empty()) {
+            auto it1 = row.begin();
+            if (!memcmp(det, (*it1)->bit_string_, idx_size_)) {
+                recycler_.push(*it1);
+                row.pop_front();
+            }
+            else {
+                auto it2 = it1;
+                it2++;
+                while (it2 != row.end()) {
+                    if (!memcmp((*it2)->bit_string_, det, idx_size_)) {
+                        recycler_.push(*it2);
+                        row.erase_after(it1);
+                        return;
+                    }
+                    it2++;
+                    it1++;
                 }
-                row_size--;
-                row_dets.resize(row_size * idx_size_);
-                row_vals.resize(row_size);
-                return;
             }
         }
     }
