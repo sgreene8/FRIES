@@ -8,6 +8,7 @@
 #include <FRIES/det_store.h>
 #include <FRIES/fci_utils.h>
 #include <FRIES/Hamiltonians/hub_holstein.hpp>
+#include <cstdint>
 
 TEST_CASE("Test bit string math", "[binary]") {
     uint8_t bit_str[3];
@@ -171,4 +172,60 @@ TEST_CASE("Test determinant spin-flipping", "[flip_spins]") {
     str1[1] = 0b00010000;
     str1[2] = 0b00011111;
     REQUIRE(!memcmp(str1, str2, 3));
+}
+
+
+TEST_CASE("Test identification of excitations", "[id_excite]") {
+    uint8_t n_orb = 10;
+    uint8_t n_elec = 8;
+    uint8_t n_bytes = CEILING(2 * n_orb, 8);
+    uint8_t det1[n_bytes];
+    uint8_t det2[n_bytes];
+    uint8_t orbs1[5] = {0, 0, 0, 0, 0};
+    
+    gen_hf_bitstring(n_orb, n_elec, det1);
+    std::copy(det1, det1 + n_bytes, det2);
+    
+    uint8_t bit_diff = find_excitation(det1, det2, orbs1, n_bytes);
+    REQUIRE(bit_diff == 0);
+    
+    orbs1[0] = 2;
+    orbs1[1] = 9;
+    sing_det_parity(det2, orbs1);
+    
+    bit_diff = find_excitation(det1, det2, orbs1, n_bytes);
+    REQUIRE(bit_diff == 1);
+    REQUIRE(orbs1[0] == 2);
+    REQUIRE(orbs1[1] == 9);
+    REQUIRE(orbs1[2] == 0);
+    REQUIRE(orbs1[3] == 0);
+    REQUIRE(orbs1[4] == 0);
+    
+    orbs1[0] = 0;
+    orbs1[1] = 7;
+    sing_det_parity(det2, orbs1);
+    bit_diff = find_excitation(det1, det2, orbs1, n_bytes);
+    REQUIRE(bit_diff == 2);
+    REQUIRE(orbs1[0] == 0);
+    REQUIRE(orbs1[1] == 2);
+    REQUIRE(orbs1[2] == 7);
+    REQUIRE(orbs1[3] == 9);
+    REQUIRE(orbs1[4] == 0);
+    
+    orbs1[0] = 11;
+    orbs1[1] = 20;
+    sing_det_parity(det2, orbs1);
+    bit_diff = find_excitation(det1, det2, orbs1, n_bytes);
+    REQUIRE(bit_diff == UINT8_MAX);
+    
+    orbs1[0] = 7;
+    orbs1[1] = 2;
+    sing_det_parity(det2, orbs1);
+    bit_diff = find_excitation(det1, det2, orbs1, n_bytes);
+    REQUIRE(bit_diff == 2);
+    REQUIRE(orbs1[0] == 0);
+    REQUIRE(orbs1[1] == 11);
+    REQUIRE(orbs1[2] == 9);
+    REQUIRE(orbs1[3] == 20);
+    REQUIRE(orbs1[4] == 0);
 }

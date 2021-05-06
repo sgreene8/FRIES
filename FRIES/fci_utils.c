@@ -5,6 +5,7 @@
 
 #include "fci_utils.h"
 #include <FRIES/det_store.h>
+#include <nmmintrin.h>
 
 void gen_hf_bitstring(unsigned int n_orb, unsigned int n_elec, uint8_t *det) {
     uint8_t byte_idx;
@@ -119,4 +120,108 @@ void flip_spins(uint8_t *det_in, uint8_t *det_out, uint8_t n_orb) {
         det_out[byte_idx] = det_in[byte_idx - mid_byte_idx - 1] >> (8 - mid_bit_offset);
         det_out[byte_idx] |= det_in[byte_idx - mid_byte_idx] << mid_bit_offset;
     }
+}
+
+
+uint8_t find_excitation(const uint8_t *str1, const uint8_t *str2, uint8_t *orbs, uint8_t n_bytes) {
+    uint8_t n_bits = 0;
+    uint8_t byte_idx;
+    __m128i bit_offset_v = _mm_set_epi8(8, 8, 8, 8, 8, 8, 8, 8, 0, 0, 0, 0, 0, 0, 0, 0);
+    __m128i sixteen = _mm_set1_epi8(16);
+    // Find bits that are occupied in str1 but unoccupied in str2
+    for (byte_idx = 0; byte_idx < n_bytes - 1; byte_idx += 2) {
+        uint8_t byte1 = (str1[byte_idx] ^ str2[byte_idx]) & str1[byte_idx];
+        uint8_t byte1_nbits = _mm_popcnt_u32(byte1);
+        
+        uint8_t byte2 = (str1[byte_idx + 1] ^ str2[byte_idx + 1]) & str1[byte_idx + 1];
+        uint8_t byte2_nbits = _mm_popcnt_u32(byte2);
+        
+        uint8_t bytes_nbits = byte1_nbits + byte2_nbits;
+        
+        if (bytes_nbits == 0) {
+            continue;
+        }
+        if (n_bits + bytes_nbits > 2) {
+            return UINT8_MAX;
+        }
+        
+        __m128i bit_vec = _mm_set_epi64x(byte_pos[byte2], byte_pos[byte1]);
+        bit_vec += bit_offset_v;
+        uint8_t *vec_ptr = (uint8_t *)&bit_vec;
+        
+        memcpy(orbs + n_bits, vec_ptr, byte1_nbits);
+        n_bits += byte1_nbits;
+        memcpy(orbs + n_bits, vec_ptr + 8, byte2_nbits);
+        n_bits += byte2_nbits;
+        
+        bit_offset_v += sixteen;
+    }
+    if (byte_idx < n_bytes) {
+        uint8_t byte = (str1[byte_idx] ^ str2[byte_idx]) & str1[byte_idx];
+        uint8_t byte_nbits = _mm_popcnt_u32(byte);
+        
+        if (byte_nbits > 0) {
+            if (byte_nbits + n_bits > 2) {
+                return UINT8_MAX;
+            }
+            __m128i bit_vec = _mm_set_epi64x(0, byte_pos[byte]);
+            bit_vec += bit_offset_v;
+            uint8_t *vec_ptr = (uint8_t *)&bit_vec;
+
+            memcpy(orbs + n_bits, vec_ptr, byte_nbits);
+            n_bits += byte_nbits;
+        }
+    }
+    
+    if (n_bits == 0) { // all occupied orbitals are the same, so we can assume virtuals are too
+        return 0;
+    }
+    
+    uint8_t limit = n_bits * 2;
+    bit_offset_v = _mm_set_epi8(8, 8, 8, 8, 8, 8, 8, 8, 0, 0, 0, 0, 0, 0, 0, 0);
+    
+    // Find bits that are unoccupied in str1 but occupied in str2
+    for (byte_idx = 0; byte_idx < n_bytes - 1; byte_idx += 2) {
+        uint8_t byte1 = (str1[byte_idx] ^ str2[byte_idx]) & str2[byte_idx];
+        uint8_t byte1_nbits = _mm_popcnt_u32(byte1);
+        
+        uint8_t byte2 = (str1[byte_idx + 1] ^ str2[byte_idx + 1]) & str2[byte_idx + 1];
+        uint8_t byte2_nbits = _mm_popcnt_u32(byte2);
+        
+        uint8_t tot_nbits = byte1_nbits + byte2_nbits;
+        
+        if (tot_nbits == 0) {
+            continue;
+        }
+        
+        __m128i bit_vec = _mm_set_epi64x(byte_pos[byte2], byte_pos[byte1]);
+        bit_vec += bit_offset_v;
+        uint8_t *vec_ptr = (uint8_t *)&bit_vec;
+        
+        memcpy(orbs + n_bits, vec_ptr, byte1_nbits);
+        n_bits += byte1_nbits;
+        memcpy(orbs + n_bits, vec_ptr + 8, byte2_nbits);
+        n_bits += byte2_nbits;
+        
+        bit_offset_v += sixteen;
+        
+        if (n_bits == limit) {
+            return limit / 2;
+        }
+    }
+    if (byte_idx < n_bytes) {
+        uint8_t byte = (str1[byte_idx] ^ str2[byte_idx]) & str2[byte_idx];
+        uint8_t byte_nbits = _mm_popcnt_u32(byte);
+        
+        if (byte_nbits > 0) {
+            __m128i bit_vec = _mm_set_epi64x(0, byte_pos[byte]);
+            bit_vec += bit_offset_v;
+            uint8_t *vec_ptr = (uint8_t *)&bit_vec;
+
+            memcpy(orbs + n_bits, vec_ptr, byte_nbits);
+            n_bits += byte_nbits;
+        }
+    }
+    
+    return n_bits / 2;
 }

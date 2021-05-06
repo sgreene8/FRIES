@@ -114,7 +114,25 @@ uint8_t find_nth_virt(uint8_t *occ_orbs, int spin, uint8_t n_elec,
                       uint8_t n_orb, uint8_t n);
 
 
+/*! \brief Flip the spins of all electrons in a Slater determinant
+ *
+ * \param [in] det_in       The Slater determinant whose spins will be flipped
+ * \param [out] det_out      The result of flipping spins
+ * \param [in] n_orb        The number of spatial orbitals in the determinant
+ */
 void flip_spins(uint8_t *det_in, uint8_t *det_out, uint8_t n_orb);
+
+
+/*! \brief Identify whether 2 Slater determinants are connected by a single or double excitation
+ *
+ * \param [in] str1     First Slater determinant
+ * \param [in] str2     Second Slater determinant
+ * \param [out] orbs        The orbitals defining the excitation. For a single excitation, orbs[0] is occupied in
+ *  \p str1 and unoccupied in \p str2 ; orbs[1] is unoccupied in \p str1 and occupied in \p str2 .
+ *  For a double excitation, orbs[0] and orbs[1] are occupied in \p str1 and unoccupied in \p str2 ; orbs[2]
+ *  and orbs[3] are unoccupied in \p str1 and occupied in \p str2
+ */
+uint8_t find_excitation(const uint8_t *str1, const uint8_t *str2, uint8_t *orbs, uint8_t n_bytes);
 
     
 #ifdef __cplusplus
