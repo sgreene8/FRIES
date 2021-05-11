@@ -1,0 +1,19 @@
+/////////////////////////
+// MAINPAGE            //
+/////////////////////////
+/*! \mainpage
+
+\section overview_sec Overview
+
+This project contains implementations of methods within the Fast Randomized Iteration (FRI) framework for performing quantum chemistry calculations on molecular systems and the Hubbard model. Implementations of the related <a href="http://dx.doi.org/10.1063/1.3193710" target="_blank">Full Configuration Interaction Quantum Monte Carlo</a> method are also included. A complete description and comparison of these methods can be found in <a href="https://doi.org/10.1021/acs.jctc.9b00422" target="_blank">this</a> publication.
+
+Currently these methods calculate only ground-state energies. Future versions of this code will support calculation of other observables.
+
+The source code for this project is available at https://github.com/sgreene8/FRIES
+
+\section doc Getting Started
+
+- \ref installation
+- \ref running
+
+*/
