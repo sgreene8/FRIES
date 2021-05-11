@@ -34,6 +34,16 @@ typedef enum {
  */
 uint8_t find_bits(const uint8_t *bit_str, uint8_t *bits, uint8_t n_bytes);
 
+/*! \brief Generate a list of the indices of the first 4 bits that differ between two bit strings
+ *
+ * \param [in] str1     First bit string
+ * \param [in] str2     Second bit string
+ * \param [out] bits    List of up to 4 indices bits that differ
+ * \param [in] n_bytes  Number of bytes to compare in the bit strings
+ * \return The number of bits by which the bit strings differ, or UINT8_MAX if greater than 4
+ */
+uint8_t find_diff_bits(const uint8_t *str1, const uint8_t *str2, uint8_t *bits, uint8_t n_bytes);
+
 /*! \brief Count number of 1's between two bits in binary representation of a
  * number
  *

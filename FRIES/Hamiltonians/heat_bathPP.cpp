@@ -920,7 +920,11 @@ size_t collapse_long_(std::vector<double> &short_vec, std::vector<double> &long_
 
 void apply_HBPP_piv(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBCompressPiv *comp_scratch,
                     hb_info *hb_probs, SymmInfo *symm, double p_doub, bool new_hb,
-                    std::mt19937 &mt_obj, uint32_t n_samp) {
+                    std::mt19937 &mt_obj, uint32_t n_samp, bool time_reversal) {
+    if (time_reversal && !new_hb) {
+        throw std::runtime_error("Time-reversal symmetry is only supported for the modified HB-PP distribution.");
+    }
+    
     std::vector<double> &short_vec = comp_scratch->vec1;
     std::vector<double> &long_vec = comp_scratch->long_vec;
     size_t n_short = comp_scratch->vec_len;
@@ -938,6 +942,7 @@ void apply_HBPP_piv(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBComp
     MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
     uint32_t n_elec = (uint32_t) all_orbs.cols();
     uint32_t n_orb = (uint32_t) hb_probs->n_orb;
+    size_t det_size = CEILING(2 * n_orb, 8);
     unsigned int unocc_symm_cts[n_irreps][2];
     
     std::function<void(size_t, size_t, size_t)> transfer_fxn;
@@ -1157,6 +1162,8 @@ void apply_HBPP_piv(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBComp
                 uint8_t *occ_orbs = all_orbs[det_idx];
                 uint8_t *curr_det = all_dets[det_idx];
                 uint8_t o1_idx = orb_indices2[short_idx][1];
+                double tot_weight;
+                uint8_t new_det[det_size];
                 if (orb_indices2[short_idx][0] == 0) { // double excitation
                     uint8_t o2_idx = orb_indices2[short_idx][2];
                     uint8_t o1_orb = occ_orbs[o1_idx];
@@ -1184,15 +1191,17 @@ void apply_HBPP_piv(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBComp
                     orb_indices1[n_short][1] = o2_orb;
                     orb_indices1[n_short][2] = u1_orb;
                     orb_indices1[n_short][3] = u2_orb;
-                    double tot_weight;
                     if (new_hb) {
                         tot_weight = calc_unnorm_wt(hb_probs, orb_indices1[n_short]);
                     }
                     else {
                         tot_weight = calc_norm_wt(hb_probs, orb_indices1[n_short], occ_orbs, n_elec, curr_det, symm);
                     }
-                    short_vec[n_short] = long_vec[long_idx] / tot_weight / p_doub;
-                    n_short++;
+                    tot_weight *= p_doub;
+                    if (time_reversal) {
+                        std::copy(curr_det, curr_det + det_size, new_det);
+                        doub_det_parity(new_det, orb_indices1[n_short]);
+                    }
                 }
                 else {
                     uint8_t o1_orb = occ_orbs[o1_idx];
@@ -1208,9 +1217,55 @@ void apply_HBPP_piv(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBComp
                     orb_indices1[n_short][2] = orb_indices1[n_short][3] = 0;
                     count_symm_virt(unocc_symm_cts, occ_orbs, n_elec, symm);
                     unsigned int n_occ = count_sing_allowed(occ_orbs, n_elec, symm->symm_vec.data(), n_orb, unocc_symm_cts);
-                    short_vec[n_short] = long_vec[long_idx] / (1 - p_doub) * n_occ * orb_indices2[short_idx][3];
-                    n_short++;
+                    tot_weight = (1 - p_doub) / n_occ / orb_indices2[short_idx][3];
+                    if (time_reversal) {
+                        std::copy(curr_det, curr_det + det_size, new_det);
+                        sing_det_parity(new_det, orb_indices1[n_short]);
+                    }
                 }
+                if (time_reversal) {
+                    uint8_t flipped_det[det_size];
+                    flip_spins(new_det, flipped_det, n_orb);
+                    if (memcmp(new_det, flipped_det, det_size) != 0) {
+                        uint8_t diff_orbs[4];
+                        uint8_t n_bits_diff = find_diff_bits(curr_det, flipped_det, diff_orbs, det_size);
+                        std::vector<uint8_t> &sv = symm->symm_vec;
+                        if (n_bits_diff == 2) { // single excitation
+                            if (sv[diff_orbs[0] % n_orb] == sv[diff_orbs[1] % n_orb]) {
+                                if (read_bit(curr_det, diff_orbs[1])) {
+                                    std::swap(diff_orbs[0], diff_orbs[1]);
+                                }
+                                count_symm_virt(unocc_symm_cts, occ_orbs, n_elec, symm);
+                                uint32_t n_occ = count_sing_allowed(occ_orbs, n_elec, symm->symm_vec.data(), n_orb, unocc_symm_cts);
+                                uint32_t n_virt = unocc_symm_cts[symm->symm_vec[diff_orbs[0] % n_orb]][0];
+                                tot_weight += (1 - p_doub) / n_occ / n_virt;
+                            }
+                        }
+                        else if (n_bits_diff == 4) { // double excitation
+                            if (sv[diff_orbs[0] % n_orb] ^ sv[diff_orbs[1] % n_orb] ^ sv[diff_orbs[2] % n_orb] ^ sv[diff_orbs[3] % n_orb] == 0) {
+                                if (read_bit(curr_det, diff_orbs[2])) {
+                                    if (read_bit(curr_det, diff_orbs[0])) {
+                                        std::swap(diff_orbs[1], diff_orbs[2]);
+                                    }
+                                    else {
+                                        std::swap(diff_orbs[0], diff_orbs[2]);
+                                    }
+                                }
+                                if (read_bit(curr_det, diff_orbs[3])) {
+                                    if (read_bit(curr_det, diff_orbs[0])) {
+                                        std::swap(diff_orbs[1], diff_orbs[3]);
+                                    }
+                                    else {
+                                        std::swap(diff_orbs[0], diff_orbs[3]);
+                                    }
+                                }
+                                tot_weight += calc_unnorm_wt(hb_probs, diff_orbs) * p_doub;
+                            }
+                        }
+                    }
+                }
+                short_vec[n_short] = long_vec[long_idx] / tot_weight;
+                n_short++;
             }
             keep_arr[long_idx] = false;
             long_idx++;

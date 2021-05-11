@@ -454,9 +454,7 @@ TEST_CASE("Test evaluation of sampling weights for the new heat-bath distributio
 
 TEST_CASE("Complete test of compression of un-normalized HB-PP factorization", "[new_hb_all]") {
     // Testing for the Ne atom with core orbitals frozen
-    auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
-    
-    std::mt19937 mt_obj((unsigned int)seed);
+    std::mt19937 mt_obj(0);
     uint32_t n_orb = 22;
     uint32_t n_frz = 2;
     uint32_t n_elec = 10;
@@ -505,7 +503,7 @@ TEST_CASE("Complete test of compression of un-normalized HB-PP factorization", "
     piv_vecs.vec_len = 1;
     piv_vecs.det_indices1[0] = 0;
     piv_vecs.vec1[0] = 1;
-    apply_HBPP_piv(occ_orbs, dets, &piv_vecs, hbtens, &basis_symm, 0.95, true, mt_obj, n_ex);
+    apply_HBPP_piv(occ_orbs, dets, &piv_vecs, hbtens, &basis_symm, 0.95, true, mt_obj, n_ex, false);
     comp_len = piv_vecs.vec_len;
     for (size_t samp_idx = 0; samp_idx < comp_len; samp_idx++) {
         REQUIRE(piv_vecs.vec1[samp_idx] == Approx(1).margin(1e-7));
@@ -513,5 +511,85 @@ TEST_CASE("Complete test of compression of un-normalized HB-PP factorization", "
         REQUIRE(piv_vecs.orb_indices1[samp_idx][1] == sys_vecs.orb_indices1[samp_idx][1]);
         REQUIRE(piv_vecs.orb_indices1[samp_idx][2] == sys_vecs.orb_indices1[samp_idx][2]);
         REQUIRE(piv_vecs.orb_indices1[samp_idx][3] == sys_vecs.orb_indices1[samp_idx][3]);
+    }
+}
+
+TEST_CASE("Complete test of compression of un-normalized HB-PP factorization with time-reversal symmetry", "[new_hb_tr]") {
+    // Testing for the Ne atom with core orbitals frozen
+    std::mt19937 mt_obj(0);
+    uint32_t n_orb = 22;
+    uint32_t n_frz = 2;
+    uint32_t n_elec = 10;
+    uint32_t n_elec_unf = n_elec - n_frz;
+    uint32_t tot_orb = n_orb + n_frz / 2;
+    size_t det_size = CEILING(2 * n_orb, 8);
+    size_t i, j, a, b;
+    
+    FourDArr eris(tot_orb, tot_orb, tot_orb, tot_orb);
+    
+    for (i = 0; i < tot_orb; i++) {
+        for (j = 0; j < tot_orb; j++) {
+            for (a = 0; a < tot_orb; a++) {
+                for (b = 0; b < tot_orb; b++) {
+                    eris(i, j, a, b) = mt_obj() / (1. + UINT32_MAX) - 0.5;
+                }
+            }
+        }
+    }
+    
+    hb_info *hbtens = set_up(tot_orb, n_orb, eris);
+    
+    Matrix<uint8_t> dets(1, det_size);
+    Matrix<uint8_t> occ_orbs(1, n_elec_unf);
+    gen_hf_bitstring(n_orb, n_elec - n_frz, dets[0]);
+    find_bits(dets[0], occ_orbs[0], det_size);
+    
+    uint8_t symm[] = {0, 5, 6, 7, 0, 5, 6, 7, 0, 0, 1, 2, 3, 5, 6, 7, 0, 0, 0, 1, 2, 3};
+    SymmInfo basis_symm(symm, n_orb);
+
+    uint32_t n_ex = n_orb * n_orb * n_elec_unf * n_elec_unf;
+    size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2) ? n_elec_unf : n_orb - n_elec_unf / 2;
+    
+    std::vector<uint32_t> proc_scrambler(2 * n_orb);
+    std::vector<uint32_t> vec_scrambler(2 * n_orb);
+    for (uint32_t idx = 0; idx < 2 * n_orb; idx++) {
+        vec_scrambler[idx] = idx;
+        vec_scrambler[idx] = idx;
+    }
+    
+    DistVec<double> sol_vec(n_ex, n_ex, n_orb * 2, n_elec_unf, 1, nullptr, 1, proc_scrambler, vec_scrambler);
+    
+    HBCompressPiv piv_vecs(n_ex, n_states);
+    piv_vecs.vec_len = 1;
+    piv_vecs.det_indices1[0] = 0;
+    piv_vecs.vec1[0] = 1;
+    apply_HBPP_piv(occ_orbs, dets, &piv_vecs, hbtens, &basis_symm, 0.95, true, mt_obj, n_ex, true);
+    size_t comp_len = piv_vecs.vec_len;
+    uint8_t new_det[det_size];
+    uint8_t flip_det[det_size];
+    for (size_t samp_idx = 0; samp_idx < comp_len; samp_idx++) {
+        std::copy(dets[0], dets[0] + det_size, new_det);
+        uint8_t *orbs = piv_vecs.orb_indices1[samp_idx];
+        if (piv_vecs.orb_indices1[samp_idx][2] == 0 && piv_vecs.orb_indices1[samp_idx][3] == 0) { // single excitation
+            sing_det_parity(new_det, orbs);
+        }
+        else { // double excitation
+            doub_det_parity(new_det, orbs);
+        }
+        flip_spins(new_det, flip_det, n_orb);
+        uint8_t *ref_det;
+        int cmp = memcmp(flip_det, new_det, n_orb);
+        if (cmp > 0) {
+            ref_det = flip_det;
+        }
+        else {
+            ref_det = new_det;
+        }
+        sol_vec.add(ref_det, piv_vecs.vec1[samp_idx], 1);
+    }
+    sol_vec.perform_add();
+    
+    for (size_t val_idx = 0; val_idx < sol_vec.curr_size(); val_idx++) {
+        REQUIRE(sol_vec.values()[val_idx] == Approx(1).margin(1e-7));
     }
 }

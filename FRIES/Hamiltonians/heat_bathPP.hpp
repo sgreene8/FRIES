@@ -326,7 +326,7 @@ void apply_HBPP_sys(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBComp
                     std::mt19937 &mt_obj, uint32_t n_samp);
 void apply_HBPP_piv(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBCompressPiv *comp_scratch,
                     hb_info *hb_probs, SymmInfo *symm, double p_doub, bool new_hb,
-                    std::mt19937 &mt_obj, uint32_t n_samp);
+                    std::mt19937 &mt_obj, uint32_t n_samp, bool time_reversal);
 
 
 #endif /* heat_bathPP_h */

@@ -95,6 +95,52 @@ uint8_t find_bits(const uint8_t *bit_str, uint8_t *bits, uint8_t n_bytes) {
     return n_bits;
 }
 
+uint8_t find_diff_bits(const uint8_t *str1, const uint8_t *str2, uint8_t *bits, uint8_t n_bytes) {
+    uint8_t n_bits = 0;
+    uint8_t byte_idx;
+    __m128i bit_offset_v = _mm_set_epi8(8, 8, 8, 8, 8, 8, 8, 8, 0, 0, 0, 0, 0, 0, 0, 0);
+    __m128i sixteen = _mm_set1_epi8(16);
+    for (byte_idx = 0; byte_idx < n_bytes - 1; byte_idx += 2) {
+        uint8_t byte1 = str1[byte_idx] ^ str2[byte_idx];
+        uint8_t byte1_nbits = _mm_popcnt_u32(byte1);
+        
+        uint8_t byte2 = str1[byte_idx + 1] ^ str2[byte_idx + 1];
+        uint8_t byte2_nbits = _mm_popcnt_u32(byte2);
+        
+        if (n_bits + byte1_nbits + byte2_nbits > 4) {
+            return UINT8_MAX;
+        }
+        
+        __m128i bit_vec = _mm_set_epi64x(byte_pos[byte2], byte_pos[byte1]);
+        bit_vec += bit_offset_v;
+        uint8_t *vec_ptr = (uint8_t *)&bit_vec;
+        
+        memcpy(bits + n_bits, vec_ptr, byte1_nbits);
+        n_bits += byte1_nbits;
+        memcpy(bits + n_bits, vec_ptr + 8, byte2_nbits);
+        n_bits += byte2_nbits;
+        
+        bit_offset_v += sixteen;
+    }
+    if (byte_idx < n_bytes) {
+        uint8_t byte = str1[byte_idx] ^ str2[byte_idx];
+        uint8_t byte_nbits = _mm_popcnt_u32(byte);
+        
+        if (n_bits + byte_nbits > 4) {
+            return UINT8_MAX;
+        }
+
+        __m128i bit_vec = _mm_set_epi64x(0, byte_pos[byte]);
+        bit_vec += bit_offset_v;
+        uint8_t *vec_ptr = (uint8_t *)&bit_vec;
+
+        memcpy(bits + n_bits, vec_ptr, byte_nbits);
+        n_bits += byte_nbits;
+    }
+    
+    return n_bits;
+}
+
 
 void new_sorted(uint8_t *restrict orig_list, uint8_t *restrict new_list,
                 uint8_t length, uint8_t del_idx, uint8_t new_el) {
