@@ -109,16 +109,43 @@ void flip_spins(uint8_t *det_in, uint8_t *det_out, uint8_t n_orb) {
     uint8_t mid_bit_offset = n_orb % 8;
     uint8_t n_bytes = CEILING(2 * n_orb, 8);
     det_out[mid_byte_idx] = 0;
-    for (uint8_t byte_idx = 0; byte_idx < mid_byte_idx + (n_orb % 8 != 0); byte_idx++) {
+    for (uint8_t byte_idx = 0; byte_idx < mid_byte_idx + (mid_bit_offset != 0); byte_idx++) {
         det_out[byte_idx] = det_in[byte_idx + mid_byte_idx] >> mid_bit_offset;
-        if (mid_bit_offset > 0) {
+        if (mid_bit_offset > 0 && n_orb > 4) {
             det_out[byte_idx] |= det_in[byte_idx + mid_byte_idx + 1] << (8 - mid_bit_offset);
         }
     }
     det_out[mid_byte_idx] |= det_in[0] << mid_bit_offset;
-    for (uint8_t byte_idx = mid_byte_idx + 1; byte_idx < n_bytes; byte_idx++) {
-        det_out[byte_idx] = det_in[byte_idx - mid_byte_idx - 1] >> (8 - mid_bit_offset);
-        det_out[byte_idx] |= det_in[byte_idx - mid_byte_idx] << mid_bit_offset;
+    for (uint8_t byte_idx = mid_byte_idx + 1; byte_idx < n_bytes - 1; byte_idx++) {
+        det_out[byte_idx] = det_in[byte_idx - mid_byte_idx - 1] >> (mid_bit_offset > 0 ? (8 - mid_bit_offset) : 0);
+        if (mid_bit_offset > 0) {
+            det_out[byte_idx] |= det_in[byte_idx - mid_byte_idx] << mid_bit_offset;
+        }
+    }
+    if (n_orb > 4) {
+        if (mid_bit_offset != 0) {
+            if (mid_byte_idx > 0) {
+                uint8_t last_bits = det_in[mid_byte_idx];
+                last_bits &= (1 << mid_bit_offset) - 1;
+                int bit_pos = (mid_byte_idx * 8 + n_orb - (n_bytes - 1) * 8);
+                if (bit_pos > 0) {
+                    last_bits <<= mid_bit_offset;
+                }
+                else {
+                    last_bits >>= (8 - mid_bit_offset);
+                }
+                if ((2 * n_orb - (n_bytes - 1) * 8) > mid_bit_offset) {
+                    last_bits |= det_in[mid_byte_idx - 1] >> (8 - mid_bit_offset);
+                }
+                det_out[n_bytes - 1] = last_bits;
+            }
+            else {
+                det_out[n_bytes - 1] = (det_in[0] & ((1 << mid_bit_offset) - 1)) >> (8 - mid_bit_offset);
+            }
+        }
+        else {
+            det_out[n_bytes - 1] = det_in[mid_byte_idx - 1];
+        }
     }
 }
 

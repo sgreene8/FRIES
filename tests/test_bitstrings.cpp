@@ -139,8 +139,8 @@ TEST_CASE("Test generation of Neel bit strings", "[neel_bits]") {
 }
 
 TEST_CASE("Test determinant spin-flipping", "[flip_spins]") {
-    uint8_t str1[3];
-    uint8_t str2[3];
+    uint8_t str1[6];
+    uint8_t str2[6];
     
     str1[0] = 0b11000000;
     str1[1] = 0b00000011;
@@ -172,6 +172,54 @@ TEST_CASE("Test determinant spin-flipping", "[flip_spins]") {
     str1[1] = 0b00010000;
     str1[2] = 0b00011111;
     REQUIRE(!memcmp(str1, str2, 3));
+    
+    str1[0] = 0b00001011;
+    str1[1] = 0b1110;
+    flip_spins(str1, str2, 6);
+    str1[0] = 0b11111000;
+    str1[1] = 0b0010;
+    REQUIRE(!memcmp(str1, str2, 2));
+    
+    str1[0] = 0b01000100;
+    str1[1] = 0b11000000;
+    str1[2] = 0b00111000;
+    str1[3] = 0b1;
+    flip_spins(str1, str2, 16);
+    str1[0] = 0b00111000;
+    str1[1] = 0b1;
+    str1[2] = 0b01000100;
+    str1[3] = 0b11000000;
+    REQUIRE(!memcmp(str1, str2, 4));
+    
+    str1[0] = 0b1100;
+    str1[1] = 0b100001;
+    str1[2] = 0b11000000;
+    str1[3] = 0b11;
+    str1[4] = 0;
+    str1[5] = 0;
+    flip_spins(str1, str2, 22);
+    str1[0] = 0b1111;
+    str1[1] = 0;
+    str1[2] = 0;
+    str1[3] = 0b1000011;
+    str1[4] = 0b1000;
+    str1[5] = 0;
+    REQUIRE(!memcmp(str1, str2, 6));
+    
+    str1[0] = 0b00001100;
+    str1[1] = 0b00100000;
+    str1[2] = 0b11000001;
+    str1[3] = 0b00000011;
+    str1[4] = 0;
+    str1[5] = 0;
+    flip_spins(str1, str2, 22);
+    str1[0] = 0b00001111;
+    str1[1] = 0;
+    str1[2] = 0;
+    str1[3] = 0b00000011;
+    str1[4] = 0b01001000;
+    str1[5] = 0;
+    REQUIRE(!memcmp(str1, str2, 6));
 }
 
 
