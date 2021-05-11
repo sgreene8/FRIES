@@ -1,0 +1,30 @@
+name: Documentation
+ 
+on:
+ push:
+  branches:
+   - master
+ 
+
+jobs:
+  make-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Setup
+      run: mkdir ${{github.workspace}}/code_docs
+    
+    - name: Doxygen Action
+      uses: mattnotmitt/doxygen-action@v1.3.0
+      with:
+        # Path to Doxyfile
+        doxyfile-path: ./docs/Doxyfile
+        working-directory: ./code_docs
+    
+    - name: GH-Pages Publish
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./code_docs
