@@ -972,7 +972,7 @@ void apply_HBPP_piv(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBComp
 #pragma mark  First occupied orbital
     n_long = 0;
     for (size_t short_idx = 0; short_idx < n_short; short_idx++) {
-        size_t det_idx = det_indices1[short_idx];
+        size_t det_idx = det_indices2[short_idx];
         uint8_t *occ_orbs = all_orbs[det_idx];
         if (orb_indices1[short_idx][0] == 0) { // double excitation
             group_sizes[short_idx] = n_elec - new_hb;
@@ -996,7 +996,7 @@ void apply_HBPP_piv(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBComp
     }
     piv_comp_parallel(long_vec.data(), n_long, n_samp, srt_arr, keep_arr, mt_obj);
     transfer_fxn = [&det_indices1, &det_indices2, orb_indices1, orb_indices2](size_t old_short, size_t new_short, size_t group) {
-        det_indices2[new_short] = det_indices1[old_short];
+        det_indices1[new_short] = det_indices2[old_short];
         orb_indices2[new_short][0] = orb_indices1[old_short][0]; // single or double
         orb_indices2[new_short][1] = group; // first occupied orbital index (NOT converted to orbital below)
     };
@@ -1005,7 +1005,7 @@ void apply_HBPP_piv(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBComp
 #pragma mark Unoccupied orbital (single); 2nd occupied (double)
     n_long = 0;
     for (size_t short_idx = 0; short_idx < n_short; short_idx++) {
-        size_t det_idx = det_indices2[short_idx];
+        size_t det_idx = det_indices1[short_idx];
         if (orb_indices2[short_idx][1] >= n_elec) {
             std::cerr << "Error: chosen occupied orbital (first) is out of bounds\n";
             group_sizes[short_idx] = 0;
