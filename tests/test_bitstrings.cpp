@@ -277,3 +277,90 @@ TEST_CASE("Test identification of excitations", "[id_excite]") {
     REQUIRE(orbs1[3] == 20);
     REQUIRE(orbs1[4] == 0);
 }
+
+TEST_CASE("Test spin-flip connections", "[flip_connect]") {
+    uint32_t n_elec = 8;
+    uint32_t n_orb = 10;
+    uint8_t orbs[10];
+    uint8_t idx[2];
+    
+    orbs[0] = 1;
+    orbs[1] = 2;
+    orbs[2] = 3;
+    orbs[3] = 4;
+    orbs[4] = 11;
+    orbs[5] = 12;
+    orbs[6] = 13;
+    orbs[7] = 14;
+    REQUIRE(tr_doub_connect(orbs, n_orb, n_elec, idx) == 0);
+    
+    orbs[0] = 1;
+    orbs[1] = 2;
+    orbs[2] = 3;
+    orbs[3] = 4;
+    orbs[4] = 11;
+    orbs[5] = 12;
+    orbs[6] = 13;
+    orbs[7] = 15;
+    REQUIRE(tr_doub_connect(orbs, n_orb, n_elec, idx) == 1);
+    REQUIRE(idx[0] == 3);
+    REQUIRE(idx[1] == 7);
+    
+    orbs[0] = 1;
+    orbs[1] = 2;
+    orbs[2] = 3;
+    orbs[3] = 4;
+    orbs[4] = 11;
+    orbs[5] = 12;
+    orbs[6] = 14;
+    orbs[7] = 15;
+    REQUIRE(tr_doub_connect(orbs, n_orb, n_elec, idx) == 1);
+    REQUIRE(idx[0] == 2);
+    REQUIRE(idx[1] == 7);
+    
+    orbs[0] = 1;
+    orbs[1] = 2;
+    orbs[2] = 4;
+    orbs[3] = 5;
+    orbs[4] = 11;
+    orbs[5] = 12;
+    orbs[6] = 13;
+    orbs[7] = 14;
+    REQUIRE(tr_doub_connect(orbs, n_orb, n_elec, idx) == 1);
+    REQUIRE(idx[0] == 3);
+    REQUIRE(idx[1] == 6);
+    
+    orbs[0] = 1;
+    orbs[1] = 2;
+    orbs[2] = 4;
+    orbs[3] = 5;
+    orbs[4] = 11;
+    orbs[5] = 12;
+    orbs[6] = 15;
+    orbs[7] = 16;
+    REQUIRE(tr_doub_connect(orbs, n_orb, n_elec, idx) == 1);
+    REQUIRE(idx[0] == 2);
+    REQUIRE(idx[1] == 7);
+    
+    orbs[0] = 1;
+    orbs[1] = 2;
+    orbs[2] = 3;
+    orbs[3] = 4;
+    orbs[4] = 11;
+    orbs[5] = 12;
+    orbs[6] = 15;
+    orbs[7] = 16;
+    REQUIRE(tr_doub_connect(orbs, n_orb, n_elec, idx) == 2);
+    
+    orbs[0] = 1;
+    orbs[1] = 3;
+    orbs[2] = 5;
+    orbs[3] = 7;
+    orbs[4] = 13;
+    orbs[5] = 15;
+    orbs[6] = 16;
+    orbs[7] = 17;
+    REQUIRE(tr_doub_connect(orbs, n_orb, n_elec, idx) == 1);
+    REQUIRE(idx[0] == 0);
+    REQUIRE(idx[1] == 6);
+}

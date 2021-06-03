@@ -604,7 +604,9 @@ unsigned int hb_doub_multi(uint8_t *det, uint8_t *occ_orbs,
 
 void apply_HBPP_sys(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBCompressSys *comp_scratch,
                     hb_info *hb_probs, SymmInfo *symm, double p_doub, bool new_hb,
-                    std::mt19937 &mt_obj, uint32_t n_samp) {
+                    std::mt19937 &mt_obj, uint32_t n_samp,
+                    std::function<double(uint8_t *, uint8_t *)> sing_mat_fxn,
+                    std::function<double(uint8_t *)> doub_mat_fxn) {
     std::vector<double> &vec1 = comp_scratch->vec1;
     std::vector<double> &vec2 = comp_scratch->vec2;
     Matrix<double> &subwts = comp_scratch->subwts;
@@ -873,8 +875,12 @@ void apply_HBPP_sys(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBComp
             else {
                 tot_weight = calc_norm_wt(hb_probs, orb_indices1[num_success], occ_orbs, n_elec, curr_det, symm);
             }
-            vec1[num_success] = vec2[samp_idx] / tot_weight / p_doub;
-            num_success++;
+            double vec_el = doub_mat_fxn(orb_indices1[num_success]) * vec2[samp_idx] / tot_weight / p_doub;
+            if (fabs(vec_el) > 1e-9) {
+                vec_el *= doub_parity(curr_det, orb_indices1[num_success]);
+                vec1[num_success] = vec_el;
+                num_success++;
+            }
         }
         else {
             uint8_t o1_orb = occ_orbs[o1_idx];
@@ -890,8 +896,14 @@ void apply_HBPP_sys(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBComp
             orb_indices1[num_success][2] = orb_indices1[num_success][3] = 0;
             count_symm_virt(unocc_symm_cts, occ_orbs, n_elec, symm);
             unsigned int n_occ = count_sing_allowed(occ_orbs, n_elec, symm->symm_vec.data(), n_orb, unocc_symm_cts);
-            vec1[num_success] = vec2[samp_idx] / (1 - p_doub) * n_occ * orb_indices2[weight_idx][3];
-            num_success++;
+            
+            double vec_el = sing_mat_fxn(orb_indices1[num_success], occ_orbs);
+            vec_el *= vec2[samp_idx] / (1 - p_doub) * n_occ * orb_indices2[weight_idx][3];
+            if (fabs(vec_el) > 1e-9) {
+                vec_el *= sing_parity(curr_det, orb_indices1[num_success]);
+                vec1[num_success] = vec_el;
+                num_success++;
+            }
         }
     }
     
@@ -920,8 +932,10 @@ size_t collapse_long_(std::vector<double> &short_vec, std::vector<double> &long_
 
 void apply_HBPP_piv(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBCompressPiv *comp_scratch,
                     hb_info *hb_probs, SymmInfo *symm, double p_doub, bool new_hb,
-                    std::mt19937 &mt_obj, uint32_t n_samp, bool time_reversal) {
-    if (time_reversal && !new_hb) {
+                    std::mt19937 &mt_obj, uint32_t n_samp,
+                    std::function<double(uint8_t *, uint8_t *)> sing_mat_fxn,
+                    std::function<double(uint8_t *)> doub_mat_fxn, int spin_parity) {
+    if (spin_parity && !new_hb) {
         throw std::runtime_error("Time-reversal symmetry is only supported for the modified HB-PP distribution.");
     }
     
@@ -1164,6 +1178,8 @@ void apply_HBPP_piv(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBComp
                 uint8_t o1_idx = orb_indices2[short_idx][1];
                 double tot_weight;
                 uint8_t new_det[det_size];
+                double matr_el;
+                std::copy(curr_det, curr_det + det_size, new_det);
                 if (orb_indices2[short_idx][0] == 0) { // double excitation
                     uint8_t o2_idx = orb_indices2[short_idx][2];
                     uint8_t o1_orb = occ_orbs[o1_idx];
@@ -1175,10 +1191,14 @@ void apply_HBPP_piv(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBComp
                         if (new_hb) {
                             std::cerr << "Error: occupied orbital chosen as second virtual in unnormalized heat-bath\n";
                         }
+                        keep_arr[long_idx] = false;
+                        long_idx++;
                         continue;
                     }
                     if (u1_orb == u2_orb) { // This shouldn't happen, but in case it does (e.g. by numerical error)
                         std::cerr << "Error: repeat virtual orbital chosen\n";
+                        keep_arr[long_idx] = false;
+                        long_idx++;
                         continue;
                     }
                     if (u1_orb > u2_orb) {
@@ -1198,10 +1218,8 @@ void apply_HBPP_piv(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBComp
                         tot_weight = calc_norm_wt(hb_probs, orb_indices1[n_short], occ_orbs, n_elec, curr_det, symm);
                     }
                     tot_weight *= p_doub;
-                    if (time_reversal) {
-                        std::copy(curr_det, curr_det + det_size, new_det);
-                        doub_det_parity(new_det, orb_indices1[n_short]);
-                    }
+                    matr_el = doub_mat_fxn(orb_indices1[n_short]);
+                    matr_el *= doub_det_parity(new_det, orb_indices1[n_short]);
                 }
                 else {
                     uint8_t o1_orb = occ_orbs[o1_idx];
@@ -1211,6 +1229,8 @@ void apply_HBPP_piv(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBComp
                     uint8_t u1_orb = virt_from_idx(curr_det, symm->symm_lookup[u1_symm], n_orb * spin, orb_indices2[short_idx][2]);
                     if (u1_orb == 255) {
                         std::cerr << "Error: virtual orbital not found\n";
+                        keep_arr[long_idx] = false;
+                        long_idx++;
                         continue;
                     }
                     orb_indices1[n_short][1] = u1_orb;
@@ -1218,15 +1238,37 @@ void apply_HBPP_piv(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBComp
                     count_symm_virt(unocc_symm_cts, occ_orbs, n_elec, symm);
                     unsigned int n_occ = count_sing_allowed(occ_orbs, n_elec, symm->symm_vec.data(), n_orb, unocc_symm_cts);
                     tot_weight = (1 - p_doub) / n_occ / orb_indices2[short_idx][3];
-                    if (time_reversal) {
-                        std::copy(curr_det, curr_det + det_size, new_det);
-                        sing_det_parity(new_det, orb_indices1[n_short]);
-                    }
+                    
+                    matr_el = sing_mat_fxn(orb_indices1[n_short], occ_orbs);
+                    matr_el *= sing_det_parity(new_det, orb_indices1[n_short]);
                 }
-                if (time_reversal) {
+                if (spin_parity) {
+                    double norm_factor;
                     uint8_t flipped_det[det_size];
+                    flip_spins(curr_det, flipped_det, n_orb);
+                    if (memcmp(curr_det, flipped_det, det_size) == 0) {
+                        norm_factor = sqrt(2);
+                    }
+                    else {
+                        norm_factor = 1;
+                    }
                     flip_spins(new_det, flipped_det, n_orb);
-                    if (memcmp(new_det, flipped_det, det_size) != 0) {
+                    if (memcmp(flipped_det, curr_det, det_size) == 0) {
+                        keep_arr[long_idx] = false;
+                        long_idx++;
+                        continue; // choosing to exclude this b/c it's included in the diagonal
+                    }
+                    int cmp = memcmp(new_det, flipped_det, det_size);
+                    if (cmp == 0) {
+                        if (spin_parity == -1) { // matrix element is 0
+                            keep_arr[long_idx] = false;
+                            long_idx++;
+                            continue;
+                        }
+                        matr_el *= 2;
+                        norm_factor *= sqrt(2);
+                    }
+                    else {
                         uint8_t diff_orbs[4];
                         uint8_t n_bits_diff = find_diff_bits(curr_det, flipped_det, diff_orbs, det_size);
                         std::vector<uint8_t> &sv = symm->symm_vec;
@@ -1239,6 +1281,10 @@ void apply_HBPP_piv(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBComp
                                 uint32_t n_occ = count_sing_allowed(occ_orbs, n_elec, symm->symm_vec.data(), n_orb, unocc_symm_cts);
                                 uint32_t n_virt = unocc_symm_cts[symm->symm_vec[diff_orbs[0] % n_orb]][0];
                                 tot_weight += (1 - p_doub) / n_occ / n_virt;
+                                
+                                double rev_matr_el = sing_mat_fxn(diff_orbs, occ_orbs);
+                                rev_matr_el *= sing_parity(curr_det, diff_orbs);
+                                matr_el += rev_matr_el * spin_parity;
                             }
                         }
                         else if (n_bits_diff == 4) { // double excitation
@@ -1259,13 +1305,30 @@ void apply_HBPP_piv(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBComp
                                         std::swap(diff_orbs[0], diff_orbs[3]);
                                     }
                                 }
+                                if (diff_orbs[0] > diff_orbs[1]) {
+                                    std::swap(diff_orbs[0], diff_orbs[1]);
+                                }
+                                if (diff_orbs[2] > diff_orbs[3]) {
+                                    std::swap(diff_orbs[2], diff_orbs[3]);
+                                }
                                 tot_weight += calc_unnorm_wt(hb_probs, diff_orbs) * p_doub;
+                                
+                                double rev_matr_el = doub_mat_fxn(diff_orbs);
+                                rev_matr_el *= doub_parity(curr_det, diff_orbs);
+                                matr_el += rev_matr_el * spin_parity;
                             }
                         }
                     }
+                    if (cmp > 0) {
+                        norm_factor *= spin_parity;
+                    }
+                    matr_el /= norm_factor;
                 }
-                short_vec[n_short] = long_vec[long_idx] / tot_weight;
-                n_short++;
+                double vec_el = long_vec[long_idx] * matr_el / tot_weight;
+                if (fabs(vec_el) > 1e-12) {
+                    short_vec[n_short] = vec_el;
+                    n_short++;
+                }
             }
             keep_arr[long_idx] = false;
             long_idx++;

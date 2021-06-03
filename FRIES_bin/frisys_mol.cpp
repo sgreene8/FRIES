@@ -62,7 +62,7 @@ int main(int argc, char * argv[]) {
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
         MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
         
-        uint32_t max_n_dets = args.max_n_dets;
+        size_t max_n_dets = args.max_n_dets;
         uint32_t matr_samp = args.matr_samp;
         
         // Parameters
@@ -98,6 +98,13 @@ int main(int argc, char * argv[]) {
         std::function<double(const uint8_t *)> diag_shortcut = [tot_orb, eris, h_core, n_frz, n_elec, hf_en](const uint8_t *occ_orbs) {
             return diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
         };
+        std::function<double(uint8_t *, uint8_t *)> sing_shortcut = [tot_orb, eris, h_core, n_frz, n_elec_unf](uint8_t *ex_orbs, uint8_t *occ_orbs) {
+            return sing_matr_el_nosgn(ex_orbs, occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec_unf);
+        };
+        std::function<double(uint8_t *)> doub_shortcut = [tot_orb, eris, n_frz](uint8_t *ex_orbs) {
+            return doub_matr_el_nosgn(ex_orbs, tot_orb, *eris, n_frz);
+        };
+        
         size_t det_size = CEILING(2 * n_orb, 8);
         
         SymmInfo basis_symm(in_data.symm, n_orb);
@@ -385,7 +392,7 @@ int main(int argc, char * argv[]) {
 
             size_t comp_len = sol_vec.curr_size() - n_determ;
             comp_vecs.vec_len = comp_len;
-            apply_HBPP_sys(sol_vec.occ_orbs(), sol_vec.indices(), &comp_vecs, hb_probs, &basis_symm, p_doub, new_hb, mt_obj, matr_samp - tot_dense_h);
+            apply_HBPP_sys(sol_vec.occ_orbs(), sol_vec.indices(), &comp_vecs, hb_probs, &basis_symm, p_doub, new_hb, mt_obj, matr_samp - tot_dense_h, sing_shortcut, doub_shortcut);
             comp_len = comp_vecs.vec_len;
             
             double *vals_before_mult = sol_vec.values();
@@ -409,34 +416,22 @@ int main(int argc, char * argv[]) {
                         }
                         uint8_t *curr_det = sol_vec.indices()[det_idx];
                         uint8_t new_det[det_size];
-                        uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
+                        
+                        double add_el = -eps * comp_vecs.vec1[samp_idx];
+                        if (curr_val < 0) {
+                            add_el *= -1;
+                        }
+                        std::copy(curr_det, curr_det + det_size, new_det);
                         if (!(comp_vecs.orb_indices1[samp_idx][2] == 0 && comp_vecs.orb_indices1[samp_idx][3] == 0)) { // double excitation
                             uint8_t *doub_orbs = comp_vecs.orb_indices1[samp_idx];
-                            double unsigned_mat = doub_matr_el_nosgn(doub_orbs, tot_orb, *eris, n_frz);
-                            double add_el = unsigned_mat * -eps * comp_vecs.vec1[samp_idx];
-                            if (fabs(add_el) > 1e-9) {
-                                if (curr_val < 0) {
-                                    add_el *= -1;
-                                }
-                                std::copy(curr_det, curr_det + det_size, new_det);
-                                add_el *= doub_det_parity(new_det, doub_orbs);
-                                sol_vec.add(new_det, add_el, ini_flag);
-                                num_added++;
-                            }
+                            doub_det(new_det, doub_orbs);
                         }
                         else { // single excitation
                             uint8_t *sing_orbs = comp_vecs.orb_indices1[samp_idx];
-                            double unsigned_mat = sing_matr_el_nosgn(sing_orbs, occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec_unf);
-                            if (fabs(unsigned_mat) > 1e-9) {
-                                std::copy(curr_det, curr_det + det_size, new_det);
-                                double add_el = unsigned_mat * -eps * sing_det_parity(new_det, sing_orbs) * comp_vecs.vec1[samp_idx];
-                                if (curr_val < 0) {
-                                    add_el *= -1;
-                                }
-                                sol_vec.add(new_det, add_el, ini_flag);
-                                num_added++;
-                            }
+                            sing_det(new_det, sing_orbs);
                         }
+                        sol_vec.add(new_det, add_el, ini_flag);
+                        num_added++;
                         samp_idx++;
                     }
                     sol_vec.perform_add();

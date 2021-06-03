@@ -309,7 +309,7 @@ struct HBCompressPiv : HBCompress {
 };
 
 
-/*! \brief Apply the heat-bath power-pitzer Hamiltonian matrix factors to an initial vector, compressing after multiplication by each factor
+/*! \brief Apply the heat-bath power-pitzer Hamiltonian matrix factors to an initial vector, applying systematic compression after multiplication by each factor (except the last)
  *
  * \param [in] all_orbs     A matrix containing the occupied orbitals for each element in the initial vector
  * \param [in] all_dets     A matrix containing the bit-string representations of each determinant in the initial vector
@@ -320,13 +320,40 @@ struct HBCompressPiv : HBCompress {
  * \param [in] new_hb   Specifies whether to use the modified HB-PP factorization defined in Greene et al. (2020)
  * \param [in] mt_obj   For generating random numbers
  * \param [in] n_samp  Number of nonzero elements to keep in compression operations
+ * \param [in] sing_mat_fxn     Returns the Hamiltonian matrix element for a single excitation (without parity)
+ *                          given the orbitals involved in the excitation and the occupied orbitals in the origin determinant
+ * \param [in] doub_mat_fxn     Returns the Hamiltonian matrix element for a double excitation (without parity)
+ *                          given the orbitals involved in the excitation
  */
 void apply_HBPP_sys(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBCompressSys *comp_scratch,
                     hb_info *hb_probs, SymmInfo *symm, double p_doub, bool new_hb,
-                    std::mt19937 &mt_obj, uint32_t n_samp);
+                    std::mt19937 &mt_obj, uint32_t n_samp,
+                    std::function<double(uint8_t *, uint8_t *)> sing_mat_fxn,
+                    std::function<double(uint8_t *)> doub_mat_fxn);
+
+
+/*! \brief Apply the heat-bath power-pitzer Hamiltonian matrix factors to an initial vector, applying systematic compression after multiplication by each factor (except the last)
+ *
+ * \param [in] all_orbs     A matrix containing the occupied orbitals for each element in the initial vector
+ * \param [in] all_dets     A matrix containing the bit-string representations of each determinant in the initial vector
+ * \param [in, out] comp_scratch       Structure containing the intermediate vectors to use in the compression
+ * \param [in] hb_probs     Structure containing the precomputed HB-PP probabilities
+ * \param [in] symm     Structure containing the symmetry information about the one-particle basis
+ * \param [in] p_doub      The probability of selecting a generic double excitation (defined in the HB-PP factorization)
+ * \param [in] new_hb   Specifies whether to use the modified HB-PP factorization defined in Greene et al. (2020)
+ * \param [in] mt_obj   For generating random numbers
+ * \param [in] n_samp  Number of nonzero elements to keep in compression operations
+ * \param [in] sing_mat_fxn     Returns the Hamiltonian matrix element for a single excitation (without parity)
+ *                          given the orbitals involved in the excitation and the occupied orbitals in the origin determinant
+ * \param [in] doub_mat_fxn     Returns the Hamiltonian matrix element for a double excitation (without parity)
+ *                          given the orbitals involved in the excitation
+ * \param [in] spin_parity      1 if targeting even-spin states with time-reveral symmetry, -1 for odd-spin states, 0 if time-reversal symmetry is not used
+ */
 void apply_HBPP_piv(Matrix<uint8_t> &all_orbs, Matrix<uint8_t> &all_dets, HBCompressPiv *comp_scratch,
                     hb_info *hb_probs, SymmInfo *symm, double p_doub, bool new_hb,
-                    std::mt19937 &mt_obj, uint32_t n_samp, bool time_reversal);
+                    std::mt19937 &mt_obj, uint32_t n_samp,
+                    std::function<double(uint8_t *, uint8_t *)> sing_mat_fxn,
+                    std::function<double(uint8_t *)> doub_mat_fxn, int spin_parity);
 
 
 #endif /* heat_bathPP_h */

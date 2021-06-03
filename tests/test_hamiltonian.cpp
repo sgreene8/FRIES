@@ -492,10 +492,16 @@ TEST_CASE("Complete test of compression of un-normalized HB-PP factorization", "
     sys_vecs.vec_len = 1;
     sys_vecs.det_indices1[0] = 0;
     sys_vecs.vec1[0] = 1;
-    apply_HBPP_sys(occ_orbs, dets, &sys_vecs, hbtens, &basis_symm, 0.95, true, mt_obj, n_ex);
+    std::function<double(uint8_t *, uint8_t *)> sing_shortcut = [](uint8_t *ex_orbs, uint8_t *occ_orbs) {
+        return 1;
+    };
+    std::function<double(uint8_t *)> doub_shortcut = [](uint8_t *ex_orbs) {
+        return 1;
+    };
+    apply_HBPP_sys(occ_orbs, dets, &sys_vecs, hbtens, &basis_symm, 0.95, true, mt_obj, n_ex, sing_shortcut, doub_shortcut);
     size_t comp_len = sys_vecs.vec_len;
     for (size_t samp_idx = 0; samp_idx < comp_len; samp_idx++) {
-        REQUIRE(sys_vecs.vec1[samp_idx] == Approx(1).margin(1e-7));
+        REQUIRE(fabs(sys_vecs.vec1[samp_idx]) == Approx(1).margin(1e-7));
     }
     
     
@@ -503,10 +509,10 @@ TEST_CASE("Complete test of compression of un-normalized HB-PP factorization", "
     piv_vecs.vec_len = 1;
     piv_vecs.det_indices1[0] = 0;
     piv_vecs.vec1[0] = 1;
-    apply_HBPP_piv(occ_orbs, dets, &piv_vecs, hbtens, &basis_symm, 0.95, true, mt_obj, n_ex, false);
+    apply_HBPP_piv(occ_orbs, dets, &piv_vecs, hbtens, &basis_symm, 0.95, true, mt_obj, n_ex, sing_shortcut, doub_shortcut, 0);
     comp_len = piv_vecs.vec_len;
     for (size_t samp_idx = 0; samp_idx < comp_len; samp_idx++) {
-        REQUIRE(piv_vecs.vec1[samp_idx] == Approx(1).margin(1e-7));
+        REQUIRE(fabs(piv_vecs.vec1[samp_idx]) == Approx(1).margin(1e-7));
         REQUIRE(piv_vecs.orb_indices1[samp_idx][0] == sys_vecs.orb_indices1[samp_idx][0]);
         REQUIRE(piv_vecs.orb_indices1[samp_idx][1] == sys_vecs.orb_indices1[samp_idx][1]);
         REQUIRE(piv_vecs.orb_indices1[samp_idx][2] == sys_vecs.orb_indices1[samp_idx][2]);
@@ -563,7 +569,13 @@ TEST_CASE("Complete test of compression of un-normalized HB-PP factorization wit
     piv_vecs.vec_len = 1;
     piv_vecs.det_indices1[0] = 0;
     piv_vecs.vec1[0] = 1;
-    apply_HBPP_piv(occ_orbs, dets, &piv_vecs, hbtens, &basis_symm, 0.95, true, mt_obj, n_ex, true);
+    std::function<double(uint8_t *, uint8_t *)> sing_shortcut = [](uint8_t *ex_orbs, uint8_t *occ_orbs) {
+        return 1;
+    };
+    std::function<double(uint8_t *)> doub_shortcut = [](uint8_t *ex_orbs) {
+        return 1;
+    };
+    apply_HBPP_piv(occ_orbs, dets, &piv_vecs, hbtens, &basis_symm, 0.95, true, mt_obj, n_ex, sing_shortcut, doub_shortcut, 1);
     size_t comp_len = piv_vecs.vec_len;
     uint8_t new_det[det_size];
     uint8_t flip_det[det_size];
@@ -578,18 +590,55 @@ TEST_CASE("Complete test of compression of un-normalized HB-PP factorization wit
         }
         flip_spins(new_det, flip_det, n_orb);
         uint8_t *ref_det;
-        int cmp = memcmp(flip_det, new_det, n_orb);
-        if (cmp > 0) {
-            ref_det = flip_det;
+        int cmp = memcmp(flip_det, new_det, det_size);
+        if (cmp == 0) {
+            ref_det = new_det;
         }
         else {
-            ref_det = new_det;
+            uint8_t diff_orbs[4];
+            uint8_t n_bits_diff = find_diff_bits(dets[0], flip_det, diff_orbs, det_size);
+            if (n_bits_diff == 2 || n_bits_diff == 4) {
+                piv_vecs.vec1[samp_idx] /= 2;
+            }
+            if (cmp > 0) {
+                ref_det = flip_det;
+            }
+            else {
+                ref_det = new_det;
+            }
         }
         sol_vec.add(ref_det, piv_vecs.vec1[samp_idx], 1);
     }
     sol_vec.perform_add();
     
     for (size_t val_idx = 0; val_idx < sol_vec.curr_size(); val_idx++) {
-        REQUIRE(sol_vec.values()[val_idx] == Approx(1).margin(1e-7));
+        REQUIRE(fabs(sol_vec.values()[val_idx]) == Approx(1).margin(1e-7));
     }
+}
+
+TEST_CASE("Test evaluation of parity of excitations", "[ex_parity]") {
+    uint32_t n_elec = 4;
+    uint8_t occ_orbs[n_elec];
+    
+    occ_orbs[0] = 1;
+    occ_orbs[1] = 3;
+    occ_orbs[2] = 5;
+    occ_orbs[3] = 7;
+    
+    REQUIRE(excite_sign_occ(1, 4, occ_orbs, n_elec) == 1);
+    REQUIRE(excite_sign_occ(1, 6, occ_orbs, n_elec) == -1);
+    REQUIRE(excite_sign_occ(1, 8, occ_orbs, n_elec) == 1);
+    REQUIRE(excite_sign_occ(3, 8, occ_orbs, n_elec) == 1);
+    
+    REQUIRE(excite_sign_occ(1, 2, occ_orbs, n_elec) == 1);
+    REQUIRE(excite_sign_occ(0, 0, occ_orbs, n_elec) == 1);
+    REQUIRE(excite_sign_occ(3, 6, occ_orbs, n_elec) == 1);
+    REQUIRE(excite_sign_occ(3, 4, occ_orbs, n_elec) == -1);
+    REQUIRE(excite_sign_occ(3, 0, occ_orbs, n_elec) == -1);
+    
+    occ_orbs[0] = 23;
+    occ_orbs[1] = 24;
+    occ_orbs[2] = 25;
+    occ_orbs[3] = 26;
+    REQUIRE(excite_sign_occ(3, 22, occ_orbs, n_elec) == -1);
 }

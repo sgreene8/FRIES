@@ -51,6 +51,18 @@ int sing_det_parity(uint8_t *det, uint8_t *orbs) {
 }
 
 
+int sing_parity(uint8_t *det, uint8_t *orbs) {
+    int sign = excite_sign(orbs[0], orbs[1], det);
+    return sign;
+}
+
+
+void sing_det(uint8_t *det, uint8_t *orbs) {
+    zero_bit(det, orbs[0]);
+    set_bit(det, orbs[1]);
+}
+
+
 int doub_det_parity(uint8_t *det, uint8_t *orbs) {
     zero_bit(det, orbs[0]);
     zero_bit(det, orbs[1]);
@@ -59,6 +71,45 @@ int doub_det_parity(uint8_t *det, uint8_t *orbs) {
     set_bit(det, orbs[2]);
     set_bit(det, orbs[3]);
     return sign;
+}
+
+
+void doub_det(uint8_t *det, uint8_t *orbs) {
+    zero_bit(det, orbs[0]);
+    zero_bit(det, orbs[1]);
+    set_bit(det, orbs[2]);
+    set_bit(det, orbs[3]);
+}
+
+
+int doub_parity(uint8_t *det, uint8_t *orbs) {
+    zero_bit(det, orbs[0]);
+    zero_bit(det, orbs[1]);
+    int sign = excite_sign(orbs[2], orbs[0], det);
+    sign *= excite_sign(orbs[3], orbs[1], det);
+    set_bit(det, orbs[0]);
+    set_bit(det, orbs[1]);
+    return sign;
+}
+
+
+int excite_sign_occ(uint8_t occ_idx, uint8_t virt_orb, const uint8_t *occ_orbs, uint32_t n_elec) {
+    uint32_t n_perm = 1;
+    if (occ_orbs[occ_idx] < virt_orb) {
+        while (occ_idx + n_perm < n_elec && occ_orbs[occ_idx + n_perm] < virt_orb) {
+            n_perm++;
+        }
+    }
+    else {
+        while (n_perm <= occ_idx && occ_orbs[occ_idx - n_perm] > virt_orb) {
+            n_perm++;
+        }
+    }
+    n_perm++;
+    if (n_perm % 2 == 0)
+        return 1;
+    else
+        return -1;
 }
 
 
@@ -251,4 +302,57 @@ uint8_t find_excitation(const uint8_t *str1, const uint8_t *str2, uint8_t *orbs,
     }
     
     return n_bits / 2;
+}
+
+
+
+int tr_doub_connect(const uint8_t *occ_orbs, uint32_t n_orb, uint32_t n_elec, uint8_t *diff_idx) {
+    uint32_t half_elec = n_elec / 2;
+    uint8_t beta_orbs[half_elec];
+    for (uint8_t elec_idx = 0; elec_idx < half_elec; elec_idx++) {
+        beta_orbs[elec_idx] = occ_orbs[half_elec + elec_idx] - n_orb;
+    }
+    if (memcmp(occ_orbs, beta_orbs, half_elec) == 0) {
+        return 0;
+    }
+    else {
+        uint8_t idx1 = 0;
+        uint8_t idx2 = 0;
+        uint8_t first_shift = 0;
+        uint8_t second_shift = 0;
+        while (idx1 < half_elec && idx2 < half_elec) {
+            int16_t diff = occ_orbs[idx1] - beta_orbs[idx2];
+            if (diff == 0) {
+                idx1++;
+                idx2++;
+            }
+            else if (diff > 0) {
+                if (second_shift == 0) {
+                    second_shift = 1;
+                    diff_idx[1] = half_elec + idx2;
+                    idx2++;
+                }
+                else {
+                    return 2;
+                }
+            }
+            else {
+                if (first_shift == 0) {
+                    first_shift = 1;
+                    diff_idx[0] = idx1;
+                    idx1++;
+                }
+                else {
+                    return 2;
+                }
+            }
+        }
+        if (idx1 < half_elec) {
+            diff_idx[0] = idx1;
+        }
+        else if (idx2 < half_elec) {
+            diff_idx[1] = half_elec + idx2;
+        }
+        return 1;
+    }
 }

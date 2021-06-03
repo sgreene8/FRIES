@@ -130,7 +130,12 @@ void one_elec_op(DistVec<double> &vec, unsigned int n_orbs, uint8_t des_op, uint
  * \param [in] n_elec       Number of unfrozen electrons in the system
  * \param [in] dest_idx     The index of the sub-vector in \p vec to store the result in
  * \param [in] h_fac        The constant factor used in the multiplication
+ * \param [in] spin_parity      1 if targeting even-spin states with time-reveral symmetry, -1 for odd-spin states, 0 if time-reversal symmetry is not used
  */
+void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
+                  const FourDArr &eris, const Matrix<double> &h_core,
+                  uint8_t *orbs_scratch, unsigned int n_frozen,
+                  unsigned int n_elec, uint8_t dest_idx, double h_fac, int spin_parity);
 void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
                   const FourDArr &eris, const Matrix<double> &h_core,
                   uint8_t *orbs_scratch, unsigned int n_frozen,

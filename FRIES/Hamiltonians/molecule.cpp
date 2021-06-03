@@ -207,6 +207,14 @@ void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
                   const FourDArr &eris, const Matrix<double> &h_core,
                   uint8_t *orbs_scratch, unsigned int n_frozen,
                   unsigned int n_elec, uint8_t dest_idx, double h_fac) {
+    h_op_offdiag(vec, symm, n_orbs, eris, h_core, orbs_scratch,  n_frozen, n_elec, dest_idx, h_fac, 0);
+}
+
+
+void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
+                  const FourDArr &eris, const Matrix<double> &h_core,
+                  uint8_t *orbs_scratch, unsigned int n_frozen,
+                  unsigned int n_elec, uint8_t dest_idx, double h_fac, int spin_parity) {
     int n_procs = 1;
     int proc_rank = 0;
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
@@ -235,6 +243,91 @@ void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
     
     size_t det_idx = 0;
     int num_added = 1;
+
+    uint8_t *flipped_det = (uint8_t *)malloc(sizeof(uint8_t) * n_bytes);
+    auto adjust_tr = [&eris, &h_core, flipped_det, n_orbs, n_bytes, spin_parity, symm, n_frozen, n_elec](uint8_t *curr_det, uint8_t *new_det, uint8_t *occ_orbs, double *matr_el) {
+        uint32_t unf_orbs = n_orbs - n_frozen / 2;
+        double norm_factor;
+        flip_spins(curr_det, flipped_det, unf_orbs);
+        if (memcmp(curr_det, flipped_det, n_bytes) == 0) { // i ==i'
+            norm_factor = sqrt(2);
+        }
+        else {
+            norm_factor = 1;
+        }
+        flip_spins(new_det, flipped_det, unf_orbs);
+        if (memcmp(flipped_det, curr_det, n_bytes) == 0) {
+            *matr_el = 0;
+            return (uint8_t *) nullptr;
+        }
+        int cmp = memcmp(new_det, flipped_det, n_bytes);
+        if (cmp == 0) { // j == j'
+            if (spin_parity == -1) { // matrix element is 0
+                *matr_el = 0;
+                return (uint8_t *) nullptr;
+            }
+            *matr_el *= 2;
+            norm_factor *= sqrt(2);
+        }
+        else {
+            uint8_t diff_orbs[4];
+            uint8_t n_bits_diff = find_diff_bits(curr_det, flipped_det, diff_orbs, n_bytes);
+            if (n_bits_diff == 2) { // single excitation
+                if (symm[diff_orbs[0] % unf_orbs] == symm[diff_orbs[1] % unf_orbs]) {
+                    if (read_bit(curr_det, diff_orbs[1])) {
+                        std::swap(diff_orbs[0], diff_orbs[1]);
+                    }
+                    
+                    double rev_matr_el = sing_matr_el_nosgn(diff_orbs, occ_orbs, n_orbs, eris, h_core, n_frozen, n_elec);
+                    rev_matr_el *= sing_parity(curr_det, diff_orbs);
+                    *matr_el += rev_matr_el * spin_parity;
+                    norm_factor *= 2; // 2 different excitations give this determinant
+                }
+            }
+            else if (n_bits_diff == 4) { // double excitation
+                if (symm[diff_orbs[0] % unf_orbs] ^ symm[diff_orbs[1] % unf_orbs] ^ symm[diff_orbs[2] % unf_orbs] ^ symm[diff_orbs[3] % unf_orbs] == 0) {
+                    if (read_bit(curr_det, diff_orbs[2])) {
+                        if (read_bit(curr_det, diff_orbs[0])) {
+                            std::swap(diff_orbs[1], diff_orbs[2]);
+                        }
+                        else {
+                            std::swap(diff_orbs[0], diff_orbs[2]);
+                        }
+                    }
+                    if (read_bit(curr_det, diff_orbs[3])) {
+                        if (read_bit(curr_det, diff_orbs[0])) {
+                            std::swap(diff_orbs[1], diff_orbs[3]);
+                        }
+                        else {
+                            std::swap(diff_orbs[0], diff_orbs[3]);
+                        }
+                    }
+                    if (diff_orbs[0] > diff_orbs[1]) {
+                        std::swap(diff_orbs[0], diff_orbs[1]);
+                    }
+                    if (diff_orbs[2] > diff_orbs[3]) {
+                        std::swap(diff_orbs[2], diff_orbs[3]);
+                    }
+                    double rev_matr_el = doub_matr_el_nosgn(diff_orbs, n_orbs, eris, n_frozen);
+                    rev_matr_el *= doub_parity(curr_det, diff_orbs);
+                    *matr_el += rev_matr_el * spin_parity;
+                    norm_factor *= 2; // 2 different excitations give this determinant
+                }
+            }
+        }
+        if (cmp > 0) {
+            norm_factor *= spin_parity;
+        }
+        *matr_el /= norm_factor;
+        if (cmp > 0) {
+            return flipped_det;
+        }
+        else {
+            return new_det;
+        }
+    };
+    
+    uint32_t n_passes = 0;
     while (num_added > 0) {
         num_added = 0;
         while (det_idx < vec_size && num_added < adder_size) {
@@ -251,8 +344,14 @@ void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
                 double matr_el = sing_matr_el_nosgn(sing_ex_orbs[ex_idx], occ_orbs, n_orbs, eris, h_core, n_frozen, n_elec);
                 std::copy(curr_det, curr_det + n_bytes, new_det);
                 matr_el *= sing_det_parity(new_det, sing_ex_orbs[ex_idx]);
-                matr_el *= curr_el * h_fac;
-                vec.add(new_det, matr_el, 1);
+                uint8_t *ref_det = new_det;
+                if (spin_parity) {
+                    ref_det = adjust_tr(curr_det, new_det, occ_orbs, &matr_el);
+                }
+                if (ref_det) {
+                    matr_el *= curr_el * h_fac;
+                    vec.add(ref_det, matr_el, 1);
+                }
             }
             num_added += n_sing;
             
@@ -261,8 +360,14 @@ void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
                 double matr_el = doub_matr_el_nosgn(doub_ex_orbs[ex_idx], n_orbs, eris, n_frozen);
                 std::copy(curr_det, curr_det + n_bytes, new_det);
                 matr_el *= doub_det_parity(new_det, doub_ex_orbs[ex_idx]);
-                matr_el *= curr_el * h_fac;
-                vec.add(new_det, matr_el, 1);
+                uint8_t *ref_det = new_det;
+                if (spin_parity) {
+                    ref_det = adjust_tr(curr_det, new_det, occ_orbs, &matr_el);
+                }
+                if (ref_det) {
+                    matr_el *= curr_el * h_fac;
+                    vec.add(ref_det, matr_el, 1);
+                }
             }
             if (n_doub > n_ex) {
                 std::stringstream msg;
@@ -274,7 +379,9 @@ void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
         }
         num_added = sum_mpi(num_added, proc_rank, n_procs);
         vec.perform_add();
+        n_passes++;
     }
+    free(flipped_det);
 }
 
 

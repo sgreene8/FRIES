@@ -43,6 +43,32 @@ void gen_hf_bitstring(unsigned int n_orb, unsigned int n_elec, uint8_t *det);
 int doub_det_parity(uint8_t *det, uint8_t *orbs);
 
 
+/*! \brief Calculate the parity resulting from a double excitation
+ *
+ * The parity is (-1) raised to the power of the number of occupied orbitals
+ * separating the occupied and virtual orbitals in the excitation
+ *
+ * \param [in] det  Pointer to origin determinant.
+ * \param [in] orbs     The indices of the two occupied orbitals (0th
+ *                      and 1st elements) and two virtual orbitals (2nd
+ *                      and 3rd elements) defining the excitation
+ *
+ * \return parity of the excitation (+1 or -1)
+ */
+int doub_parity(uint8_t *det, uint8_t *orbs);
+
+
+/*! \brief Calculate the determinant resulting from a double excitation
+ *
+ * \param [in, out] det Pointer to origin determinant. Upon return, contains new
+ *                      determinant
+ * \param [in] orbs     The indices of the two occupied orbitals (0th
+ *                      and 1st elements) and two virtual orbitals (2nd
+ *                      and 3rd elements) defining the excitation
+ */
+void doub_det(uint8_t *det, uint8_t *orbs);
+
+
 /*! \brief Given an ordered list of occupied orbitals and the orbitals involved in a single excitation, generate
  * a new ordered list of orbitals after excitation
  *
@@ -69,7 +95,31 @@ void doub_ex_orbs(uint8_t *curr_orbs, uint8_t *new_orbs, uint8_t *ex_orbs,
  *
  * \return parity of the excitation (+1 or -1)
  */
-int sing_det_parity(uint8_t *det, uint8_t *orbs);
+ int sing_det_parity(uint8_t *det, uint8_t *orbs);
+
+
+ /*! \brief Calculate the parity resulting from a single excitation
+  *
+  * The parity is (-1) raised to the power of the number of occupied orbitals
+  * separating the occupied and virtual orbitals in the excitation
+  *
+  * \param [in] det Pointer to origin determinant
+  * \param [in] orbs     The indices of the occupied orbital (0th element) and
+  *                      virtual orbital (1st element) defining the excitation
+  *
+  * \return parity of the excitation (+1 or -1)
+  */
+ int sing_parity(uint8_t *det, uint8_t *orbs);
+
+
+ /*! \brief Calculate the determinant resulting from a single excitation
+  *
+  * \param [in, out] det Pointer to origin determinant. Upon return, contains new
+  *                      determinant
+  * \param [in] orbs     The indices of the occupied orbital (0th element) and
+  *                      virtual orbital (1st element) defining the excitation
+  */
+ void sing_det(uint8_t *det, uint8_t *orbs);
 
 
 /*! \brief Given an ordered list of occupied orbitals and the orbitals involved in a single excitation, generate
@@ -99,6 +149,17 @@ void sing_ex_orbs(uint8_t *curr_orbs, uint8_t *new_orbs, uint8_t *ex_orbs,
  * \return parity of the excitation (+1 or -1)
  */
 int excite_sign(uint8_t cre_op, uint8_t des_op, uint8_t *det);
+
+
+/*! \brief Calculate the parity of a single excitation
+ *
+ * \param [in] occ_idx   The index (in \p occ_orbs ) of the orbital from which the electron is excited
+ * \param [in] virt_orb     The virtual orbital to which the electron is excited
+ * \param [in] occ_orbs     An ordered list of occupied orbitals in the determinant
+ * \param [in] n_elec       The number of occupied orbitals in the determinant
+ * \return parity of the excitation (+1 or -1)
+ */
+int excite_sign_occ(uint8_t occ_idx, uint8_t virt_orb, const uint8_t *occ_orbs, uint32_t n_elec);
 
 
 /*! \brief Find the orbital index of the nth virtual orbital with a given spin in a determinant
@@ -133,6 +194,17 @@ void flip_spins(uint8_t *det_in, uint8_t *det_out, uint8_t n_orb);
  *  and orbs[3] are unoccupied in \p str1 and occupied in \p str2
  */
 uint8_t find_excitation(const uint8_t *str1, const uint8_t *str2, uint8_t *orbs, uint8_t n_bytes);
+
+
+/*! \brief Identify whether a Slater determinant is connected to its time-reversed partner by a double excitation
+ *
+ * \param [in] occ_orbs  List of occupied orbitals in the determinant
+ * \param [in] n_orb     Number of spatial orbitals in the basis
+ * \param [in] n_elec   Number of occupied orbitals in the determinant
+ * \param [out] diff_idx    If the determinants are connected, contains the 2 indices in occ_orbs that differ
+ * \return 1 if it is connected, 0 if not
+ */
+int tr_doub_connect(const uint8_t *occ_orbs, uint32_t n_orb, uint32_t n_elec, uint8_t *diff_idx);
 
     
 #ifdef __cplusplus

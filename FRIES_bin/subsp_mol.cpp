@@ -11,10 +11,11 @@
 #include <FRIES/Hamiltonians/near_uniform.hpp>
 #include <FRIES/Hamiltonians/heat_bathPP.hpp>
 #include <FRIES/Hamiltonians/molecule.hpp>
+#include <FRIES/fci_utils.h>
 #include <LAPACK/lapack_wrappers.hpp>
 #include <FRIES/Ext_Libs/cnpy/cnpy.h>
 #include <stdexcept>
-#include <algorithm>
+#include <iomanip>
 
 struct MyArgs : public argparse::Args {
     std::string hf_path = kwarg("hf_path", "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt");
@@ -28,6 +29,7 @@ struct MyArgs : public argparse::Args {
     std::string mat_output = kwarg("out_format", "A flag controlling the format for outputting the Hamiltonian and overlap matrices. Must be either 'none', in which case these matrices are not written to disk, 'txt', in which case they are outputted in text format, 'npy', in which case they are outputted in numpy format, or 'bin' for binary format").set_default<std::string>("none");
     double init_thresh = kwarg("initiator", "Magnitude of vector element required to make it an initiator").set_default(0);
     std::shared_ptr<std::string> load_dir = kwarg("load_dir", "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())");
+    int time_reversal = kwarg("time_reversal", "0 if time-reversal symmetry is not to be used, 1 for time-reversal symmetry with an even-spin state, -1 for time-reversal symmetry with an odd-spin state").set_default(0);
     
     CONSTRUCTOR(MyArgs);
 };
@@ -75,6 +77,9 @@ int main(int argc, char * argv[]) {
         else {
             throw std::runtime_error("out_format input argument must be \"none\", \"txt\", \"npy\", or \"bin\"");
         }
+        if (args.time_reversal < -1 || args.time_reversal > 1) {
+            throw std::runtime_error("time_reversal input argument must be -1, 0, or 1");
+        }
         
         // Read in data files
         hf_input in_data;
@@ -99,8 +104,44 @@ int main(int argc, char * argv[]) {
         
         unsigned int spawn_length = matr_samp * 4 / n_procs;
         size_t adder_size = spawn_length > 1000000 ? 1000000 : spawn_length;
-        std::function<double(const uint8_t *)> diag_shortcut = [tot_orb, eris, h_core, n_frz, n_elec, hf_en](const uint8_t *occ_orbs) {
-            return diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
+        std::function<double(const uint8_t *)> diag_shortcut;
+        int time_reversal = args.time_reversal;
+        if (time_reversal) {
+            diag_shortcut = [tot_orb, eris, h_core, n_frz, n_elec, hf_en, time_reversal](const uint8_t *occ_orbs) {
+                double ref_matrel = diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
+                uint8_t idx[4];
+                uint32_t n_orb = tot_orb - n_frz / 2;
+                int doub_connect = tr_doub_connect(occ_orbs, n_orb, n_elec - n_frz, idx);
+                if (doub_connect == 0) { // equal to flipped-spin determinant
+                    if (time_reversal == -1) {
+                        ref_matrel = 0;
+                    }
+                }
+                else if (doub_connect == 1) {
+                    uint32_t half_elec = (n_elec - n_frz) / 2;
+                    idx[2] = occ_orbs[idx[1]] - n_orb;
+                    idx[3] = occ_orbs[idx[0]] + n_orb;
+                    int sign = excite_sign_occ(idx[0], idx[2], occ_orbs, half_elec);
+                    sign *= excite_sign_occ(idx[1] - half_elec, idx[3], occ_orbs + half_elec, half_elec);
+                    
+                    idx[0] = occ_orbs[idx[0]];
+                    idx[1] = occ_orbs[idx[1]];
+                    double doub_matrel = doub_matr_el_nosgn(idx, tot_orb, *eris, n_frz) * sign;
+                    ref_matrel += time_reversal * doub_matrel;
+                }
+                return ref_matrel;
+            };
+        }
+        else {
+            diag_shortcut = [tot_orb, eris, h_core, n_frz, n_elec, hf_en](const uint8_t *occ_orbs) {
+                return diag_matrel(occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec) - hf_en;
+            };
+        }
+        std::function<double(uint8_t *, uint8_t *)> sing_shortcut = [tot_orb, eris, h_core, n_frz, n_elec_unf](uint8_t *ex_orbs, uint8_t *occ_orbs) {
+            return sing_matr_el_nosgn(ex_orbs, occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec_unf);
+        };
+        std::function<double(uint8_t *)> doub_shortcut = [tot_orb, eris, n_frz](uint8_t *ex_orbs) {
+            return doub_matr_el_nosgn(ex_orbs, tot_orb, *eris, n_frz);
         };
         size_t det_size = CEILING(2 * n_orb, 8);
         
@@ -156,7 +197,27 @@ int main(int argc, char * argv[]) {
                 unsigned int loc_n_dets = (unsigned int) load_vec_txt(tmp_path.str(), *load_dets, load_vals);
                 
                 for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
-                    sol_vec.add((*load_dets)[det_idx], load_vals[det_idx], 1);
+                    uint8_t flipped_det[det_size];
+                    uint8_t *new_det = (*load_dets)[det_idx];
+                    uint8_t *ref_det;
+                    if (time_reversal) {
+                        flip_spins(new_det, flipped_det, n_orb);
+                        int cmp = memcmp(new_det, flipped_det, det_size);
+                        if (cmp > 0) {
+                            ref_det = flipped_det;
+                            load_vals[det_idx] *= time_reversal;
+                        }
+                        else {
+                            ref_det = new_det;
+                        }
+                        if (cmp != 0) {
+                            load_vals[det_idx] /= sqrt(2);
+                        }
+                    }
+                    else {
+                        ref_det = new_det;
+                    }
+                    sol_vec.add(ref_det, load_vals[det_idx], 1);
                 }
                 sol_vec.set_curr_vec_idx(trial_idx);
                 sol_vec.perform_add();
@@ -164,7 +225,7 @@ int main(int argc, char * argv[]) {
                 
                 h_op_diag(sol_vec, trial_idx + n_trial, 0, 1);
                 sol_vec.set_curr_vec_idx(trial_idx);
-                h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)comp_vecs.orb_indices1, n_frz, n_elec_unf, trial_idx + n_trial, 1);
+                h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)comp_vecs.orb_indices1, n_frz, n_elec_unf, trial_idx + n_trial, 1, time_reversal);
                 sol_vec.copy_vec(trial_idx, trial_idx + 2 * n_trial);
             }
             delete load_dets;
@@ -396,7 +457,7 @@ int main(int argc, char * argv[]) {
                 
                 double one_norm = sol_vec.local_norm();
                 one_norm = sum_mpi(one_norm, proc_rank, n_procs);
-                double init_thresh = args.init_thresh * one_norm;
+                double init_thresh = args.init_thresh * one_norm / matr_samp;
                 
                 size_t comp_len = 0;
                 for (size_t det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
@@ -410,7 +471,7 @@ int main(int argc, char * argv[]) {
                     std::cerr << "Error: insufficient memory allocated for matrix compression.\n";
                 }
                 comp_vecs.vec_len = comp_len;
-                apply_HBPP_piv(sol_vec.occ_orbs(), sol_vec.indices(), &comp_vecs, hb_probs, &basis_symm, p_doub, true, mt_obj, matr_samp, false);
+                apply_HBPP_piv(sol_vec.occ_orbs(), sol_vec.indices(), &comp_vecs, hb_probs, &basis_symm, p_doub, true, mt_obj, matr_samp, sing_shortcut, doub_shortcut, args.time_reversal);
                 comp_len = comp_vecs.vec_len;
                 
                 double *vals_before_mult = sol_vec.values();
@@ -424,6 +485,7 @@ int main(int argc, char * argv[]) {
                     size_t samp_idx = 0;
                     while (num_added > 0) {
                         num_added = 0;
+                        uint8_t flip_det[det_size];
                         while (samp_idx < comp_len && num_added < adder_size) {
                             size_t det_idx = comp_vecs.det_indices2[samp_idx];
                             double curr_val = vals_before_mult[det_idx];
@@ -434,34 +496,34 @@ int main(int argc, char * argv[]) {
                             }
                             uint8_t *curr_det = sol_vec.indices()[det_idx];
                             uint8_t new_det[det_size];
-                            uint8_t *occ_orbs = sol_vec.orbs_at_pos(det_idx);
+                            double add_el = -eps * comp_vecs.vec1[samp_idx];
+                            if (curr_val < 0) {
+                                add_el *= -1;
+                            }
+                            std::copy(curr_det, curr_det + det_size, new_det);
                             if (!(comp_vecs.orb_indices1[samp_idx][2] == 0 && comp_vecs.orb_indices1[samp_idx][3] == 0)) { // double excitation
                                 uint8_t *doub_orbs = comp_vecs.orb_indices1[samp_idx];
-                                double unsigned_mat = doub_matr_el_nosgn(doub_orbs, tot_orb, *eris, n_frz);
-                                double add_el = unsigned_mat * -eps * comp_vecs.vec1[samp_idx];
-                                if (fabs(add_el) > 1e-9) {
-                                    if (curr_val < 0) {
-                                        add_el *= -1;
-                                    }
-                                    std::copy(curr_det, curr_det + det_size, new_det);
-                                    add_el *= doub_det_parity(new_det, doub_orbs);
-                                    sol_vec.add(new_det, add_el, ini_flag);
-                                    num_added++;
-                                }
+                                doub_det(new_det, doub_orbs);
                             }
                             else { // single excitation
                                 uint8_t *sing_orbs = comp_vecs.orb_indices1[samp_idx];
-                                double unsigned_mat = sing_matr_el_nosgn(sing_orbs, occ_orbs, tot_orb, *eris, *h_core, n_frz, n_elec_unf);
-                                if (fabs(unsigned_mat) > 1e-9) {
-                                    std::copy(curr_det, curr_det + det_size, new_det);
-                                    double add_el = unsigned_mat * -eps * sing_det_parity(new_det, sing_orbs) * comp_vecs.vec1[samp_idx];
-                                    if (curr_val < 0) {
-                                        add_el *= -1;
-                                    }
-                                    sol_vec.add(new_det, add_el, ini_flag);
-                                    num_added++;
+                                sing_det(new_det, sing_orbs);
+                            }
+                            uint8_t *ref_det;
+                            if (time_reversal) {
+                                flip_spins(new_det, flip_det, n_orb);
+                                if (memcmp(new_det, flip_det, det_size) > 0) {
+                                    ref_det = flip_det;
+                                }
+                                else {
+                                    ref_det = new_det;
                                 }
                             }
+                            else {
+                                ref_det = new_det;
+                            }
+                            sol_vec.add(ref_det, add_el, ini_flag);
+                            num_added++;
                             samp_idx++;
                         }
                         sol_vec.perform_add();
