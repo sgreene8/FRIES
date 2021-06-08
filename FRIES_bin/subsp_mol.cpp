@@ -23,7 +23,7 @@ struct MyArgs : public argparse::Args {
     uint32_t target_nonz = kwarg("vec_nonz", "Target number of nonzero vector elements to keep after each iteration");
     std::string result_dir = kwarg("result_dir", "Directory in which to save output files").set_default<std::string>("./");
     uint32_t max_n_dets = kwarg("max_dets", "Maximum number of determinants on a single MPI process");
-    std::string trial_path = kwarg("trial_vecs", "Prefix for files containing the vectors with which to calculate the energy and initialize the calculation. Files must have names <trial_vecs>dets<xx> and <trial_vecs>vals<xx>, where xx is a 2-digit number ranging from 0 to (num_trial - 1), and be text files");
+    std::string trial_path = kwarg("trial_vecs", "Path to files containing the vectors with which to calculate the energy and initialize the calculation. If the suffix is '.dice', FRIES will treat the file as output from a Dice calculation and read in the vectors accordingly. Otherwise, FRIES will look for text files with names <trial_vecs>dets<xx> and <trial_vecs>vals<xx>, where xx is a 2-digit number ranging from 0 to (num_trial - 1).");
     uint32_t n_trial = kwarg("num_trial", "Number of trial vectors to use to calculate dot products with the iterates");
     uint32_t restart_int = kwarg("restart_int", "Number of multiplications by (1 - \eps H) to do in between restarts").set_default(1000);
     std::string mat_output = kwarg("out_format", "A flag controlling the format for outputting the Hamiltonian and overlap matrices. Must be either 'none', in which case these matrices are not written to disk, 'txt', in which case they are outputted in text format, 'npy', in which case they are outputted in numpy format, or 'bin' for binary format").set_default<std::string>("none");
@@ -181,6 +181,9 @@ int main(int argc, char * argv[]) {
         hf_proc = sol_vec.idx_to_proc(hf_det);
         
         uint8_t tmp_orbs[n_elec_unf];
+        
+        std::string dice_ext(".dice");
+        bool dice_input = std::equal(args.trial_path.end() - 5, args.trial_path.end(), dice_ext.begin());
 
         # pragma mark Set up trial vectors
         std::stringstream tmp_path;
@@ -190,11 +193,18 @@ int main(int argc, char * argv[]) {
         else {
             Matrix<uint8_t> *load_dets = new Matrix<uint8_t>(args.max_n_dets, det_size);
             for (uint8_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
-                tmp_path << args.trial_path << std::setfill('0') << std::setw(2) << (int) trial_idx;
-
                 sol_vec.set_curr_vec_idx(3 * n_trial);
                 double *load_vals = sol_vec.values();
-                unsigned int loc_n_dets = (unsigned int) load_vec_txt(tmp_path.str(), *load_dets, load_vals);
+                size_t loc_n_dets;
+                
+                if (dice_input) {
+                    loc_n_dets = load_vec_dice(args.trial_path, *load_dets, load_vals, trial_idx, n_orb);
+                }
+                else {
+                    tmp_path << args.trial_path << std::setfill('0') << std::setw(2) << (int) trial_idx;
+                    loc_n_dets = load_vec_txt(tmp_path.str(), *load_dets, load_vals);
+                }
+                
                 
                 for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
                     uint8_t flipped_det[det_size];

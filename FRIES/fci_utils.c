@@ -162,7 +162,7 @@ void flip_spins(uint8_t *det_in, uint8_t *det_out, uint8_t n_orb) {
     det_out[mid_byte_idx] = 0;
     for (uint8_t byte_idx = 0; byte_idx < mid_byte_idx + (mid_bit_offset != 0); byte_idx++) {
         det_out[byte_idx] = det_in[byte_idx + mid_byte_idx] >> mid_bit_offset;
-        if (mid_bit_offset > 0 && n_orb > 4) {
+        if (mid_bit_offset > 0 && n_orb > 4 && (byte_idx + mid_byte_idx + 1) < n_bytes) {
             det_out[byte_idx] |= det_in[byte_idx + mid_byte_idx + 1] << (8 - mid_bit_offset);
         }
     }
