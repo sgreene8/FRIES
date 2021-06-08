@@ -233,6 +233,7 @@ void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
         throw std::runtime_error(msg.str());
     }
     
+    uint8_t origin_idx = vec.curr_vec_idx();
     double *vals_before_mult = vec.values();
     size_t vec_size = vec.curr_size();
     size_t adder_size = vec.adder_size() - n_ex;
@@ -379,6 +380,9 @@ void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
         }
         num_added = sum_mpi(num_added, proc_rank, n_procs);
         vec.perform_add();
+        vec.set_curr_vec_idx(origin_idx);
+        vals_before_mult = vec.values();
+        vec.set_curr_vec_idx(dest_idx);
         n_passes++;
     }
     free(flipped_det);
