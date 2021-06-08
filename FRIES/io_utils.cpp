@@ -4,6 +4,8 @@
  */
 
 #include "io_utils.hpp"
+#include <FRIES/det_store.h>
+#include <cmath>
 
 size_t read_csv_line(std::ifstream &file, double *data) {
     size_t n_read = 0;
@@ -345,6 +347,71 @@ size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, double *va
     else {
         return 0;
     }
+}
+
+
+size_t load_vec_dice(const std::string &path, Matrix<uint8_t> &dets, double *vals,
+                     uint8_t state, uint32_t n_orb) {
+    std::ifstream dice_file(path);
+    if (!dice_file.is_open()) {
+        std::string msg("Could not open file: ");
+        msg.append(path);
+        throw std::runtime_error(msg);
+    }
+    std::string file_line;
+    std::string state_str("State :");
+    uint8_t states_found = 0;
+    while (!dice_file.eof() && states_found < state + 1) {
+        std::getline(dice_file, file_line);
+        if (std::equal(state_str.begin(), state_str.end(), file_line.begin())) {
+            states_found++;
+        }
+    }
+    if (states_found != (state + 1)) {
+        return 0;
+    }
+    size_t idx = 0;
+    while (!dice_file.eof()) {
+        std::getline(dice_file, file_line);
+        if (std::equal(state_str.begin(), state_str.end(), file_line.begin())) {
+            break;
+        }
+        else {
+            std::stringstream ss_line(file_line);
+            size_t line_idx;
+            ss_line >> line_idx;
+            if (line_idx != idx) {
+                std::stringstream msg("Misaligned indices when reading Dice file: ");
+                msg << "read " << line_idx << ", expected " << idx << '\n';
+                throw std::runtime_error(msg.str());
+            }
+            uint8_t *curr_det = dets[idx];
+            std::fill(curr_det, curr_det + dets.cols(), 0);
+            ss_line >> vals[idx];
+            size_t curr_pos = ss_line.tellg();
+            const char *c_line = ss_line.str().c_str();
+            uint8_t orb_idx = 0;
+            curr_pos++;
+            while (c_line[curr_pos] != '\0') {
+                switch (c_line[curr_pos]) {
+                    case '2':
+                        set_bit(curr_det, orb_idx + n_orb);
+                    case 'a':
+                        set_bit(curr_det, orb_idx);
+                    case '0':
+                        orb_idx++;
+                        break;
+                    case 'b':
+                        set_bit(curr_det, orb_idx + n_orb);
+                        orb_idx++;
+                        break;
+                }
+                curr_pos++;
+            }
+            idx++;
+        }
+    }
+    return idx;
 }
 
 

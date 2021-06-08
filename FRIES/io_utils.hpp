@@ -104,6 +104,21 @@ size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, int *vals)
 size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, double *vals);
 
 
+/*! \brief Load a sparse vector from a Dice output file (https://sanshar.github.io/Dice/overview.html)
+ *
+ * The vector is loaded only onto the 0th MPI process
+ *
+ * \param [in] path          Path to the Dice output file
+ * \param [out] dets        Matrix in which to store the element indices read in
+ * \param [out] vals        Array of element values read in
+ * \param [in] state        Index of state in Dice output file to read in
+ * \param [in] n_orb        Number of spatial orbitals in the basis
+ * \return total number of elements read in
+ */
+size_t load_vec_dice(const std::string &path, Matrix<uint8_t> &dets, double *vals,
+                     uint8_t state, uint32_t n_orb);
+
+
 /*! \brief Read an array of determinants from disk
  
 * Determinants are loaded only onto the 0th MPI process
