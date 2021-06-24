@@ -171,10 +171,7 @@ int main(int argc, char * argv[]) {
             vec_scrambler[proc_idx] = mt_obj();
         }
         
-        // first n_trial are trial vecs
-        // next n_trial are H * trial_ves
-        // next 2 * n_trial are used in multiplization
-        DistVec<double> sol_vec(args.max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, 4 * n_trial, proc_scrambler, vec_scrambler);
+        DistVec<double> sol_vec(args.max_n_dets, adder_size, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, 2 * n_trial, proc_scrambler, vec_scrambler);
         
         size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2) ? n_elec_unf : n_orb - n_elec_unf / 2;
         HBCompressPiv comp_vecs(spawn_length, n_states);
@@ -190,59 +187,74 @@ int main(int argc, char * argv[]) {
 
         # pragma mark Set up trial vectors
         std::stringstream tmp_path;
-        if (args.load_dir != nullptr) {
-            sol_vec.load(*args.load_dir);
-        }
-        else {
-            Matrix<uint8_t> *load_dets = new Matrix<uint8_t>(args.max_n_dets, det_size);
-            for (uint8_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
-                sol_vec.set_curr_vec_idx(3 * n_trial);
-                double *load_vals = sol_vec.values();
-                size_t loc_n_dets;
-                
-                if (dice_input) {
-                    loc_n_dets = load_vec_dice(args.trial_path, *load_dets, load_vals, trial_idx, n_orb);
-                }
-                else {
-                    tmp_path << args.trial_path << std::setfill('0') << std::setw(2) << (int) trial_idx;
-                    loc_n_dets = load_vec_txt(tmp_path.str(), *load_dets, load_vals);
-                }
-                
-                
-                for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
-                    uint8_t flipped_det[det_size];
-                    uint8_t *new_det = (*load_dets)[det_idx];
-                    uint8_t *ref_det;
-                    if (time_reversal) {
-                        flip_spins(new_det, flipped_det, n_orb);
-                        int cmp = memcmp(new_det, flipped_det, det_size);
-                        if (cmp > 0) {
-                            ref_det = flipped_det;
-                            load_vals[det_idx] *= time_reversal;
-                        }
-                        else {
-                            ref_det = new_det;
-                        }
-                        if (cmp != 0) {
-                            load_vals[det_idx] /= sqrt(2);
-                        }
+        
+        Matrix<uint8_t> *load_dets = new Matrix<uint8_t>(args.max_n_dets, det_size);
+        sol_vec.set_curr_vec_idx(n_trial);
+        double *load_vals = sol_vec.values();
+        for (uint8_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
+            size_t loc_n_dets;
+            if (dice_input) {
+                loc_n_dets = load_vec_dice(args.trial_path, *load_dets, load_vals, trial_idx, n_orb);
+            }
+            else {
+                tmp_path << args.trial_path << std::setfill('0') << std::setw(2) << (int) trial_idx;
+                loc_n_dets = load_vec_txt(tmp_path.str(), *load_dets, load_vals);
+            }
+            
+            for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
+                uint8_t flipped_det[det_size];
+                uint8_t *new_det = (*load_dets)[det_idx];
+                uint8_t *ref_det;
+                if (time_reversal) {
+                    flip_spins(new_det, flipped_det, n_orb);
+                    int cmp = memcmp(new_det, flipped_det, det_size);
+                    if (cmp > 0) {
+                        ref_det = flipped_det;
+                        load_vals[det_idx] *= time_reversal;
                     }
                     else {
                         ref_det = new_det;
                     }
-                    sol_vec.add(ref_det, load_vals[det_idx], 1);
+                    if (cmp != 0) {
+                        load_vals[det_idx] /= sqrt(2);
+                    }
                 }
-                sol_vec.set_curr_vec_idx(trial_idx);
-                sol_vec.perform_add();
-                tmp_path.str("");
-                
-                h_op_diag(sol_vec, trial_idx + n_trial, 0, 1);
-                sol_vec.set_curr_vec_idx(trial_idx);
-                h_op_offdiag(sol_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)comp_vecs.orb_indices1, n_frz, n_elec_unf, trial_idx + n_trial, 1, time_reversal);
-                sol_vec.copy_vec(trial_idx, trial_idx + 2 * n_trial);
+                else {
+                    ref_det = new_det;
+                }
+                sol_vec.add(ref_det, load_vals[det_idx], 1);
             }
-            delete load_dets;
+            sol_vec.set_curr_vec_idx(trial_idx);
+            sol_vec.perform_add(0);
+            tmp_path.str("");
         }
+        delete load_dets;
+        size_t trial_size = sol_vec.curr_size();
+        
+        std::cout << "Vector size after trial vectors: " << trial_size << '\n';
+        
+        Matrix<double> trial_vals(n_trial, trial_size);
+        for (uint8_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
+            std::copy(sol_vec(trial_idx, 0), sol_vec(trial_idx, trial_size), trial_vals[trial_idx]);
+        }
+        
+        for (uint8_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
+            sol_vec.set_curr_vec_idx(trial_idx);
+            h_op_diag(sol_vec, trial_idx + n_trial, 0, 1);
+            sol_vec.set_curr_vec_idx(trial_idx);
+            h_op_offdiag(sol_vec, trial_size, symm, tot_orb, *eris, *h_core, (uint8_t *)comp_vecs.orb_indices1, n_frz, n_elec_unf, trial_idx + n_trial, 1, time_reversal);
+        }
+        size_t htrial_size = sol_vec.curr_size();
+        Matrix<double> htrial_vals(n_trial, htrial_size);
+        for (uint8_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
+            sol_vec.set_curr_vec_idx(n_trial + trial_idx);
+            std::copy(sol_vec.values(), sol_vec.values() + htrial_size, htrial_vals[trial_idx]);
+            sol_vec.zero_vec();
+        }
+        
+        std::cout << "Vector size after H multiplication: " << htrial_size << '\n';
+        
+        sol_vec.fix_min_del_idx();
         
         // Count # single/double excitations from HF
         sol_vec.gen_orb_list(hf_det, tmp_orbs);
@@ -342,7 +354,7 @@ int main(int argc, char * argv[]) {
         std::vector<double> en_shifts(n_trial);
         
         for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
-            sol_vec.set_curr_vec_idx((vec_half + 2) * n_trial + vec_idx);
+            sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
             double norm = sol_vec.local_norm();
             norm = sum_mpi(norm, proc_rank, n_procs, MPI_COMM_WORLD);
             for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
@@ -356,7 +368,7 @@ int main(int argc, char * argv[]) {
             }
 #pragma mark Normalize vectors
             for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
-                sol_vec.set_curr_vec_idx((2 + vec_half) * n_trial + vec_idx);
+                sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
                 double norm = sol_vec.local_norm();
                 norms[vec_idx] = sum_mpi(norm, proc_rank, n_procs, MPI_COMM_WORLD);
             }
@@ -385,7 +397,7 @@ int main(int argc, char * argv[]) {
                 norm_f.flush();
             }
             for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
-                sol_vec.set_curr_vec_idx((2 + vec_half) * n_trial + vec_idx);
+                sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
                 for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
                     *sol_vec[el_idx] /= en_shifts[vec_idx];
                 }
@@ -394,9 +406,15 @@ int main(int argc, char * argv[]) {
 #pragma mark Calculate overlap and hamiltonian matrices
             for (uint16_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
                 for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
-                    double d_prod = sol_vec.internal_dot(trial_idx, (2 + vec_half) * n_trial + vec_idx);
+                    double d_prod = 0;
+                    for (size_t det_idx = 0; det_idx < trial_size; det_idx++) {
+                        d_prod += trial_vals(trial_idx, det_idx) * (*sol_vec(vec_idx + vec_half * n_trial, det_idx));
+                    }
                     d_mat(trial_idx, vec_idx) = sum_mpi(d_prod, proc_rank, n_procs);
-                    d_prod = sol_vec.internal_dot(n_trial + trial_idx, (2 + vec_half) * n_trial + vec_idx);
+                    d_prod = 0;
+                    for (size_t det_idx = 0; det_idx < htrial_size; det_idx++) {
+                        d_prod += htrial_vals(trial_idx, det_idx) * (*sol_vec(vec_idx + vec_half * n_trial, det_idx));
+                    }
                     h_mat(trial_idx, vec_idx) = sum_mpi(d_prod, proc_rank, n_procs);
                 }
             }
@@ -435,22 +453,22 @@ int main(int argc, char * argv[]) {
                 }
                 invr_inplace(lapack_inout, lapack_scratch.data());
                 for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
-                    sol_vec.set_curr_vec_idx((2 + vec_half) * n_trial + vec_idx);
+                    sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
                     double norm = sol_vec.local_norm();
                     norms[vec_idx] = sum_mpi(norm, proc_rank, n_procs, MPI_COMM_WORLD);
                 }
                 for (uint8_t eigen_idx = 0; eigen_idx < n_trial; eigen_idx++) {
-                    sol_vec.set_curr_vec_idx((3 - vec_half) * n_trial + eigen_idx);
+                    sol_vec.set_curr_vec_idx((1 - vec_half) * n_trial + eigen_idx);
                     sol_vec.zero_vec();
                     for (uint8_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                         for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
-                            *sol_vec((3 - vec_half) * n_trial + eigen_idx, el_idx) += *sol_vec((2 + vec_half) * n_trial + vec_idx, el_idx) * lapack_inout(vec_idx, eigen_idx);
+                            *sol_vec((1 - vec_half) * n_trial + eigen_idx, el_idx) += *sol_vec(vec_half * n_trial + vec_idx, el_idx) * lapack_inout(vec_idx, eigen_idx);
                         }
                     }
                 }
                 vec_half = !vec_half;
                 for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
-                    sol_vec.set_curr_vec_idx((2 + vec_half) * n_trial + vec_idx);
+                    sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
                     double new_norm = sol_vec.local_norm();
                     new_norm = sum_mpi(new_norm, proc_rank, n_procs, MPI_COMM_WORLD);
                     for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
@@ -460,12 +478,12 @@ int main(int argc, char * argv[]) {
             }
 
 #pragma mark Vector compression
-            compress_vecs(sol_vec, (2 + vec_half) * n_trial, (vec_half + 3) * n_trial, args.target_nonz, srt_arr, keep_exact, del_all, mt_obj);
+            compress_vecs(sol_vec, vec_half * n_trial, (vec_half + 1) * n_trial, args.target_nonz, srt_arr, keep_exact, del_all, mt_obj);
 
 # pragma mark Matrix multiplication
             for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
-                int curr_idx = (2 + vec_half) * n_trial + vec_idx;
-                int next_idx = (3 - vec_half) * n_trial + vec_idx;
+                int curr_idx = vec_half * n_trial + vec_idx;
+                int next_idx = (1 - vec_half) * n_trial + vec_idx;
                 sol_vec.set_curr_vec_idx(curr_idx);
                 
                 double one_norm = sol_vec.local_norm();
