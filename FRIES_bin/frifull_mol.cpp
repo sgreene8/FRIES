@@ -143,7 +143,7 @@ int main(int argc, char * argv[]) {
                 trial_vec.add(hf_det, 1, 1);
             }
         }
-        trial_vec.perform_add();
+        trial_vec.perform_add(0);
         
         trial_vec.collect_procs();
         std::vector<uintmax_t> trial_hashes(trial_vec.curr_size());
@@ -209,7 +209,7 @@ int main(int argc, char * argv[]) {
                 sol_vec.add(hf_det, 100, 1);
             }
         }
-        sol_vec.perform_add();
+        sol_vec.perform_add(0);
         loc_norm = sol_vec.local_norm();
         glob_norm = sum_mpi(loc_norm, proc_rank, n_procs);
         if (args.load_dir != nullptr) {

@@ -156,8 +156,8 @@ int main(int argc, char * argv[]) {
             trial_vec.add(hf_det, 1, 1);
             htrial_vec.add(hf_det, 1, 1);
         }
-        trial_vec.perform_add();
-        htrial_vec.perform_add();
+        trial_vec.perform_add(0);
+        htrial_vec.perform_add(0);
         
         trial_vec.collect_procs();
         std::vector<uintmax_t> trial_hashes(trial_vec.curr_size());
@@ -239,7 +239,7 @@ int main(int argc, char * argv[]) {
                 sol_vec.add(hf_det, 100, 1);
             }
         }
-        sol_vec.perform_add();
+        sol_vec.perform_add(0);
         loc_norms[proc_rank] = sol_vec.local_norm();
 
         MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
@@ -390,7 +390,7 @@ int main(int argc, char * argv[]) {
                 double diag_el = sol_vec.matr_el_at_pos(det_idx);
                 *curr_el *= 1 - eps * (diag_el - en_shift);
             }
-            sol_vec.perform_add();
+            sol_vec.perform_add(0);
             
             // Compression step
             unsigned int n_samp = args.target_nonz;

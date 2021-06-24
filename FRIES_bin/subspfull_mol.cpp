@@ -180,12 +180,12 @@ int main(int argc, char * argv[]) {
             for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
                 trial_vecs[trial_idx].add((*load_dets)[det_idx], load_vals[det_idx], 1);
             }
-            trial_vecs[trial_idx].perform_add();
+            trial_vecs[trial_idx].perform_add(0);
             sol_vec.set_curr_vec_idx(trial_idx);
             for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
                 sol_vec.add((*load_dets)[det_idx], load_vals[det_idx], 1);
             }
-            sol_vec.perform_add();
+            sol_vec.perform_add(0);
             tmp_path.str("");
         }
         delete load_dets;

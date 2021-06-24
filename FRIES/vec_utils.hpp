@@ -67,7 +67,7 @@ public:
      *
      * \param [in] parent_vec   Pointer to the DistVec object to which elements will be added
      */
-    void perform_add(DistVec<el_type> *parent_vec);
+    void perform_add(DistVec<el_type> *parent_vec, size_t origin);
     
     /*! \brief Remove elements from internal buffers and send them to the DistVec objects on their corresponding MPI processes for taking dot products
      *
@@ -423,11 +423,11 @@ public:
 
     /*! \brief Incorporate elements from the Adder buffer into the vector
      *
-     * Sign-coherent elements are added regardless of their corresponding initiator
-     * flags. Otherwise, only elements with nonzero initiator flags are added
+     * Elements are added if the corresponding element in \p origin is nonzero.
+     * Otherwise, only elements with a nonzero initiator flag are added
      */
-    void perform_add() {
-        adder_->perform_add(this);
+    void perform_add(size_t origin) {
+        adder_->perform_add(this, origin);
     }
     
     /*! \brief Get the index of an unused intermediate index in the \p indices_ array, or -1 if none exists */
@@ -594,7 +594,7 @@ public:
      *                      correction (see Ghanem et al., JCP 151, 224108, 2019)
      * \param [in] count    Number of elements to be added
      */
-    void add_elements(uint8_t *indices, el_type *vals, size_t count) {
+    void add_elements(uint8_t *indices, el_type *vals, size_t count, size_t origin) {
         uint8_t add_n_bytes = CEILING(n_bits_ + 1, 8);
         uint8_t vec_n_bytes = indices_.cols();
         uint8_t tmp_occ[occ_orbs_.cols()];
@@ -620,16 +620,11 @@ public:
                 n_nonz_++;
             }
             if (idx_ptr) {
-                nonini_occ_add += !ini_flag;
-                values_(curr_vec_idx_, *idx_ptr) += vals[el_idx];
-                if (values_(curr_vec_idx_, *idx_ptr) == 0) {
-                    double sum_vals = 0;
-                    for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
-                        sum_vals += fabs(values_(vec_idx, *idx_ptr));
-                    }
-                    if (sum_vals == 0) {
-                        del_at_pos(*idx_ptr);
-                    }
+                bool nonz = values_(origin, *idx_ptr) != 0;
+                bool should_add = ini_flag || nonz;
+                nonini_occ_add += !ini_flag && nonz;
+                if (should_add) {
+                    values_(curr_vec_idx_, *idx_ptr) += vals[el_idx];
                 }
                 vals[el_idx] = 0;
             }
@@ -831,7 +826,7 @@ public:
         for (size_t idx = 0; idx < n_loaded; idx++) {
             add(indices_[idx], 1, 1);
         }
-        perform_add();
+        perform_add(0);
         
         n_dense_ = curr_size_;
         for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
@@ -935,7 +930,7 @@ size_t Adder<el_type>::add(uint8_t *idx, uint8_t idx_bits, el_type val, int proc
 }
 
 template <class el_type>
-void Adder<el_type>::perform_add(DistVec<el_type> *parent_vec) {
+void Adder<el_type>::perform_add(DistVec<el_type> *parent_vec, size_t origin) {
     int n_procs = 1;
     
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
@@ -952,7 +947,7 @@ void Adder<el_type>::perform_add(DistVec<el_type> *parent_vec) {
     mpi_atoav(send_vals_.data(), send_cts_.data(), val_disp_.data(), recv_vals_.data(), recv_cts_.data());
     // Move elements from receiving buffers to vector
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-        parent_vec->add_elements(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx]);
+        parent_vec->add_elements(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx], origin);
     }
     mpi_atoav(recv_vals_.data(), recv_cts_.data(), val_disp_.data(), send_vals_.data(), send_cts_.data());
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {

@@ -121,7 +121,7 @@ int main(int argc, char * argv[]) {
                 sol_vec.add(neel_det, 100, 1);
             }
         }
-        sol_vec.perform_add();
+        sol_vec.perform_add(0);
         loc_norm = sol_vec.local_norm();
         glob_norm = sum_mpi(loc_norm, proc_rank, n_procs);
         if (args.load_dir != nullptr) {
@@ -252,7 +252,10 @@ int main(int argc, char * argv[]) {
                     det_idx++;
                 }
                 num_added = sum_mpi(num_added, proc_rank, n_procs);
-                sol_vec.perform_add();
+                sol_vec.perform_add(0);
+                sol_vec.set_curr_vec_idx(0);
+                vals_before_mult = sol_vec.values();
+                sol_vec.set_curr_vec_idx(1);
             }
             sol_vec.set_curr_vec_idx(0);
             for (det_idx = 0; det_idx < vec_size; det_idx++) {

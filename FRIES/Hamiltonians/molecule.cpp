@@ -247,7 +247,7 @@ void one_elec_op(DistVec<double> &vec, unsigned int n_orbs, uint8_t des_op, uint
     }
     vec.set_curr_vec_idx(dest_idx);
     vec.zero_vec();
-    vec.perform_add();
+    vec.perform_add(0);
     vec.set_curr_vec_idx(before_idx);
 }
 
@@ -428,7 +428,7 @@ void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
             det_idx++;
         }
         num_added = sum_mpi(num_added, proc_rank, n_procs);
-        vec.perform_add();
+        vec.perform_add(0);
         vec.set_curr_vec_idx(origin_idx);
         vals_before_mult = vec.values();
         vec.set_curr_vec_idx(dest_idx);

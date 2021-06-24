@@ -539,7 +539,10 @@ int main(int argc, char * argv[]) {
                             num_added++;
                             samp_idx++;
                         }
-                        sol_vec.perform_add();
+                        sol_vec.perform_add(curr_idx);
+                        sol_vec.set_curr_vec_idx(curr_idx);
+                        vals_before_mult = sol_vec.values();
+                        sol_vec.set_curr_vec_idx(next_idx);
                         num_added = sum_mpi(num_added, proc_rank, n_procs);
                     }
                 }

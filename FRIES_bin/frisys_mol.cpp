@@ -168,8 +168,8 @@ int main(int argc, char * argv[]) {
                 htrial_vec.add(hf_det, 1, 1);
             }
         }
-        trial_vec.perform_add();
-        htrial_vec.perform_add();
+        trial_vec.perform_add(0);
+        htrial_vec.perform_add(0);
         
         trial_vec.collect_procs();
         std::vector<uintmax_t> trial_hashes(trial_vec.curr_size());
@@ -250,7 +250,7 @@ int main(int argc, char * argv[]) {
                 sol_vec.add(hf_det, 100, 1);
             }
         }
-        sol_vec.perform_add();
+        sol_vec.perform_add(0);
         loc_norm = sol_vec.local_norm();
         glob_norm = sum_mpi(loc_norm, proc_rank, n_procs);
         if (args.load_dir != nullptr) {
@@ -432,7 +432,10 @@ int main(int argc, char * argv[]) {
                         num_added++;
                         samp_idx++;
                     }
-                    sol_vec.perform_add();
+                    sol_vec.perform_add(0);
+                    sol_vec.set_curr_vec_idx(0);
+                    vals_before_mult = sol_vec.values();
+                    sol_vec.set_curr_vec_idx(1);
                     num_added = sum_mpi(num_added, proc_rank, n_procs);
                 }
             }
@@ -449,7 +452,7 @@ int main(int argc, char * argv[]) {
                 double mat_vec = vals_before_mult[det_idx] * determ_matr_el[samp_idx];
                 sol_vec.add(determ_to[samp_idx], mat_vec, 1);
             }
-            sol_vec.perform_add();
+            sol_vec.perform_add(0);
             
 #pragma mark Death/cloning step
             sol_vec.set_curr_vec_idx(0);

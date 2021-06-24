@@ -165,8 +165,8 @@ int main(int argc, char * argv[]) {
             trial_vec.add(hf_det, 1, 1);
             htrial_vec.add(hf_det, 1, 1);
         }
-        trial_vec.perform_add();
-        htrial_vec.perform_add();
+        trial_vec.perform_add(0);
+        htrial_vec.perform_add(0);
         
         trial_vec.collect_procs();
         std::vector<uintmax_t> trial_hashes(trial_vec.curr_size());
@@ -256,7 +256,7 @@ int main(int argc, char * argv[]) {
                 sol_vec.add(hf_det, 100, 1);
             }
         }
-        sol_vec.perform_add();
+        sol_vec.perform_add(0);
         loc_norm = sol_vec.local_norm();
         glob_norm = sum_mpi(loc_norm, proc_rank, n_procs);
         if (args.load_dir != nullptr) {
@@ -424,7 +424,7 @@ int main(int argc, char * argv[]) {
                 double diag_el = sol_vec.matr_el_at_pos(det_idx);
                 *curr_el *= 1 - eps * (diag_el - en_shift);
             }
-            sol_vec.perform_add();
+            sol_vec.perform_add(0);
             
             // Compress the vector
             for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
