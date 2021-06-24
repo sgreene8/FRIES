@@ -36,7 +36,7 @@ struct hf_input {
     FourDArr *eris; ///< Pointer to 4-D array of 2-electron integrals
     Matrix<double> *hcore; ///< Pointer to matrix of 1-electron integrals
     double hf_en; ///< HF electronic energy
-    double eps; ///< Suggested imaginary time step to use in DMC calculations
+    double eps; ///< Suggested imaginary time step to use
     uint8_t *symm; ///< Irreps of orbitals in the HF basis
 };
 

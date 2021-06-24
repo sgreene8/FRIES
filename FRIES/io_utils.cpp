@@ -110,7 +110,7 @@ void parse_hf_input(const std::string &hf_dir, hf_input *in_struct) {
         in_file >> in_struct->n_elec;
     }
     else {
-        throw std::runtime_error("Fould not find n_elec parameter in sys_params.txt");
+        throw std::runtime_error("Could not find n_elec parameter in sys_params.txt");
     }
     
     unsigned int n_frz;
@@ -121,7 +121,7 @@ void parse_hf_input(const std::string &hf_dir, hf_input *in_struct) {
         in_file >> n_frz;
     }
     else {
-        throw std::runtime_error("Fould not find n_frozen parameter in sys_params.txt");
+        throw std::runtime_error("Could not find n_frozen parameter in sys_params.txt");
     }
     in_struct->n_frz = n_frz;
     
@@ -132,7 +132,7 @@ void parse_hf_input(const std::string &hf_dir, hf_input *in_struct) {
         in_file >> in_struct->n_orb;
     }
     else {
-        throw std::runtime_error("Fould not find n_orb parameter in sys_params.txt");
+        throw std::runtime_error("Could not find n_orb parameter in sys_params.txt");
     }
     
     std::getline(in_file, keyword);
@@ -142,7 +142,7 @@ void parse_hf_input(const std::string &hf_dir, hf_input *in_struct) {
         in_file >> in_struct->eps;
     }
     else {
-        throw std::runtime_error("Fould not find eps parameter in sys_params.txt");
+        throw std::runtime_error("Could not find eps parameter in sys_params.txt");
     }
     
     std::getline(in_file, keyword);
@@ -152,7 +152,7 @@ void parse_hf_input(const std::string &hf_dir, hf_input *in_struct) {
         in_file >> in_struct->hf_en;
     }
     else {
-        throw std::runtime_error("Fould not find hf_energy parameter in sys_params.txt");
+        throw std::runtime_error("Could not find hf_energy parameter in sys_params.txt");
     }
     
     in_file.close();
@@ -403,7 +403,7 @@ void parse_hh_input(const std::string &hh_path, hh_input *in_struct) {
 }
 
 size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, int *vals) {
-        int my_rank = 0;
+    int my_rank = 0;
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     
     if (my_rank == 0) {

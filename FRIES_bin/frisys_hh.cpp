@@ -34,7 +34,7 @@ int main(int argc, char * argv[]) {
         MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
         
         double target_norm = args.target_norm;
-        uint32_t max_n_dets = args.max_n_dets;
+        size_t max_n_dets = args.max_n_dets;
         
         // Parameters
         double shift_damping = 0.05;
