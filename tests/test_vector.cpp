@@ -204,21 +204,21 @@ TEST_CASE("Test adding elements to vector", "[vector_add]") {
     REQUIRE(bit_str1[0] == 0b00010001);
     
     vec.add(bit_str1, 1, 1);
-    vec.perform_add();
+    vec.perform_add(0);
     REQUIRE(*vec[0] == 1);
     REQUIRE(!memcmp(bit_str1, vec.indices()[0], det_size));
     
     vec.add(bit_str1, 1, 1);
-    vec.perform_add();
+    vec.perform_add(0);
     REQUIRE(*vec[0] == 2);
     
     bit_str1[0] = 0b00100001;
     vec.add(bit_str1, -1, 1);
-    vec.perform_add();
+    vec.perform_add(0);
     REQUIRE(*vec[1] == -1);
     REQUIRE(!memcmp(bit_str1, vec.indices()[1], det_size));
     
     vec.add(bit_str1, -1, 1);
-    vec.perform_add();
+    vec.perform_add(0);
     REQUIRE(*vec[1] == -2);
 }
