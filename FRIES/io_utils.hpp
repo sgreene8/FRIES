@@ -6,8 +6,6 @@
 #ifndef io_utils_h
 #define io_utils_h
 
-#include <cstdio>
-#include <cstring>
 #include <cstdlib>
 #include <sstream>
 #include <mpi.h>
