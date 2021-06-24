@@ -358,7 +358,7 @@ int main(int argc, char * argv[]) {
             double norm = sol_vec.local_norm();
             norm = sum_mpi(norm, proc_rank, n_procs, MPI_COMM_WORLD);
             for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
-                *sol_vec[el_idx] /= norm;
+                *sol_vec[el_idx] *= 1000 / norm;
             }
         }
         
