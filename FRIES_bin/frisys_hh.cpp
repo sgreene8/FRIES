@@ -12,20 +12,18 @@
 #include <stdexcept>
 
 struct MyArgs : public argparse::Args {
-    std::string params_path = kwarg("params_path", "Path to the file that contains the parameters defining the Hamiltonian, number of electrons, number of sites, etc.");
-    double target_norm = kwarg("target", "Target one-norm of solution vector").set_default(0);
-    uint32_t max_iter = kwarg("max_iter", "Maximum number of iterations to run the calculation").set_default(1000000);
-    uint32_t target_nonz = kwarg("vec_nonz", "Target number of nonzero vector elements to keep after each compression operation");
-    std::string result_dir = kwarg("result_dir", "Directory in which to save output files").set_default<std::string>("./");
-    uint32_t max_n_dets = kwarg("max_dets", "Maximum number of determinants on a single MPI process");
-    double init_thresh = kwarg("initiator", "Magnitude of vector element required to make it an initiator").set_default(0);
-    std::shared_ptr<std::string> load_dir = kwarg("load_dir", "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())");
-    
-    CONSTRUCTOR(MyArgs);
+    std::string &params_path = kwarg("params_path", "Path to the file that contains the parameters defining the Hamiltonian, number of electrons, number of sites, etc.");
+    double &target_norm = kwarg("target", "Target one-norm of solution vector").set_default(0);
+    uint32_t &max_iter = kwarg("max_iter", "Maximum number of iterations to run the calculation").set_default(1000000);
+    uint32_t &target_nonz = kwarg("vec_nonz", "Target number of nonzero vector elements to keep after each compression operation");
+    std::string &result_dir = kwarg("result_dir", "Directory in which to save output files").set_default<std::string>("./");
+    uint32_t &max_n_dets = kwarg("max_dets", "Maximum number of determinants on a single MPI process");
+    double &init_thresh = kwarg("initiator", "Magnitude of vector element required to make it an initiator").set_default(0);
+    std::shared_ptr<std::string> &load_dir = kwarg("load_dir", "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())");
 };
 
 int main(int argc, char * argv[]) {
-    MyArgs args(argc, argv);
+    MyArgs args = argparse::parse<MyArgs>(argc, argv);
     
     try {
         int n_procs = 1;

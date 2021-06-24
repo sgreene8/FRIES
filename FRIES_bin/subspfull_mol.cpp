@@ -15,22 +15,20 @@
 #include <algorithm>
 
 struct MyArgs : public argparse::Args {
-    std::string hf_path = kwarg("hf_path", "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt");
-    uint32_t max_iter = kwarg("max_iter", "Maximum number of iterations to run the calculation").set_default(1000000);
-    uint32_t target_nonz = kwarg("vec_nonz", "Target number of nonzero vector elements to keep after each iteration");
-    std::string result_dir = kwarg("result_dir", "Directory in which to save output files").set_default<std::string>("./");
-    uint32_t max_n_dets = kwarg("max_dets", "Maximum number of determinants on a single MPI process");
-    std::string trial_path = kwarg("trial_vecs", "Prefix for files containing the vectors with which to calculate the energy and initialize the calculation. Files must have names <trial_vecs>dets<xx> and <trial_vecs>vals<xx>, where xx is a 2-digit number ranging from 0 to (num_trial - 1), and be text files");
-    uint32_t n_trial = kwarg("num_trial", "Number of trial vectors to use to calculate dot products with the iterates");
-    uint32_t restart_int = kwarg("restart_int", "Number of multiplications by (1 - \eps H) to do in between restarts").set_default(10);
-    std::string mat_output = kwarg("out_format", "A flag controlling the format for outputting the Hamiltonian and overlap matrices. Must be either 'none', in which case these matrices are not written to disk, 'txt', in which case they are outputted in text format, 'npy', in which case they are outputted in numpy format, or 'bin' for binary format").set_default<std::string>("none");
-    std::string normalization_technique = kwarg("norm_technique", "Specify how to normalize the iterates, i.e. not at all ('none'), individually by one-norm ('1-norm'), by the max of all 1-norms ('max-1-norm'), using energy shifts like in DMC ('shifts'), or using our new energy shift exp(S) technique ('new-shifts')");
-    
-    CONSTRUCTOR(MyArgs);
+    std::string &hf_path = kwarg("hf_path", "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt");
+    uint32_t &max_iter = kwarg("max_iter", "Maximum number of iterations to run the calculation").set_default(1000000);
+    uint32_t &target_nonz = kwarg("vec_nonz", "Target number of nonzero vector elements to keep after each iteration");
+    std::string &result_dir = kwarg("result_dir", "Directory in which to save output files").set_default<std::string>("./");
+    uint32_t &max_n_dets = kwarg("max_dets", "Maximum number of determinants on a single MPI process");
+    std::string &trial_path = kwarg("trial_vecs", "Prefix for files containing the vectors with which to calculate the energy and initialize the calculation. Files must have names <trial_vecs>dets<xx> and <trial_vecs>vals<xx>, where xx is a 2-digit number ranging from 0 to (num_trial - 1), and be text files");
+    uint32_t &n_trial = kwarg("num_trial", "Number of trial vectors to use to calculate dot products with the iterates");
+    uint32_t &restart_int = kwarg("restart_int", "Number of multiplications by (1 - \eps H) to do in between restarts").set_default(10);
+    std::string &mat_output = kwarg("out_format", "A flag controlling the format for outputting the Hamiltonian and overlap matrices. Must be either 'none', in which case these matrices are not written to disk, 'txt', in which case they are outputted in text format, 'npy', in which case they are outputted in numpy format, or 'bin' for binary format").set_default<std::string>("none");
+    std::string &normalization_technique = kwarg("norm_technique", "Specify how to normalize the iterates, i.e. not at all ('none'), individually by one-norm ('1-norm'), by the max of all 1-norms ('max-1-norm'), using energy shifts like in DMC ('shifts'), or using our new energy shift exp(S) technique ('new-shifts')");
 };
 
 int main(int argc, char * argv[]) {
-    MyArgs args(argc, argv);
+    MyArgs args = argparse::parse<MyArgs>(argc, argv);
     
     uint8_t n_trial = args.n_trial;
 

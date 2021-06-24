@@ -20,22 +20,20 @@
 #include <stdexcept>
 
 struct MyArgs : public argparse::Args {
-    std::string hf_path = kwarg("hf_path", "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt");
-    uint32_t target_walkers = kwarg("target", "Target number of walkers, must be greater than the plateau value for this system").set_default(0);
-    std::string dist_str = kwarg("distribution", "Excitation generator for the Hamiltonian, either near-uniform (NU) or heat-bath Power-Pitzer (HB)");
-    std::string result_dir = kwarg("result_dir", "Directory in which to save output files").set_default<std::string>("./");
-    uint32_t max_n_dets = kwarg("max_dets", "Maximum number of determinants on a single MPI process");
-    uint32_t init_thresh = kwarg("initiator", "Number of walkers on a determinant required to make it an initiator").set_default(0);
-    std::shared_ptr<std::string> load_dir = kwarg("load_dir", "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())");
-    std::shared_ptr<std::string> ini_path = kwarg("ini_vec", "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)");
-    std::shared_ptr<std::string> trial_path = kwarg("trial_vec", "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text)");
-    uint32_t max_iter = kwarg("max_iter", "Maximum number of iterations to run the calculation").set_default(1000000);
-    
-    CONSTRUCTOR(MyArgs);
+    std::string &hf_path = kwarg("hf_path", "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt");
+    uint32_t &target_walkers = kwarg("target", "Target number of walkers, must be greater than the plateau value for this system").set_default(0);
+    std::string &dist_str = kwarg("distribution", "Excitation generator for the Hamiltonian, either near-uniform (NU) or heat-bath Power-Pitzer (HB)");
+    std::string &result_dir = kwarg("result_dir", "Directory in which to save output files").set_default<std::string>("./");
+    uint32_t &max_n_dets = kwarg("max_dets", "Maximum number of determinants on a single MPI process");
+    uint32_t &init_thresh = kwarg("initiator", "Number of walkers on a determinant required to make it an initiator").set_default(0);
+    std::shared_ptr<std::string> &load_dir = kwarg("load_dir", "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())");
+    std::shared_ptr<std::string> &ini_path = kwarg("ini_vec", "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)");
+    std::shared_ptr<std::string> &trial_path = kwarg("trial_vec", "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text)");
+    uint32_t &max_iter = kwarg("max_iter", "Maximum number of iterations to run the calculation").set_default(1000000);
 };
 
 int main(int argc, char * argv[]) {
-    MyArgs args(argc, argv);
+    MyArgs args = argparse::parse<MyArgs>(argc, argv);
     
     double target_norm = args.target_walkers;
     h_dist qmc_dist;

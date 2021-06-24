@@ -18,24 +18,23 @@
 #include <iomanip>
 
 struct MyArgs : public argparse::Args {
-    std::string hf_path = kwarg("hf_path", "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt");
-    uint32_t max_iter = kwarg("max_iter", "Maximum number of iterations to run the calculation").set_default(1000000);
-    uint32_t target_nonz = kwarg("vec_nonz", "Target number of nonzero vector elements to keep after each iteration");
-    std::string result_dir = kwarg("result_dir", "Directory in which to save output files").set_default<std::string>("./");
-    uint32_t max_n_dets = kwarg("max_dets", "Maximum number of determinants on a single MPI process");
-    std::string trial_path = kwarg("trial_vecs", "Path to files containing the vectors with which to calculate the energy and initialize the calculation. If the suffix is '.dice', FRIES will treat the file as output from a Dice calculation and read in the vectors accordingly. Otherwise, FRIES will look for text files with names <trial_vecs>dets<xx> and <trial_vecs>vals<xx>, where xx is a 2-digit number ranging from 0 to (num_trial - 1).");
-    uint32_t n_trial = kwarg("num_trial", "Number of trial vectors to use to calculate dot products with the iterates");
-    uint32_t restart_int = kwarg("restart_int", "Number of multiplications by (1 - \eps H) to do in between restarts").set_default(1000);
-    std::string mat_output = kwarg("out_format", "A flag controlling the format for outputting the Hamiltonian and overlap matrices. Must be either 'none', in which case these matrices are not written to disk, 'txt', in which case they are outputted in text format, 'npy', in which case they are outputted in numpy format, or 'bin' for binary format").set_default<std::string>("none");
-    double init_thresh = kwarg("initiator", "Magnitude of vector element required to make it an initiator").set_default(0);
-    std::shared_ptr<std::string> load_dir = kwarg("load_dir", "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())");
-    int time_reversal = kwarg("time_reversal", "0 if time-reversal symmetry is not to be used, 1 for time-reversal symmetry with an even-spin state, -1 for time-reversal symmetry with an odd-spin state").set_default(0);
-    
-    CONSTRUCTOR(MyArgs);
+    std::string &hf_path = kwarg("hf_path", "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt");
+    uint32_t &max_iter = kwarg("max_iter", "Maximum number of iterations to run the calculation").set_default(1000000);
+    uint32_t &target_nonz = kwarg("vec_nonz", "Target number of nonzero vector elements to keep after each iteration");
+    std::string &result_dir = kwarg("result_dir", "Directory in which to save output files").set_default<std::string>("./");
+    uint32_t &max_n_dets = kwarg("max_dets", "Maximum number of determinants on a single MPI process");
+    std::string &trial_path = kwarg("trial_vecs", "Path to files containing the vectors with which to calculate the energy and initialize the calculation. If the suffix is '.dice', FRIES will treat the file as output from a Dice calculation and read in the vectors accordingly. Otherwise, FRIES will look for text files with names <trial_vecs>dets<xx> and <trial_vecs>vals<xx>, where xx is a 2-digit number ranging from 0 to (num_trial - 1).");
+    uint32_t &n_trial = kwarg("num_trial", "Number of trial vectors to use to calculate dot products with the iterates");
+    uint32_t &restart_int = kwarg("restart_int", "Number of multiplications by (1 - \eps H) to do in between restarts").set_default(1000);
+    std::string &mat_output = kwarg("out_format", "A flag controlling the format for outputting the Hamiltonian and overlap matrices. Must be either 'none', in which case these matrices are not written to disk, 'txt', in which case they are outputted in text format, 'npy', in which case they are outputted in numpy format, or 'bin' for binary format").set_default<std::string>("none");
+    double &init_thresh = kwarg("initiator", "Magnitude of vector element required to make it an initiator").set_default(0);
+    std::shared_ptr<std::string> &load_dir = kwarg("load_dir", "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())");
+    int &time_reversal = kwarg("time_reversal", "0 if time-reversal symmetry is not to be used, 1 for time-reversal symmetry with an even-spin state, -1 for time-reversal symmetry with an odd-spin state").set_default(0);
+    double &epsilon = kwarg("epsilon", "The imaginary time step (\eps) to use when evolving the vectors. Overrides the parameter listed in sys_params.txt").set_default(0);
 };
 
 int main(int argc, char * argv[]) {
-    MyArgs args(argc, argv);
+    MyArgs args = argparse::parse<MyArgs>(argc, argv);
     
     try {
         int n_procs = 1;
