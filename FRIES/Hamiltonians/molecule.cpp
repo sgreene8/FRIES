@@ -438,6 +438,220 @@ void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
 }
 
 
+void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
+                  const SymmERIs &eris, const Matrix<double> &h_core,
+                  uint8_t *orbs_scratch, unsigned int n_frozen,
+                  unsigned int n_elec, uint8_t dest_idx, double h_fac, int spin_parity) {
+    h_op_offdiag(vec, vec.curr_size(), symm, n_orbs, eris, h_core, orbs_scratch, n_frozen, n_elec, dest_idx, h_fac, spin_parity);
+}
+
+void h_op_offdiag(DistVec<double> &vec, size_t vec_size, uint8_t *symm, unsigned int n_orbs,
+                  const SymmERIs &eris, const Matrix<double> &h_core,
+                  uint8_t *orbs_scratch, unsigned int n_frozen,
+                  unsigned int n_elec, uint8_t dest_idx, double h_fac, int spin_parity) {
+    int n_procs = 1;
+    int proc_rank = 0;
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+    unsigned int unf_orbs = n_orbs - n_frozen / 2;
+    size_t n_ex = (unf_orbs - n_elec / 2) * (unf_orbs - n_elec / 2) * n_elec * n_elec;
+    uint8_t n_bytes = CEILING(vec.n_bits(), 8);
+    uint8_t new_det[n_bytes];
+    uint8_t (*sing_ex_orbs)[2] = (uint8_t (*)[2])orbs_scratch;
+    uint8_t (*doub_ex_orbs)[4] = (uint8_t (*)[4])orbs_scratch;
+    
+    if (vec.num_vecs() <= dest_idx) {
+        std::stringstream msg;
+        msg << "The dest_idx argument (" << dest_idx << ") exceeds the number of vectors stored in this object.";
+        throw std::runtime_error(msg.str());
+    }
+    
+    uint8_t origin_idx = vec.curr_vec_idx();
+    size_t adder_size = vec.adder_size();
+
+    uint8_t *flipped_det = (uint8_t *)malloc(sizeof(uint8_t) * n_bytes);
+    auto adjust_tr = [&eris, &h_core, flipped_det, n_orbs, n_bytes, spin_parity, symm, n_frozen, n_elec](uint8_t *curr_det, uint8_t *new_det, uint8_t *occ_orbs, double *matr_el) {
+        uint32_t unf_orbs = n_orbs - n_frozen / 2;
+        double norm_factor;
+        flip_spins(curr_det, flipped_det, unf_orbs);
+        if (memcmp(curr_det, flipped_det, n_bytes) == 0) { // i ==i'
+            norm_factor = sqrt(2);
+        }
+        else {
+            norm_factor = 1;
+        }
+        flip_spins(new_det, flipped_det, unf_orbs);
+        if (memcmp(flipped_det, curr_det, n_bytes) == 0) {
+            *matr_el = 0;
+            return (uint8_t *) nullptr;
+        }
+        int cmp = memcmp(new_det, flipped_det, n_bytes);
+        if (cmp == 0) { // j == j'
+            if (spin_parity == -1) { // matrix element is 0
+                *matr_el = 0;
+                return (uint8_t *) nullptr;
+            }
+            *matr_el *= 2;
+            norm_factor *= sqrt(2);
+        }
+        else {
+            uint8_t diff_orbs[4];
+            uint8_t n_bits_diff = find_diff_bits(curr_det, flipped_det, diff_orbs, n_bytes);
+            if (n_bits_diff == 2) { // single excitation
+                if (symm[diff_orbs[0] % unf_orbs] == symm[diff_orbs[1] % unf_orbs]) {
+                    if (read_bit(curr_det, diff_orbs[1])) {
+                        std::swap(diff_orbs[0], diff_orbs[1]);
+                    }
+                    
+                    double rev_matr_el = sing_matr_el_nosgn(diff_orbs, occ_orbs, n_orbs, eris, h_core, n_frozen, n_elec);
+                    rev_matr_el *= sing_parity(curr_det, diff_orbs);
+                    *matr_el += rev_matr_el * spin_parity;
+                    norm_factor *= 2; // 2 different excitations give this determinant
+                }
+            }
+            else if (n_bits_diff == 4) { // double excitation
+                if (symm[diff_orbs[0] % unf_orbs] ^ symm[diff_orbs[1] % unf_orbs] ^ symm[diff_orbs[2] % unf_orbs] ^ symm[diff_orbs[3] % unf_orbs] == 0) {
+                    if (read_bit(curr_det, diff_orbs[2])) {
+                        if (read_bit(curr_det, diff_orbs[0])) {
+                            std::swap(diff_orbs[1], diff_orbs[2]);
+                        }
+                        else {
+                            std::swap(diff_orbs[0], diff_orbs[2]);
+                        }
+                    }
+                    if (read_bit(curr_det, diff_orbs[3])) {
+                        if (read_bit(curr_det, diff_orbs[0])) {
+                            std::swap(diff_orbs[1], diff_orbs[3]);
+                        }
+                        else {
+                            std::swap(diff_orbs[0], diff_orbs[3]);
+                        }
+                    }
+                    if (diff_orbs[0] > diff_orbs[1]) {
+                        std::swap(diff_orbs[0], diff_orbs[1]);
+                    }
+                    if (diff_orbs[2] > diff_orbs[3]) {
+                        std::swap(diff_orbs[2], diff_orbs[3]);
+                    }
+                    double rev_matr_el = doub_matr_el_nosgn(diff_orbs, n_orbs, eris, n_frozen);
+                    rev_matr_el *= doub_parity(curr_det, diff_orbs);
+                    *matr_el += rev_matr_el * spin_parity;
+                    norm_factor *= 2; // 2 different excitations give this determinant
+                }
+            }
+        }
+        if (cmp > 0) {
+            norm_factor *= spin_parity;
+        }
+        *matr_el /= norm_factor;
+        if (cmp > 0) {
+            return flipped_det;
+        }
+        else {
+            return new_det;
+        }
+    };
+    
+    int keep_going = 1;
+    size_t ex_idx = 0;
+    size_t det_idx = 0;
+    size_t n_sing = 0;
+    double curr_el = 0;
+    uint8_t *curr_det = nullptr;
+    uint8_t *occ_orbs = nullptr;
+    while (keep_going) {
+        size_t n_added = 0;
+        keep_going = 0;
+        vec.set_curr_vec_idx(origin_idx);
+        double *vals_before_mult = vec.values();
+        vec.set_curr_vec_idx(dest_idx);
+        while (n_added < adder_size) {
+            if (ex_idx >= n_sing) {
+                if (det_idx >= vec_size) {
+                    break;
+                }
+                curr_el = vals_before_mult[det_idx];
+                if (curr_el == 0) {
+                    det_idx++;
+                    continue;
+                }
+                curr_det = vec.indices()[det_idx];
+                occ_orbs = vec.orbs_at_pos(det_idx);
+                n_sing = sing_ex_symm(curr_det, occ_orbs, n_elec, unf_orbs, sing_ex_orbs, symm);
+                ex_idx = 0;
+                det_idx++;
+            }
+            double matr_el = sing_matr_el_nosgn(sing_ex_orbs[ex_idx], occ_orbs, n_orbs, eris, h_core, n_frozen, n_elec);
+            std::copy(curr_det, curr_det + n_bytes, new_det);
+            matr_el *= sing_det_parity(new_det, sing_ex_orbs[ex_idx]);
+            uint8_t *ref_det = new_det;
+            if (spin_parity) {
+                ref_det = adjust_tr(curr_det, new_det, occ_orbs, &matr_el);
+            }
+            if (ref_det) {
+                matr_el *= curr_el * h_fac;
+                vec.add(ref_det, matr_el, 1);
+                n_added++;
+            }
+            ex_idx++;
+            keep_going = 1;
+        }
+        keep_going = sum_mpi(keep_going, proc_rank, n_procs);
+        vec.perform_add(0);
+    }
+    
+    keep_going = 1;
+    size_t n_doub = 0;
+    det_idx = 0;
+    while (keep_going) {
+        size_t n_added = 0;
+        keep_going = 0;
+        vec.set_curr_vec_idx(origin_idx);
+        double *vals_before_mult = vec.values();
+        vec.set_curr_vec_idx(dest_idx);
+        while (n_added < adder_size) {
+            if (ex_idx >= n_doub) {
+                if (det_idx >= vec_size) {
+                    break;
+                }
+                curr_el = vals_before_mult[det_idx];
+                if (curr_el == 0) {
+                    det_idx++;
+                    continue;
+                }
+                curr_det = vec.indices()[det_idx];
+                occ_orbs = vec.orbs_at_pos(det_idx);
+                n_doub = doub_ex_symm(curr_det, occ_orbs, n_elec, unf_orbs, doub_ex_orbs, symm);
+                if (n_doub > n_ex) {
+                    std::stringstream msg;
+                    msg << "The number of symmetry-allowed double excitations from a determinant (" << n_doub << ") exceeds the maximum number of allowed double excitations";
+                    throw std::runtime_error(msg.str());
+                }
+                ex_idx = 0;
+                det_idx++;
+            }
+            double matr_el = doub_matr_el_nosgn(doub_ex_orbs[ex_idx], n_orbs, eris, n_frozen);
+            std::copy(curr_det, curr_det + n_bytes, new_det);
+            matr_el *= doub_det_parity(new_det, doub_ex_orbs[ex_idx]);
+            uint8_t *ref_det = new_det;
+            if (spin_parity) {
+                ref_det = adjust_tr(curr_det, new_det, occ_orbs, &matr_el);
+            }
+            if (ref_det) {
+                matr_el *= curr_el * h_fac;
+                vec.add(ref_det, matr_el, 1);
+                n_added++;
+            }
+            ex_idx++;
+            keep_going = 1;
+        }
+        keep_going = sum_mpi(keep_going, proc_rank, n_procs);
+        vec.perform_add(0);
+    }
+    free(flipped_det);
+}
+
+
 size_t count_doub_nosymm(unsigned int num_elec, unsigned int num_orb) {
     unsigned int num_unocc = num_orb - num_elec / 2;
     return num_elec * (num_elec / 2 - 1) * num_unocc * (num_unocc - 1) / 2 +
