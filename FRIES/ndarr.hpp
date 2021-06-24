@@ -203,6 +203,46 @@ private:
     double* data_; ///< The data stored in the array
 };
 
+class SymmERIs {
+    double *data_;
+    size_t len_;
+    
+public:
+    SymmERIs(size_t len) {
+        size_t n_pair = len * (len + 1) / 2;
+        len_ = len;
+        size_t vec_size = n_pair * (n_pair + 1) / 2;
+        data_ = (double *) malloc(vec_size * sizeof(double));
+        std::fill(data_, data_ + vec_size, 0);
+    }
+    
+    double chemist(size_t i1, size_t i2, size_t i3, size_t i4) const {
+        size_t min1 = i1 < i2 ? i1 : i2;
+        size_t max1 = i1 < i2 ? i2 : i1;
+        size_t p1_idx = I_J_TO_TRI_WDIAG(min1, max1);
+        size_t min2 = i3 < i4 ? i3 : i4;
+        size_t max2 = i3 < i4 ? i4 : i3;
+        size_t p2_idx = I_J_TO_TRI_WDIAG(min2, max2);
+        size_t min_p = p1_idx < p2_idx ? p1_idx : p2_idx;
+        size_t max_p = p1_idx < p2_idx ? p2_idx : p1_idx;
+        return data_[I_J_TO_TRI_WDIAG(min_p, max_p)];
+    }
+    
+    double &chemist_ordered(size_t i1, size_t i2, size_t i3, size_t i4) {
+        size_t p1_idx = I_J_TO_TRI_WDIAG(i1, i2);
+        size_t p2_idx = I_J_TO_TRI_WDIAG(i3, i4);
+        return data_[I_J_TO_TRI_WDIAG(p1_idx, p2_idx)];
+    }
+    
+    double physicist(size_t i1, size_t i2, size_t i3, size_t i4) const {
+        return chemist(i1, i3, i2, i4);
+    }
+    
+    ~SymmERIs() {
+        free(data_);
+    }
+};
+
 template<> class Matrix<bool>  {
     std::vector<uint8_t> data_;
     size_t rows_, cols_, tot_size_, cols_coarse_;

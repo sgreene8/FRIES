@@ -81,20 +81,24 @@ int main(int argc, char * argv[]) {
         }
         
         // Read in data files
-        hf_input in_data;
-        parse_hf_input(args.hf_path, &in_data);
-        double eps = in_data.eps;
-        unsigned int n_elec = in_data.n_elec;
-        unsigned int n_frz = in_data.n_frz;
-        unsigned int n_orb = in_data.n_orb;
-        double hf_en = in_data.hf_en;
+        fcidump_input *in_data = parse_fcidump(args.hf_path);
+        double eps = in_data->eps;
+        if (args.epsilon > 0) {
+            eps = args.epsilon;
+        }
+        unsigned int n_elec = in_data->n_elec;
+//        unsigned int n_frz = in_data->n_frz;
+        unsigned int n_frz = 0;
+        unsigned int n_orb = in_data->n_orb_;
+        double hf_en = in_data->hf_en;
         
         unsigned int n_elec_unf = n_elec - n_frz;
         unsigned int tot_orb = n_orb + n_frz / 2;
         
-        uint8_t *symm = in_data.symm;
-        Matrix<double> *h_core = in_data.hcore;
-        FourDArr *eris = in_data.eris;
+        uint8_t *symm = in_data->symm;
+        Matrix<double> *h_core = in_data->hcore;
+        SymmERIs *eris = &(in_data->eris);
+//        FourDArr *eris = in_data.eris;
         
         // Rn generator
         auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
@@ -144,7 +148,7 @@ int main(int argc, char * argv[]) {
         };
         size_t det_size = CEILING(2 * n_orb, 8);
         
-        SymmInfo basis_symm(in_data.symm, n_orb);
+        SymmInfo basis_symm(in_data->symm, n_orb);
         
         // Initialize hash function for processors and vector
         std::vector<uint32_t> proc_scrambler(2 * n_orb);

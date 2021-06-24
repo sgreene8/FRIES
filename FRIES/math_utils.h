@@ -12,6 +12,9 @@
 
 #define CEILING(x,y) ((x + y - 1) / y)
 #define SIGN(x) ((x > 0) - (x < 0))
+#define TRI_N(n)((n) * (n + 1) / 2)
+#define I_J_TO_TRI_NODIAG(i, j)(TRI_N(j - 1) + i)
+#define I_J_TO_TRI_WDIAG(i, j)(TRI_N(j) + i)
 
 #ifdef __cplusplus
 extern "C" {

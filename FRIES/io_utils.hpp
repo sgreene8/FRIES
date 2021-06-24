@@ -55,6 +55,24 @@ struct hh_input {
     double ph_freq; ///< Phonon energy
 };
 
+struct fcidump_input {
+    uint32_t n_elec; ///< Total number of electrons in the system
+    uint32_t n_orb_; ///< Number of spatial orbitals in the HF basis
+    double hf_en; ///< HF electronic energy
+    double eps; ///< Suggested imaginary time step to use
+    uint8_t *symm; ///< Irreps of orbitals in the HF basis
+    Matrix<double> *hcore; ///< 1-electron integrals
+    SymmERIs eris; ///< 2-electron integrals
+    
+    fcidump_input(uint32_t n_orb) : n_orb_(n_orb), eris(n_orb) {
+        symm = (uint8_t *)malloc(sizeof(uint8_t) * n_orb);
+    }
+    
+    ~fcidump_input() {
+        free(symm);
+    }
+};
+
 
 /*! \brief Read in parameters from a Hartree-Fock calculation:
  * total number of electrons
@@ -70,6 +88,8 @@ struct hh_input {
  * \param [in] in_struct    Structure where the data will be stored
  */
 void parse_hf_input(const std::string &hf_dir, hf_input *in_struct);
+
+fcidump_input *parse_fcidump(const std::string &hf_dir);
 
 
 /*! \brief Read in the following parameters for a Hubbard-Holstein calculation

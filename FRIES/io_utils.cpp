@@ -185,6 +185,133 @@ void parse_hf_input(const std::string &hf_dir, hf_input *in_struct) {
     }
 }
 
+fcidump_input *parse_fcidump(const std::string &hf_dir) {
+    std::string path(hf_dir);
+    path.append("sys_params.txt");
+    std::ifstream in_file(path);
+    if (!in_file.is_open()) {
+        throw std::runtime_error("Could not open file sys_params.txt");
+    }
+    
+    std::string keyword;
+    std::getline(in_file, keyword); // skipping n_elec
+    
+    unsigned int n_frz;
+    std::getline(in_file, keyword);
+    std::getline(in_file, keyword);
+    bool success = keyword == "n_frozen";
+    if (success) {
+        in_file >> n_frz;
+        if (n_frz != 0) {
+            throw std::runtime_error("n_frozen parameter is nonzero. Please set n_frozen to 0 and modify FCIDUMP file accordingly.");
+        }
+    }
+    
+    std::getline(in_file, keyword);
+    std::getline(in_file, keyword); // skipping n_orb
+    
+    std::getline(in_file, keyword);
+    std::getline(in_file, keyword);
+    success = keyword == "eps";
+    double eps;
+    if (success) {
+        in_file >> eps;
+    }
+    else {
+        throw std::runtime_error("Fould not find eps parameter in sys_params.txt");
+    }
+    
+    std::getline(in_file, keyword);
+    std::getline(in_file, keyword);
+    success = keyword == "hf_energy";
+    double hf_en;
+    if (success) {
+        in_file >> hf_en;
+    }
+    else {
+        throw std::runtime_error("Fould not find hf_energy parameter in sys_params.txt");
+    }
+    
+    in_file.close();
+    
+    std::string file_line;
+    
+    path = hf_dir;
+    path.append("FCIDUMP");
+    in_file.open(path);
+    std::getline(in_file, file_line);
+    size_t n_orb_pos = file_line.find("NORB=");
+    size_t n_elec_pos = file_line.find(",NELEC=");
+    std::string substr = file_line.substr(n_orb_pos + 5, n_elec_pos - (n_orb_pos + 5));
+    uint32_t n_orb;
+    n_orb = std::stoi(substr);
+    
+    size_t ms_pos = file_line.find(",MS2=");
+    substr = file_line.substr(n_elec_pos + 7, ms_pos - (n_elec_pos + 7));
+    uint32_t n_elec = std::stoi(substr);
+    
+    substr = file_line.substr(ms_pos + 5, 1);
+    if (std::stoi(substr) != 0) {
+        throw std::runtime_error("MS2 is not zero in FCIDUMP file.");
+    }
+    
+    fcidump_input *in_struct = new fcidump_input(n_orb);
+    in_struct->eps = eps;
+    in_struct->hf_en = hf_en;
+    in_struct->n_elec = n_elec;
+    in_struct->hcore = new Matrix<double>(n_orb, n_orb);
+    
+    std::getline(in_file, file_line);
+    size_t orbsym_pos = file_line.find("ORBSYM=");
+    substr = file_line.substr(orbsym_pos + 7, keyword.length() - 1 - orbsym_pos - 7);
+    std::stringstream ss_line(substr);
+//    size_t n_read = 0;
+//    while (ss_line.good()) {
+//        std::getline(ss_line, substr, ',');
+//        if (substr.length() > 0) {
+//            in_struct->symm[n_read] = atoi(substr.c_str());
+//            n_read++;
+//        }
+//    }
+//    if (n_read != in_struct->n_orb_) {
+//        throw std::runtime_error("Number of irrep labels read in after ORBSYM in FCIDUMP file does not equal number of orbitals");
+//    }
+    path = hf_dir;
+    path.append("symm.txt");
+    read_csv(in_struct->symm, path);
+    
+    std::getline(in_file, file_line); // ISYM
+    std::getline(in_file, file_line); // &END
+    
+    while (in_file.good()) {
+        double integral;
+        in_file >> integral;
+        if (!in_file.good()) {
+            break;
+        }
+        uint16_t orbs[4];
+        in_file >> orbs[0];
+        in_file >> orbs[1];
+        in_file >> orbs[2];
+        in_file >> orbs[3];
+        
+        if (orbs[0] == 0 && orbs[1] == 0 && orbs[2] == 0 && orbs[3] == 0) { // ecore
+            in_struct->hf_en -= integral;
+//            break;
+        }
+        else if (orbs[1] == 0 && orbs[2] == 0 && orbs[3] == 0) { // orbital energy, ignoring for now
+            continue;
+        }
+        else if (orbs[2] == 0 && orbs[3] == 0) { // one-electron integral
+            (*in_struct->hcore)(orbs[1] - 1, orbs[0] - 1) = (*in_struct->hcore)(orbs[0] - 1, orbs[1] - 1) = integral;
+        }
+        else {
+            in_struct->eris.chemist_ordered(orbs[3] - 1, orbs[2] - 1, orbs[1] - 1, orbs[0] - 1) = integral;
+        }
+    }
+    return in_struct;
+}
+
 void parse_hh_input(const std::string &hh_path, hh_input *in_struct) {
     std::ifstream file_p(hh_path);
     if (!file_p.is_open()) {

@@ -51,6 +51,7 @@ struct hb_info {
  */
 hb_info *set_up(unsigned int tot_orb, unsigned int n_orb,
                 const FourDArr &eris);
+hb_info *set_up(uint32_t tot_orb, uint32_t n_orb, const SymmERIs &eris);
 
 
 /*! \brief Calculate the normalized probabilities for choosing the first

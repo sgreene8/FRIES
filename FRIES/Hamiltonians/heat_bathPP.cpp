@@ -10,9 +10,7 @@
 #include "heat_bathPP.hpp"
 #include <FRIES/det_store.h>
 #include <FRIES/Hamiltonians/molecule.hpp>
-
-#define TRI_N(n)((n) * (n + 1) / 2)
-#define I_J_TO_TRI(i, j)(TRI_N(j - 1) + i)
+#include <FRIES/math_utils.h>
 
 hb_info *set_up(unsigned int tot_orb, unsigned int n_orb,
                 const FourDArr &eris) {
@@ -55,10 +53,10 @@ hb_info *set_up(unsigned int tot_orb, unsigned int n_orb,
     hb_obj->s_norm = 0;
     for (i = 0; i < n_orb; i++) {
         for (j = 0; j < i; j++) {
-            s_tens[i] += d_same[I_J_TO_TRI(j, i)];
+            s_tens[i] += d_same[I_J_TO_TRI_NODIAG(j, i)];
         }
         for (j = i + 1; j < n_orb; j++) {
-            s_tens[i] += d_same[I_J_TO_TRI(i, j)];
+            s_tens[i] += d_same[I_J_TO_TRI_NODIAG(i, j)];
         }
         for (j = 0; j < n_orb; j++) {
             s_tens[i] += d_diff[i * n_orb + j];
@@ -86,11 +84,94 @@ hb_info *set_up(unsigned int tot_orb, unsigned int n_orb,
     double *exch_norms = (double *)calloc(n_orb, sizeof(double));
     for (i = 0; i < n_orb; i++) {
         for (j = 0; j < i; j++) {
-            exch_norms[i] += exch_mat[I_J_TO_TRI(j, i)];
+            exch_norms[i] += exch_mat[I_J_TO_TRI_NODIAG(j, i)];
         }
         exch_norms[i] += diag_part[i];
         for (j = i + 1; j < n_orb; j++) {
-            exch_norms[i] += exch_mat[I_J_TO_TRI(i, j)];
+            exch_norms[i] += exch_mat[I_J_TO_TRI_NODIAG(i, j)];
+        }
+    }
+    hb_obj->exch_norms = exch_norms;
+    return hb_obj;
+}
+
+
+hb_info *set_up(uint32_t tot_orb, uint32_t n_orb, const SymmERIs &eris) {
+    hb_info *hb_obj = (hb_info *)malloc(sizeof(hb_info));
+    hb_obj->n_orb = n_orb;
+    unsigned int half_frz = tot_orb - n_orb;
+    
+    double *d_diff = (double *)calloc(n_orb * n_orb, sizeof(double));
+    size_t i, j, a, b;
+    for (i = 0; i < n_orb; i++) {
+        for (j = 0; j < n_orb; j++) {
+            for (a = half_frz; a < tot_orb; a++) {
+                for (b = half_frz; b < tot_orb; b++) {
+                    if (i != (a - half_frz) && j != (b - half_frz)) {
+                        d_diff[i * n_orb + j] += fabs(eris.physicist(i + half_frz, j + half_frz, a, b)); // exchange terms are zero
+                    }
+                }
+            }
+        }
+    }
+    hb_obj->d_diff = d_diff;
+    
+    double *d_same = (double *)calloc(n_orb * (n_orb - 1) / 2, sizeof(double));
+    size_t tri_idx = 0;
+    for (j = 1; j < n_orb; j++) {
+        for (i = 0; i < j; i++) {
+            for (a = half_frz; a < tot_orb; a++) {
+                for (b = half_frz; b < a; b++) {
+                    if ((a - half_frz) != j && (a - half_frz) != i && (b - half_frz) != j && (b - half_frz) != i) {
+                        d_same[tri_idx] += 2 * fabs(eris.physicist(i + half_frz, j + half_frz, a, b) - eris.physicist(i + half_frz, j + half_frz, b, a));
+                    }
+                }
+            }
+            tri_idx++;
+        }
+    }
+    hb_obj->d_same = d_same;
+    
+    double *s_tens = (double *)calloc(n_orb, sizeof(double));
+    hb_obj->s_norm = 0;
+    for (i = 0; i < n_orb; i++) {
+        for (j = 0; j < i; j++) {
+            s_tens[i] += d_same[I_J_TO_TRI_NODIAG(j, i)];
+        }
+        for (j = i + 1; j < n_orb; j++) {
+            s_tens[i] += d_same[I_J_TO_TRI_NODIAG(i, j)];
+        }
+        for (j = 0; j < n_orb; j++) {
+            s_tens[i] += d_diff[i * n_orb + j];
+        }
+        hb_obj->s_norm += s_tens[i];
+    }
+    hb_obj->s_tens = s_tens;
+    
+    double *exch_mat = (double *)malloc(n_orb * (n_orb - 1) / 2 * sizeof(double));
+    tri_idx = 0;
+    for (j = 0; j < n_orb; j++) {
+        for (i = 0; i < j; i++) {
+            exch_mat[tri_idx] = sqrt(fabs(eris.physicist(i + half_frz, j + half_frz, j + half_frz, i + half_frz)));
+            tri_idx++;
+        }
+    }
+    hb_obj->exch_sqrt = exch_mat;
+    
+    double *diag_part = (double *)malloc(sizeof(double) * n_orb);
+    for (j = 0; j < n_orb; j++) {
+        diag_part[j] = sqrt(fabs(eris.physicist(j + half_frz, j + half_frz, j + half_frz, j + half_frz)));
+    }
+    hb_obj->diag_sqrt = diag_part;
+    
+    double *exch_norms = (double *)calloc(n_orb, sizeof(double));
+    for (i = 0; i < n_orb; i++) {
+        for (j = 0; j < i; j++) {
+            exch_norms[i] += exch_mat[I_J_TO_TRI_NODIAG(j, i)];
+        }
+        exch_norms[i] += diag_part[i];
+        for (j = i + 1; j < n_orb; j++) {
+            exch_norms[i] += exch_mat[I_J_TO_TRI_NODIAG(i, j)];
         }
     }
     hb_obj->exch_norms = exch_norms;
@@ -134,11 +215,11 @@ double calc_o2_probs(hb_info *tens, double *prob_arr, unsigned int n_elec,
     }
     offset = o1_spin * n_elec / 2;
     for (unsigned int orb_idx = offset; orb_idx < o1_idx; orb_idx++) {
-        prob_arr[orb_idx] = tens->d_same[I_J_TO_TRI(occ_orbs[orb_idx] % n_orb, o1_orb % n_orb)];
+        prob_arr[orb_idx] = tens->d_same[I_J_TO_TRI_NODIAG(occ_orbs[orb_idx] % n_orb, o1_orb % n_orb)];
         norm += prob_arr[orb_idx];
     }
     for (unsigned int orb_idx = o1_idx + 1; orb_idx < (n_elec / 2 + offset); orb_idx++) {
-        prob_arr[orb_idx] = tens->d_same[I_J_TO_TRI(o1_orb % n_orb, occ_orbs[orb_idx] % n_orb)];
+        prob_arr[orb_idx] = tens->d_same[I_J_TO_TRI_NODIAG(o1_orb % n_orb, occ_orbs[orb_idx] % n_orb)];
         norm += prob_arr[orb_idx];
     }
     prob_arr[o1_idx] = 0;
@@ -163,7 +244,7 @@ double calc_o2_probs_half(hb_info *tens, double *prob_arr, unsigned int n_elec,
     unsigned int upper_limit = n_elec / 2 > o1_idx ? o1_idx : n_elec / 2;
     for (unsigned int orb_idx = 0; orb_idx < upper_limit; orb_idx++) {
         if (o1_spin == 0) {
-            prob_arr[orb_idx] = tens->d_same[I_J_TO_TRI(occ_orbs[orb_idx], o1_orb)];
+            prob_arr[orb_idx] = tens->d_same[I_J_TO_TRI_NODIAG(occ_orbs[orb_idx], o1_orb)];
         }
         else {
             prob_arr[orb_idx] = diff_tab[(o1_orb - n_orb) * n_orb + occ_orbs[orb_idx]];
@@ -175,7 +256,7 @@ double calc_o2_probs_half(hb_info *tens, double *prob_arr, unsigned int n_elec,
             prob_arr[orb_idx] = diff_tab[o1_orb * n_orb + occ_orbs[orb_idx] - n_orb];
         }
         else {
-            prob_arr[orb_idx] = tens->d_same[I_J_TO_TRI(occ_orbs[orb_idx] - n_orb, o1_orb - n_orb)];
+            prob_arr[orb_idx] = tens->d_same[I_J_TO_TRI_NODIAG(occ_orbs[orb_idx] - n_orb, o1_orb - n_orb)];
         }
         norm += prob_arr[orb_idx];
     }
@@ -205,7 +286,7 @@ double calc_u1_probs(hb_info *tens, double *prob_arr, uint8_t o1_orb,
             curr_occ = occ_orbs[occ_idx];
         }
         else {
-            prob_arr[prob_idx] = tens->exch_sqrt[I_J_TO_TRI(orb_idx, o1_spinless)];
+            prob_arr[prob_idx] = tens->exch_sqrt[I_J_TO_TRI_NODIAG(orb_idx, o1_spinless)];
             norm += prob_arr[prob_idx];
             prob_idx++;
         }
@@ -220,7 +301,7 @@ double calc_u1_probs(hb_info *tens, double *prob_arr, uint8_t o1_orb,
             }
         }
         else {
-            prob_arr[prob_idx] = tens->exch_sqrt[I_J_TO_TRI(o1_spinless, orb_idx)];
+            prob_arr[prob_idx] = tens->exch_sqrt[I_J_TO_TRI_NODIAG(o1_spinless, orb_idx)];
             norm += prob_arr[prob_idx];
             prob_idx++;
         }
@@ -262,7 +343,7 @@ double calc_u2_probs(hb_info *tens, double *prob_arr, uint8_t o1_orb,
             else {
                 min_o2_u2 = (o2_spinless < u2_orb) ? o2_spinless : u2_orb;
                 max_o2_u2 = (o2_spinless > u2_orb) ? o2_spinless : u2_orb;
-                prob_arr[orb_idx] = tens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)];
+                prob_arr[orb_idx] = tens->exch_sqrt[I_J_TO_TRI_NODIAG(min_o2_u2, max_o2_u2)];
             }
             norm += prob_arr[orb_idx];
         }
@@ -311,7 +392,7 @@ double calc_u2_probs_half(hb_info *tens, double *prob_arr, uint8_t o1_orb,
             else {
                 min_o2_u2 = (o2_spinless < u2_orb) ? o2_spinless : u2_orb;
                 max_o2_u2 = (o2_spinless > u2_orb) ? o2_spinless : u2_orb;
-                prob_arr[orb_idx] = tens->exch_sqrt[I_J_TO_TRI(min_o2_u2, max_o2_u2)];
+                prob_arr[orb_idx] = tens->exch_sqrt[I_J_TO_TRI_NODIAG(min_o2_u2, max_o2_u2)];
             }
             norm += prob_arr[orb_idx];
         }
@@ -343,15 +424,15 @@ double calc_unnorm_wt(hb_info *tens, uint8_t *orbs) {
     int same_sp = (orbs[0] / n_orb) == (orbs[1] / n_orb);
     double weight;
     if (same_sp) {
-        uint32_t o1o2 = I_J_TO_TRI(o1, o2);
-        uint32_t o1u1 = I_J_TO_TRI(min_o1_u1, max_o1_u1);
-        uint32_t o2u2 = I_J_TO_TRI(min_o2_u2, max_o2_u2);
+        uint32_t o1o2 = I_J_TO_TRI_NODIAG(o1, o2);
+        uint32_t o1u1 = I_J_TO_TRI_NODIAG(min_o1_u1, max_o1_u1);
+        uint32_t o2u2 = I_J_TO_TRI_NODIAG(min_o2_u2, max_o2_u2);
         weight = tens->d_same[o1o2] * (tens->exch_sqrt[o1u1] * tens->exch_sqrt[o2u2]) / tens->s_norm / tens->exch_norms[o1] / tens->exch_norms[o2];
     }
     else {
         double *diff_tab = tens->d_diff;
-        uint32_t o1u1idx = I_J_TO_TRI(min_o1_u1, max_o1_u1);
-        uint32_t o2u2idx = I_J_TO_TRI(min_o2_u2, max_o2_u2);
+        uint32_t o1u1idx = I_J_TO_TRI_NODIAG(min_o1_u1, max_o1_u1);
+        uint32_t o2u2idx = I_J_TO_TRI_NODIAG(min_o2_u2, max_o2_u2);
         weight = (diff_tab[o2 * n_orb + o1]) * tens->exch_sqrt[o1u1idx] * tens->exch_sqrt[o2u2idx] / tens->s_norm / tens->exch_norms[o1] / tens->exch_norms[o2];
     }
     return weight;
@@ -395,10 +476,10 @@ double calc_norm_wt(hb_info *tens, uint8_t *orbs, uint8_t *occ,
     }
     offset = o1_spin * n_elec / 2;
     for (orb_idx = offset; occ_spatial[orb_idx] < o1; orb_idx++) {
-        d1_denom += tens->d_same[I_J_TO_TRI(occ_spatial[orb_idx], o1)];
+        d1_denom += tens->d_same[I_J_TO_TRI_NODIAG(occ_spatial[orb_idx], o1)];
     }
     for (orb_idx++; orb_idx < (n_elec / 2 + offset); orb_idx++) {
-        d1_denom += tens->d_same[I_J_TO_TRI(o1, occ_spatial[orb_idx])];
+        d1_denom += tens->d_same[I_J_TO_TRI_NODIAG(o1, occ_spatial[orb_idx])];
     }
     double d2_denom = 0;
     offset = (1 - o2_spin) * n_elec / 2;
@@ -407,22 +488,22 @@ double calc_norm_wt(hb_info *tens, uint8_t *orbs, uint8_t *occ,
     }
     offset = o2_spin * n_elec / 2;
     for (orb_idx = offset; occ_spatial[orb_idx] < o2; orb_idx++) {
-        d2_denom += tens->d_same[I_J_TO_TRI(occ_spatial[orb_idx], o2)];
+        d2_denom += tens->d_same[I_J_TO_TRI_NODIAG(occ_spatial[orb_idx], o2)];
     }
     for (orb_idx++; orb_idx < (n_elec / 2 + offset); orb_idx++) {
-        d2_denom += tens->d_same[I_J_TO_TRI(o2, occ_spatial[orb_idx])];
+        d2_denom += tens->d_same[I_J_TO_TRI_NODIAG(o2, occ_spatial[orb_idx])];
     }
     
     double e1_virt = 0;
     offset = o1_spin * n_orb;
     for (orb_idx = 0; orb_idx < o1; orb_idx++) {
         if (!read_bit(det, orb_idx + offset)) {
-            e1_virt += tens->exch_sqrt[I_J_TO_TRI(orb_idx, o1)];
+            e1_virt += tens->exch_sqrt[I_J_TO_TRI_NODIAG(orb_idx, o1)];
         }
     }
     for (orb_idx = o1 + 1; orb_idx < n_orb; orb_idx++) {
         if (!read_bit(det, orb_idx + offset)) {
-            e1_virt += tens->exch_sqrt[I_J_TO_TRI(o1, orb_idx)];
+            e1_virt += tens->exch_sqrt[I_J_TO_TRI_NODIAG(o1, orb_idx)];
         }
     }
     
@@ -430,12 +511,12 @@ double calc_norm_wt(hb_info *tens, uint8_t *orbs, uint8_t *occ,
     offset = o2_spin * n_orb;
     for (orb_idx = 0; orb_idx < o2; orb_idx++) {
         if (!read_bit(det, orb_idx + offset)) {
-            e2_virt += tens->exch_sqrt[I_J_TO_TRI(orb_idx, o2)];
+            e2_virt += tens->exch_sqrt[I_J_TO_TRI_NODIAG(orb_idx, o2)];
         }
     }
     for (orb_idx = o2 + 1; orb_idx < n_orb; orb_idx++) {
         if (!read_bit(det, orb_idx + offset)) {
-            e2_virt += tens->exch_sqrt[I_J_TO_TRI(o2, orb_idx)];
+            e2_virt += tens->exch_sqrt[I_J_TO_TRI_NODIAG(o2, orb_idx)];
         }
     }
     
@@ -456,7 +537,7 @@ double calc_norm_wt(hb_info *tens, uint8_t *orbs, uint8_t *occ,
             else {
                 min_orb = (o2 < symm_orb) ? o2 : symm_orb;
                 max_orb = (o2 > symm_orb) ? o2 : symm_orb;
-                e2_symm_no1 += tens->exch_sqrt[I_J_TO_TRI(min_orb, max_orb)];
+                e2_symm_no1 += tens->exch_sqrt[I_J_TO_TRI_NODIAG(min_orb, max_orb)];
             }
         }
         if ((same_sp && symm_orb != u1) || !same_sp) {
@@ -466,7 +547,7 @@ double calc_norm_wt(hb_info *tens, uint8_t *orbs, uint8_t *occ,
             else {
                 min_orb = (o1 < symm_orb) ? o1 : symm_orb;
                 max_orb = (o1 > symm_orb) ? o1 : symm_orb;
-                e1_symm_no1 += tens->exch_sqrt[I_J_TO_TRI(min_orb, max_orb)];
+                e1_symm_no1 += tens->exch_sqrt[I_J_TO_TRI_NODIAG(min_orb, max_orb)];
             }
         }
     }
@@ -480,7 +561,7 @@ double calc_norm_wt(hb_info *tens, uint8_t *orbs, uint8_t *occ,
             else {
                 min_orb = (o2 < symm_orb) ? o2 : symm_orb;
                 max_orb = (o2 > symm_orb) ? o2 : symm_orb;
-                e2_symm_no2 += tens->exch_sqrt[I_J_TO_TRI(min_orb, max_orb)];
+                e2_symm_no2 += tens->exch_sqrt[I_J_TO_TRI_NODIAG(min_orb, max_orb)];
             }
         }
         if ((same_sp && symm_orb != u2) || !same_sp) {
@@ -490,21 +571,21 @@ double calc_norm_wt(hb_info *tens, uint8_t *orbs, uint8_t *occ,
             else {
                 min_orb = (o1 < symm_orb) ? o1 : symm_orb;
                 max_orb = (o1 > symm_orb) ? o1 : symm_orb;
-                e1_symm_no2 += tens->exch_sqrt[I_J_TO_TRI(min_orb, max_orb)];
+                e1_symm_no2 += tens->exch_sqrt[I_J_TO_TRI_NODIAG(min_orb, max_orb)];
             }
         }
     }
     
-    unsigned int o1u1tri = I_J_TO_TRI(min_o1_u1, max_o1_u1);
-    unsigned int o2u2tri = I_J_TO_TRI(min_o2_u2, max_o2_u2);
+    unsigned int o1u1tri = I_J_TO_TRI_NODIAG(min_o1_u1, max_o1_u1);
+    unsigned int o2u2tri = I_J_TO_TRI_NODIAG(min_o2_u2, max_o2_u2);
     if (same_sp) {
         uint8_t min_o1_u2 = o1 < u2 ? o1 : u2;
         uint8_t max_o1_u2 = o1 > u2 ? o1 : u2;
         uint8_t min_o2_u1 = o2 < u1 ? o2 : u1;
         uint8_t max_o2_u1 = o2 > u1 ? o2 : u1;
-        unsigned int o1o2tri = I_J_TO_TRI(o1, o2);
-        unsigned int o1u2tri = I_J_TO_TRI(min_o1_u2, max_o1_u2);
-        unsigned int o2u1tri = I_J_TO_TRI(min_o2_u1, max_o2_u1);
+        unsigned int o1o2tri = I_J_TO_TRI_NODIAG(o1, o2);
+        unsigned int o1u2tri = I_J_TO_TRI_NODIAG(min_o1_u2, max_o1_u2);
+        unsigned int o2u1tri = I_J_TO_TRI_NODIAG(min_o2_u1, max_o2_u1);
         weight = tens->d_same[o1o2tri] / s_denom * (
         tens->s_tens[o1] / d1_denom / e1_virt * (tens->exch_sqrt[o1u1tri] * tens->exch_sqrt[o2u2tri] / e2_symm_no1 + tens->exch_sqrt[o1u2tri] * tens->exch_sqrt[o2u1tri] / e2_symm_no2) +
         tens->s_tens[o2] / d2_denom / e2_virt * (tens->exch_sqrt[o2u1tri] * tens->exch_sqrt[o1u2tri] / e1_symm_no1 + tens->exch_sqrt[o2u2tri] * tens->exch_sqrt[o1u1tri] / e1_symm_no2));

@@ -43,6 +43,9 @@ typedef enum {
 double doub_matr_el_nosgn(uint8_t *chosen_orbs, unsigned int n_orbs,
                           const FourDArr &eris, unsigned int n_frozen);
 
+double doub_matr_el_nosgn(uint8_t *chosen_orbs, unsigned int n_orbs,
+                          const SymmERIs &eris, unsigned int n_frozen);
+
 
 /*! \brief Calculate a single excitation matrix element
  *
@@ -64,6 +67,12 @@ double doub_matr_el_nosgn(uint8_t *chosen_orbs, unsigned int n_orbs,
  */
 double sing_matr_el_nosgn(uint8_t *chosen_orbs, uint8_t *occ_orbs,
                           unsigned int n_orbs, const FourDArr &eris,
+                          const Matrix<double> &h_core, unsigned int n_frozen,
+                          unsigned int n_elec);
+
+
+double sing_matr_el_nosgn(uint8_t *chosen_orbs, uint8_t *occ_orbs,
+                          unsigned int n_orbs, const SymmERIs &eris,
                           const Matrix<double> &h_core, unsigned int n_frozen,
                           unsigned int n_elec);
 
@@ -202,6 +211,9 @@ size_t count_doub_nosymm(unsigned int num_elec, unsigned int num_orb);
  */
 double diag_matrel(const uint8_t *occ_orbs, unsigned int n_orbs,
                    const FourDArr &eris, const Matrix<double> &h_core,
+                   unsigned int n_frozen, unsigned int n_elec);
+double diag_matrel(const uint8_t *occ_orbs, unsigned int n_orbs,
+                   const SymmERIs &eris, const Matrix<double> &h_core,
                    unsigned int n_frozen, unsigned int n_elec);
 
 
