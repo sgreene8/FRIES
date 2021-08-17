@@ -87,7 +87,6 @@ int main(int argc, char * argv[]) {
             eps = args.epsilon;
         }
         unsigned int n_elec = in_data->n_elec;
-//        unsigned int n_frz = in_data->n_frz;
         unsigned int n_frz = 0;
         unsigned int n_orb = in_data->n_orb_;
         double hf_en = in_data->hf_en;
@@ -98,7 +97,6 @@ int main(int argc, char * argv[]) {
         uint8_t *symm = in_data->symm;
         Matrix<double> *h_core = in_data->hcore;
         SymmERIs *eris = &(in_data->eris);
-//        FourDArr *eris = in_data.eris;
         
         // Rn generator
         auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
@@ -600,7 +598,6 @@ int main(int argc, char * argv[]) {
                 sol_vec.add_vecs(curr_idx, next_idx);
                 sol_vec.set_curr_vec_idx(next_idx);
                 sol_vec.zero_vec();
-                sol_vec.set_curr_vec_idx(curr_idx);
                 
                 ini_count = sum_mpi(ini_count, proc_rank, n_procs);
                 if (proc_rank == 0) {
