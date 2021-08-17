@@ -427,7 +427,7 @@ void piv_samp_serial(double *vec_vals, size_t vec_len, double seg_norm,
                 prob_idx++;
             }
         }
-        size_t vec_max_offset = vec_offset - 1;
+        size_t vec_max_offset = vec_offset > 0 ? vec_offset - 1 : 0;
         if (vec_offset + vec_idx == vec_len) {
             vec_max_offset++;
         }
