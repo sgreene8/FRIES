@@ -103,7 +103,7 @@ int main(int argc, char * argv[]) {
         std::cout << "seed on process " << proc_rank << " is " << seed << std::endl;
         std::mt19937 mt_obj((unsigned int)seed);
         
-        unsigned int spawn_length = matr_samp * 4 / n_procs;
+        unsigned int spawn_length = matr_samp * 8 / n_procs;
         size_t adder_size = spawn_length > 1000000 ? 1000000 : spawn_length;
         std::function<double(const uint8_t *)> diag_shortcut;
         int time_reversal = args.time_reversal;
