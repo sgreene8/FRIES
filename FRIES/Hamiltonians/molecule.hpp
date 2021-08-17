@@ -128,19 +128,25 @@ void one_elec_op(DistVec<double> &vec, unsigned int n_orbs, uint8_t des_op, uint
  * This method multiplies a sub-vector within the inputted DistVec object, as determined by its \p curr_vec_idx instance variable
  *
  * \param [in,out] vec      upon return, contains the vector obtained by multiplying by H
+ * \param [in] vec_size     If passed as an argument, only the first \p vec_size elements in \p vec will be considered
+ *                       in the multiplication by H
  * \param [in] symm         irrep of each of the orbitals in the HF basis
  * \param [in] n_orbs       Number of HF spatial orbitals (including frozen)
  *                          in the basis
  * \param [in] eris         4-D array of 2-electron integrals in spatial basis
  * \param [in] h_core       2-D array of 1-electron integrals in spatial basis
  * \param [in] orbs_scratch     Scratch array for storing the orbitals involved in the excitation
- *                      (row dimension must be at least max number of excitations from one determinant)
+ * \param [in] scratch_size     Size in bytes of the memory at orbs_scratch
  * \param [in] n_frozen     Number of core electrons frozen in the calculation
  * \param [in] n_elec       Number of unfrozen electrons in the system
  * \param [in] dest_idx     The index of the sub-vector in \p vec to store the result in
  * \param [in] h_fac        The constant factor used in the multiplication
  * \param [in] spin_parity      1 if targeting even-spin states with time-reveral symmetry, -1 for odd-spin states, 0 if time-reversal symmetry is not used
  */
+void h_op_offdiag(DistVec<double> &vec, size_t vec_size, uint8_t *symm, unsigned int n_orbs,
+                  const SymmERIs &eris, const Matrix<double> &h_core,
+                  uint8_t *orbs_scratch, size_t scratch_size, unsigned int n_frozen,
+                  unsigned int n_elec, uint8_t dest_idx, double h_fac, int spin_parity);
 void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
                   const FourDArr &eris, const Matrix<double> &h_core,
                   uint8_t *orbs_scratch, unsigned int n_frozen,
@@ -151,11 +157,7 @@ void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
                   unsigned int n_elec, uint8_t dest_idx, double h_fac);
 void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
                   const SymmERIs &eris, const Matrix<double> &h_core,
-                  uint8_t *orbs_scratch, unsigned int n_frozen,
-                  unsigned int n_elec, uint8_t dest_idx, double h_fac, int spin_parity);
-void h_op_offdiag(DistVec<double> &vec, size_t vec_size, uint8_t *symm, unsigned int n_orbs,
-                  const SymmERIs &eris, const Matrix<double> &h_core,
-                  uint8_t *orbs_scratch, unsigned int n_frozen,
+                  uint8_t *orbs_scratch, size_t scratch_size, unsigned int n_frozen,
                   unsigned int n_elec, uint8_t dest_idx, double h_fac, int spin_parity);
 
 

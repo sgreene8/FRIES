@@ -238,11 +238,23 @@ int main(int argc, char * argv[]) {
             std::copy(sol_vec(trial_idx, 0), sol_vec(trial_idx, trial_size), trial_vals[trial_idx]);
         }
         
+        size_t n_ex = n_elec_unf * n_elec_unf * (n_orb - n_elec_unf / 2) * (n_orb - n_elec_unf / 2);
+        uint8_t *scratch_orbs;
+        size_t scratch_size;
+        if (spawn_length < n_ex) {
+            scratch_orbs = (uint8_t *)malloc(sizeof(uint8_t) * n_ex * 4);
+            scratch_size = 4 * n_ex;
+        }
+        else {
+            scratch_orbs = (uint8_t *)comp_vecs.orb_indices1;
+            scratch_size = 4 * spawn_length;
+        }
+        
         for (uint8_t trial_idx = 0; trial_idx < n_trial; trial_idx++) {
             sol_vec.set_curr_vec_idx(trial_idx);
             h_op_diag(sol_vec, trial_idx + n_trial, 0, 1);
             sol_vec.set_curr_vec_idx(trial_idx);
-            h_op_offdiag(sol_vec, trial_size, symm, tot_orb, *eris, *h_core, (uint8_t *)comp_vecs.orb_indices1, n_frz, n_elec_unf, trial_idx + n_trial, 1, time_reversal);
+            h_op_offdiag(sol_vec, trial_size, symm, tot_orb, *eris, *h_core, scratch_orbs, scratch_size, n_frz, n_elec_unf, trial_idx + n_trial, 1, time_reversal);
         }
         size_t htrial_size = sol_vec.curr_size();
         Matrix<double> htrial_vals(n_trial, htrial_size);
@@ -258,9 +270,12 @@ int main(int argc, char * argv[]) {
         
         // Count # single/double excitations from HF
         sol_vec.gen_orb_list(hf_det, tmp_orbs);
-        size_t n_hf_doub = doub_ex_symm(hf_det, tmp_orbs, n_elec_unf, n_orb, comp_vecs.orb_indices1, symm);
+        size_t n_hf_doub = doub_ex_symm(hf_det, tmp_orbs, n_elec_unf, n_orb, (uint8_t (*)[4])scratch_orbs, symm);
         size_t n_hf_sing = count_singex(hf_det, tmp_orbs, n_elec_unf, &basis_symm);
         double p_doub = (double) n_hf_doub / (n_hf_sing + n_hf_doub);
+        if (spawn_length < n_ex) {
+            free(scratch_orbs);
+        }
         
         std::string file_path;
         std::ofstream bmat_file;

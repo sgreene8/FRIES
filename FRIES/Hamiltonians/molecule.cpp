@@ -440,14 +440,14 @@ void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
 
 void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
                   const SymmERIs &eris, const Matrix<double> &h_core,
-                  uint8_t *orbs_scratch, unsigned int n_frozen,
+                  uint8_t *orbs_scratch, size_t scratch_size, unsigned int n_frozen,
                   unsigned int n_elec, uint8_t dest_idx, double h_fac, int spin_parity) {
-    h_op_offdiag(vec, vec.curr_size(), symm, n_orbs, eris, h_core, orbs_scratch, n_frozen, n_elec, dest_idx, h_fac, spin_parity);
+    h_op_offdiag(vec, vec.curr_size(), symm, n_orbs, eris, h_core, orbs_scratch, scratch_size, n_frozen, n_elec, dest_idx, h_fac, spin_parity);
 }
 
 void h_op_offdiag(DistVec<double> &vec, size_t vec_size, uint8_t *symm, unsigned int n_orbs,
                   const SymmERIs &eris, const Matrix<double> &h_core,
-                  uint8_t *orbs_scratch, unsigned int n_frozen,
+                  uint8_t *orbs_scratch, size_t scratch_size, unsigned int n_frozen,
                   unsigned int n_elec, uint8_t dest_idx, double h_fac, int spin_parity) {
     int n_procs = 1;
     int proc_rank = 0;
@@ -578,6 +578,15 @@ void h_op_offdiag(DistVec<double> &vec, size_t vec_size, uint8_t *symm, unsigned
                 curr_det = vec.indices()[det_idx];
                 occ_orbs = vec.orbs_at_pos(det_idx);
                 n_sing = sing_ex_symm(curr_det, occ_orbs, n_elec, unf_orbs, sing_ex_orbs, symm);
+                if (n_sing == 0) {
+                    det_idx++;
+                    continue;
+                }
+                if (n_sing * 2 > scratch_size) {
+                    std::stringstream msg;
+                    msg << "The memory passed via the orbs_scratch argument is not enough for single excitations (" << scratch_size << " bytes provided, " << n_sing * 2 << " bytes needed)";
+                    throw std::runtime_error(msg.str());
+                }
                 ex_idx = 0;
                 det_idx++;
             }
@@ -625,6 +634,11 @@ void h_op_offdiag(DistVec<double> &vec, size_t vec_size, uint8_t *symm, unsigned
                 if (n_doub > n_ex) {
                     std::stringstream msg;
                     msg << "The number of symmetry-allowed double excitations from a determinant (" << n_doub << ") exceeds the maximum number of allowed double excitations";
+                    throw std::runtime_error(msg.str());
+                }
+                if (n_doub * 4 > scratch_size) {
+                    std::stringstream msg;
+                    msg << "The memory passed via the orbs_scratch argument is not enough for double excitations (" << scratch_size << " bytes provided, " << n_doub * 4 << " bytes needed)";
                     throw std::runtime_error(msg.str());
                 }
                 ex_idx = 0;

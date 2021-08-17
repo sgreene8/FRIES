@@ -237,6 +237,15 @@ TEST_CASE("Test determinant spin-flipping", "[flip_spins]") {
     str1[5] = 0;
     str1[6] = 0;
     REQUIRE(!memcmp(str1, str2, 7));
+    
+    str1[0] = 0b01011101;
+    str1[1] = 0b01110100;
+    str1[2] = 0b1;
+    flip_spins(str1, str2, 10);
+    str1[0] = 0b01011101;
+    str1[1] = 0b01110100;
+    str1[2] = 0b1;
+    REQUIRE(!memcmp(str1, str2, 3));
 }
 
 
