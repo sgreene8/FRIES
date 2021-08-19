@@ -580,6 +580,7 @@ TEST_CASE("Complete test of compression of un-normalized HB-PP factorization wit
     uint8_t flip_det[det_size];
     for (size_t samp_idx = 0; samp_idx < comp_len; samp_idx++) {
         std::copy(dets[0], dets[0] + det_size, new_det);
+        double norm_factor = sqrt(2); // origin determinant (HF) is same for all samples
         uint8_t *orbs = piv_vecs.orb_indices1[samp_idx];
         if (piv_vecs.orb_indices1[samp_idx][2] == 0 && piv_vecs.orb_indices1[samp_idx][3] == 0) { // single excitation
             sing_det_parity(new_det, orbs);
@@ -592,13 +593,9 @@ TEST_CASE("Complete test of compression of un-normalized HB-PP factorization wit
         int cmp = memcmp(flip_det, new_det, det_size);
         if (cmp == 0) {
             ref_det = new_det;
+            norm_factor /= sqrt(2);
         }
         else {
-            uint8_t diff_orbs[4];
-            uint8_t n_bits_diff = find_diff_bits(dets[0], flip_det, diff_orbs, det_size);
-            if (n_bits_diff == 2 || n_bits_diff == 4) {
-                piv_vecs.vec1[samp_idx] /= 2;
-            }
             if (cmp > 0) {
                 ref_det = flip_det;
             }
@@ -606,13 +603,13 @@ TEST_CASE("Complete test of compression of un-normalized HB-PP factorization wit
                 ref_det = new_det;
             }
         }
-        sol_vec.add(ref_det, piv_vecs.vec1[samp_idx], 1);
+        sol_vec.add(ref_det, piv_vecs.vec1[samp_idx] / norm_factor, 1);
     }
     sol_vec.perform_add(0);
     
-//    for (size_t val_idx = 0; val_idx < sol_vec.curr_size(); val_idx++) {
-//        REQUIRE(fabs(sol_vec.values()[val_idx]) == Approx(1).margin(1e-7));
-//    }
+    for (size_t val_idx = 0; val_idx < sol_vec.curr_size(); val_idx++) {
+        REQUIRE(fabs(sol_vec.values()[val_idx]) == Approx(1).margin(1e-7));
+    }
 }
 
 TEST_CASE("Test evaluation of parity of excitations", "[ex_parity]") {
@@ -640,4 +637,71 @@ TEST_CASE("Test evaluation of parity of excitations", "[ex_parity]") {
     occ_orbs[2] = 25;
     occ_orbs[3] = 26;
     REQUIRE(excite_sign_occ(3, 22, occ_orbs, n_elec) == -1);
+}
+
+TEST_CASE("Test conversion of symmetry labels from MOLPRO to PySCF format", "[symm_conversion]") {
+    uint8_t irreps[] = {1, 4, 6, 7, 8, 5, 3, 2};
+    convert_symm(irreps, 8, "D2h");
+    for (size_t idx = 0; idx < 8; idx++) {
+        REQUIRE(irreps[idx] == idx);
+    }
+    
+    irreps[0] = 1;
+    irreps[1] = 4;
+    irreps[2] = 2;
+    irreps[3] = 3;
+    convert_symm(irreps, 4, "c2v");
+    for (size_t idx = 0; idx < 4; idx++) {
+        REQUIRE(irreps[idx] == idx);
+    }
+    
+    irreps[0] = 1;
+    irreps[1] = 4;
+    irreps[2] = 2;
+    irreps[3] = 3;
+    convert_symm(irreps, 4, "C2h");
+    for (size_t idx = 0; idx < 4; idx++) {
+        REQUIRE(irreps[idx] == idx);
+    }
+    
+    irreps[0] = 1;
+    irreps[1] = 4;
+    irreps[2] = 3;
+    irreps[3] = 2;
+    convert_symm(irreps, 4, "D2");
+    for (size_t idx = 0; idx < 4; idx++) {
+        REQUIRE(irreps[idx] == idx);
+    }
+    
+    for (size_t idx = 0; idx < 2; idx++) {
+        irreps[idx] = idx + 1;
+    }
+    convert_symm(irreps, 2, "Cs");
+    for (size_t idx = 0; idx < 2; idx++) {
+        REQUIRE(irreps[idx] == idx);
+    }
+    
+    for (size_t idx = 0; idx < 2; idx++) {
+        irreps[idx] = idx + 1;
+    }
+    convert_symm(irreps, 2, "C2");
+    for (size_t idx = 0; idx < 2; idx++) {
+        REQUIRE(irreps[idx] == idx);
+    }
+    
+    for (size_t idx = 0; idx < 2; idx++) {
+        irreps[idx] = idx + 1;
+    }
+    convert_symm(irreps, 2, "Ci");
+    for (size_t idx = 0; idx < 2; idx++) {
+        REQUIRE(irreps[idx] == idx);
+    }
+    
+    for (size_t idx = 0; idx < 8; idx++) {
+        irreps[idx] = 1;
+    }
+    convert_symm(irreps, 8, "C1");
+    for (size_t idx = 0; idx < 8; idx++) {
+        REQUIRE(irreps[idx] == 0);
+    }
 }
