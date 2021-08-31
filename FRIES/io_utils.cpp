@@ -481,80 +481,80 @@ size_t load_vec_txt(const std::string &prefix, Matrix<uint8_t> &dets, double *va
 size_t load_vec_dice(const std::string &path, Matrix<uint8_t> &dets, double *vals,
                      uint8_t state, uint32_t n_orb) {
     int my_rank = 0;
+    int n_procs = 1;
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-    if (my_rank == 0) {
-        std::ifstream dice_file(path);
-        if (!dice_file.is_open()) {
-            std::string msg("Could not open file: ");
-            msg.append(path);
-            throw std::runtime_error(msg);
-        }
-        std::string file_line;
-        std::string state_str("State :");
-        uint8_t states_found = 0;
-        while (!dice_file.eof() && states_found < state + 1) {
-            std::getline(dice_file, file_line);
-            if (std::equal(state_str.begin(), state_str.end(), file_line.begin())) {
-                states_found++;
-            }
-        }
-        if (states_found != (state + 1)) {
-            return 0;
-        }
-        size_t idx = 0;
-        while (!dice_file.eof()) {
-            std::getline(dice_file, file_line);
-            if (std::equal(state_str.begin(), state_str.end(), file_line.begin())) {
-                break;
-            }
-            else {
-                std::stringstream ss_line(file_line);
-                size_t line_idx;
-                ss_line >> line_idx;
-                if (!ss_line.good()) {
-                    break;
-                }
-                if (line_idx != idx) {
-                    std::stringstream msg;
-                    msg << "Misaligned indices when reading Dice file: read " << line_idx << ", expected " << idx << '\n';
-                    throw std::runtime_error(msg.str());
-                }
-                uint8_t *curr_det = dets[idx];
-                std::fill(curr_det, curr_det + dets.cols(), 0);
-                ss_line >> vals[idx];
-                if (fabs(vals[idx]) < 1e-6) {
-                    break;
-                }
-                size_t curr_pos = ss_line.tellg();
-                std::string line_str = ss_line.str();
-                size_t line_len = line_str.length();
-                const char *c_line = line_str.c_str();
-                uint8_t orb_idx = 0;
-                curr_pos++;
-                while (curr_pos < line_len) {
-                    switch (c_line[curr_pos]) {
-                        case '2':
-                            set_bit(curr_det, orb_idx + n_orb);
-                        case 'a':
-                            set_bit(curr_det, orb_idx);
-                        case '0':
-                            orb_idx++;
-                            break;
-                        case 'b':
-                            set_bit(curr_det, orb_idx + n_orb);
-                            orb_idx++;
-                            break;
-                    }
-                    curr_pos++;
-                }
-                idx++;
-            }
-        }
-        return idx;
+    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+    
+    std::ifstream dice_file(path);
+    if (!dice_file.is_open()) {
+        std::string msg("Could not open file: ");
+        msg.append(path);
+        throw std::runtime_error(msg);
     }
-    else {
+    std::string file_line;
+    std::string state_str("State :");
+    uint8_t states_found = 0;
+    while (!dice_file.eof() && states_found < state + 1) {
+        std::getline(dice_file, file_line);
+        if (std::equal(state_str.begin(), state_str.end(), file_line.begin())) {
+            states_found++;
+        }
+    }
+    if (states_found != (state + 1)) {
         return 0;
     }
+    size_t dice_idx = 0;
+    size_t local_idx = 0;
+    while (!dice_file.eof()) {
+        std::getline(dice_file, file_line);
+        if (std::equal(state_str.begin(), state_str.end(), file_line.begin())) {
+            break;
+        }
+        else if (dice_idx % n_procs == my_rank) {
+            std::stringstream ss_line(file_line);
+            size_t line_idx;
+            ss_line >> line_idx;
+            if (!ss_line.good()) {
+                break;
+            }
+            if (line_idx != dice_idx) {
+                std::stringstream msg;
+                msg << "Misaligned indices when reading Dice file: read " << line_idx << ", expected " << dice_idx << '\n';
+                throw std::runtime_error(msg.str());
+            }
+            uint8_t *curr_det = dets[local_idx];
+            std::fill(curr_det, curr_det + dets.cols(), 0);
+            ss_line >> vals[local_idx];
+            if (fabs(vals[local_idx]) < 1e-6) {
+                break;
+            }
+            size_t curr_pos = ss_line.tellg();
+            std::string line_str = ss_line.str();
+            size_t line_len = line_str.length();
+            const char *c_line = line_str.c_str();
+            uint8_t orb_idx = 0;
+            curr_pos++;
+            while (curr_pos < line_len) {
+                switch (c_line[curr_pos]) {
+                    case '2':
+                        set_bit(curr_det, orb_idx + n_orb);
+                    case 'a':
+                        set_bit(curr_det, orb_idx);
+                    case '0':
+                        orb_idx++;
+                        break;
+                    case 'b':
+                        set_bit(curr_det, orb_idx + n_orb);
+                        orb_idx++;
+                        break;
+                }
+                curr_pos++;
+            }
+            local_idx++;
+        }
+        dice_idx++;
+    }
+    return local_idx;
 }
 
 
