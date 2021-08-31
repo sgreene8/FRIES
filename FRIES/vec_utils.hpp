@@ -73,7 +73,7 @@ public:
      *
      * \param [in] parent_vec   Pointer to the DistVec object associated with this dot product operation
      */
-    double perform_dot(DistVec<el_type> *parent_vec);
+    void perform_dot(DistVec<el_type> *parent_vec, Matrix<el_type> &results);
     
     /*! \brief Add an element to the internal buffers
      * \param [in] idx      Index of the element to be added
@@ -83,6 +83,7 @@ public:
      * \return The index of the added element in the buffer
      */
     size_t add(uint8_t *idx, uint8_t idx_bits, el_type val, int proc_idx, uint8_t ini_flag);
+    size_t add(uint8_t *idx, uint8_t idx_bits, el_type *vals, size_t n_vals, int proc_idx, uint8_t ini_flag);
     
     size_t size() const {
         return send_vals_.cols();
@@ -275,6 +276,28 @@ public:
         return numer;
     }
     
+    void dot(uint8_t *idx2, double *vals2, size_t num2, Matrix<double> &results) {
+        size_t n_vals = results.rows();
+        size_t n_vecs = results.cols();
+        uint8_t tmp_occ[occ_orbs_.cols()];
+        uint8_t add_n_bytes = CEILING(n_bits_ + 1, 8);
+        if (curr_vec_idx_ + n_vals > values_.rows()) {
+            throw std::runtime_error("Check curr_vec_idx_ before calculating dot product");
+        }
+        for (size_t hf_idx = 0; hf_idx < num2; hf_idx++) {
+            uint8_t *idx_ptr = &idx2[hf_idx * add_n_bytes];
+            uintmax_t hash_val = idx_to_hash(idx_ptr, tmp_occ);
+            ssize_t * ht_ptr = vec_hash_.read(idx_ptr, hash_val, false);
+            if (ht_ptr) {
+                for (size_t vec_idx = 0; vec_idx < n_vecs; vec_idx++) {
+                    for (size_t dot_idx = 0; dot_idx < n_vals; dot_idx++) {
+                        results(dot_idx, vec_idx) += vals2[hf_idx * n_vals + dot_idx] * values_(curr_vec_idx_ + vec_idx, *ht_ptr);
+                    }
+                }
+            }
+        }
+    }
+    
     /*! \brief Calculate dot product across all MPI processes
      *
      * Unlike the \p dot function above, this function calculates the overlap between vector elements on all MPI process and those in the inputted vectors
@@ -309,6 +332,10 @@ public:
             tot_dprod += adder_->perform_dot(this);
         }
         return tot_dprod;
+    }
+    
+    void perform_dot(Matrix<double> &results) {
+        return adder_->perform_dot(this, results);
     }
     
     
@@ -415,6 +442,10 @@ public:
         if (val != 0) {
             adder_->add(idx, n_bits_, val, idx_to_proc(idx), ini_flag);
         }
+    }
+    
+    void add(uint8_t *idx, el_type *vals, size_t n_vals, uint8_t ini_flag) {
+        adder_->add(idx, n_bits_, vals, n_vals, idx_to_proc(idx), ini_flag);
     }
     
     size_t add(uint8_t *idx, uint8_t *orbs, el_type val, uint8_t ini_flag) {
@@ -930,6 +961,24 @@ size_t Adder<el_type>::add(uint8_t *idx, uint8_t idx_bits, el_type val, int proc
 }
 
 template <class el_type>
+size_t Adder<el_type>::add(uint8_t *idx, uint8_t idx_bits, el_type *vals, size_t n_vals, int proc_idx, uint8_t ini_flag) {
+    int *count = &send_cts_[proc_idx];
+    if (*count * n_vals >= send_vals_.cols()) {
+        throw std::runtime_error("Too many elements added to Adder in the process of taking a dot product - must call perform_dot() more frequently.");
+    }
+    uint8_t *cpy_idx = &send_idx_[proc_idx][*count * n_bytes_];
+    cpy_idx[n_bytes_ - 1] = 0; // To prevent buffer overflow in hash function after elements are added
+    std::copy(idx, idx + CEILING(idx_bits, 8), cpy_idx);
+    if (ini_flag) {
+        set_bit(cpy_idx, idx_bits);
+    }
+    std::copy(vals, vals + n_vals, &send_vals_(proc_idx, *count * n_vals));
+    size_t ret_val = *count;
+    (*count)++;
+    return ret_val;
+}
+
+template <class el_type>
 void Adder<el_type>::perform_add(DistVec<el_type> *parent_vec, size_t origin) {
     int n_procs = 1;
     
@@ -962,7 +1011,7 @@ void Adder<el_type>::perform_add(DistVec<el_type> *parent_vec, size_t origin) {
 
 
 template <class el_type>
-double Adder<el_type>::perform_dot(DistVec<el_type> *parent_vec) {
+void Adder<el_type>::perform_dot(DistVec<el_type> *parent_vec, Matrix<el_type> &results) {
     int n_procs = 1;
     int my_rank = 0;
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
@@ -977,14 +1026,16 @@ double Adder<el_type>::perform_dot(DistVec<el_type> *parent_vec) {
     }
     
     MPI_Alltoallv(send_idx_.data(), send_idx_cts, idx_disp_.data(), MPI_UINT8_T, recv_idx_.data(), recv_idx_cts, idx_disp_.data(), MPI_UINT8_T, MPI_COMM_WORLD);
-    mpi_atoav(send_vals_.data(), send_cts_.data(), val_disp_.data(), recv_vals_.data(), recv_cts_.data(), MPI_COMM_WORLD);
-    double d_prod = 0;
+    size_t n_vals = results.rows();
+    for (size_t proc_idx = 0; proc_idx < n_procs; proc_idx++) {
+        send_cts_[proc_idx] *= n_vals;
+        recv_cts_[proc_idx] *= n_vals;
+    }
+    mpi_atoav(send_vals_.data(), send_cts_.data(), val_disp_.data(), recv_vals_.data(), recv_cts_.data());
     for (int proc_idx = 0; proc_idx < n_procs; proc_idx++) {
-        d_prod += parent_vec->dot(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx]);
+        parent_vec->dot(recv_idx_[proc_idx], recv_vals_[proc_idx], recv_cts_[proc_idx] / n_vals, results);
         send_cts_[proc_idx] = 0;
     }
-    d_prod = sum_mpi(d_prod, my_rank, n_procs);
-    return d_prod;
 }
 
 

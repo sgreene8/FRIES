@@ -30,6 +30,11 @@ target_link_libraries(subsp_mol PRIVATE fries)
 target_link_libraries(subsp_mol PRIVATE cnpy)
 target_link_libraries(subsp_mol PRIVATE my_lapack)
 
+add_executable(subsp_mol_lowmem subsp_mol_lowmem.cpp)
+target_link_libraries(subsp_mol_lowmem PRIVATE fries)
+target_link_libraries(subsp_mol_lowmem PRIVATE cnpy)
+target_link_libraries(subsp_mol_lowmem PRIVATE my_lapack)
+
 add_executable(dice_dots dice_dots.cpp)
 target_link_libraries(dice_dots PRIVATE fries)
 

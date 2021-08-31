@@ -173,6 +173,13 @@ void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
 void h_op_diag(DistVec<double> &vec, uint8_t dest_idx, double id_fac, double h_fac);
 
 
+void calc_h_dot(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
+                const SymmERIs &eris, const Matrix<double> &h_core,
+                uint8_t *orbs_scratch, size_t scratch_size, unsigned int n_frozen,
+                unsigned int n_elec, int spin_parity, Matrix<double> &dot_vals,
+                Matrix<double> &results);
+
+
 /*! \brief Calculate the HF column of the FCI Hamiltonian
  *
  * \param [in] hf_det       Bit-string representation of the HF determinant
