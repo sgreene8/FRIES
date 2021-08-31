@@ -186,60 +186,61 @@ void parse_hf_input(const std::string &hf_dir, hf_input *in_struct) {
     }
 }
 
-fcidump_input *parse_fcidump(const std::string &hf_dir) {
-    std::string path(hf_dir);
-    path.append("sys_params.txt");
-    std::ifstream in_file(path);
-    if (!in_file.is_open()) {
-        throw std::runtime_error("Could not open file sys_params.txt");
+void convert_symm(uint8_t *irreps, size_t n_irreps, const std::string &point_group) {
+    if (point_group == "D2h" || point_group == "d2h") {
+        uint8_t map[] = {0, 7, 6, 1, 5, 2, 3, 4};
+        for (size_t irrep_idx = 0; irrep_idx < n_irreps; irrep_idx++) {
+            if (irreps[irrep_idx] > 8) {
+                std::stringstream msg;
+                msg << "irrep index " << (uint32_t) irreps[irrep_idx] << " read from the FCIDUMP file exceeds the maximum allowed irrep index (8) for point group D2h";
+                throw std::runtime_error(msg.str());
+            }
+            irreps[irrep_idx] = map[irreps[irrep_idx] - 1];
+        }
     }
-    
-    std::string keyword;
-    std::getline(in_file, keyword); // skipping n_elec
-    
-    unsigned int n_frz;
-    std::getline(in_file, keyword);
-    std::getline(in_file, keyword);
-    bool success = keyword == "n_frozen";
-    if (success) {
-        in_file >> n_frz;
-        if (n_frz != 0) {
-            throw std::runtime_error("n_frozen parameter is nonzero. Please set n_frozen to 0 and modify FCIDUMP file accordingly.");
+    else if (point_group == "C2v" || point_group == "c2v" || point_group == "c2h" || point_group == "C2h") {
+        uint8_t map[] = {0, 2, 3, 1};
+        for (size_t irrep_idx = 0; irrep_idx < n_irreps; irrep_idx++) {
+            if (irreps[irrep_idx] > 4) {
+                std::stringstream msg;
+                msg << "irrep index " << (uint32_t) irreps[irrep_idx] << " read from the FCIDUMP file exceeds the maximum allowed irrep index (4) for point group " << point_group;
+                throw std::runtime_error(msg.str());
+            }
+            irreps[irrep_idx] = map[irreps[irrep_idx] - 1];
+        }
+    }
+    else if (point_group == "D2" || point_group == "d2") {
+        uint8_t map[] = {0, 3, 2, 1};
+        for (size_t irrep_idx = 0; irrep_idx < n_irreps; irrep_idx++) {
+            if (irreps[irrep_idx] > 4) {
+                std::stringstream msg;
+                msg << "irrep index " << (uint32_t) irreps[irrep_idx] << " read from the FCIDUMP file exceeds the maximum allowed irrep index (4) for point group " << point_group;
+                throw std::runtime_error(msg.str());
+            }
+            irreps[irrep_idx] = map[irreps[irrep_idx] - 1];
+        }
+    }
+    else if (point_group == "Cs" || point_group == "cs" || point_group == "C2" || point_group == "c2" || point_group == "ci" || point_group == "Ci" || point_group == "C1" || point_group == "c1") {
+        for (size_t irrep_idx = 0; irrep_idx < n_irreps; irrep_idx++) {
+            if (irreps[irrep_idx] > 2) {
+                std::stringstream msg;
+                msg << "irrep index " << (uint32_t) irreps[irrep_idx] << " read from the FCIDUMP file exceeds the maximum allowed irrep index (" << ((point_group == "C1" || point_group == "c1") ? 1 : 2) << ") for point group " << point_group;
+                throw std::runtime_error(msg.str());
+            }
+            irreps[irrep_idx] -= 1;
         }
     }
     
-    std::getline(in_file, keyword);
-    std::getline(in_file, keyword); // skipping n_orb
-    
-    std::getline(in_file, keyword);
-    std::getline(in_file, keyword);
-    success = keyword == "eps";
-    double eps;
-    if (success) {
-        in_file >> eps;
-    }
     else {
-        throw std::runtime_error("Fould not find eps parameter in sys_params.txt");
+        std::stringstream msg;
+        msg << "Point group " << point_group << " not recognized";
+        throw std::runtime_error(msg.str());
     }
-    
-    std::getline(in_file, keyword);
-    std::getline(in_file, keyword);
-    success = keyword == "hf_energy";
-    double hf_en;
-    if (success) {
-        in_file >> hf_en;
-    }
-    else {
-        throw std::runtime_error("Fould not find hf_energy parameter in sys_params.txt");
-    }
-    
-    in_file.close();
-    
+}
+
+fcidump_input *parse_fcidump(const std::string &fcidump_path, const std::string &point_group) {
     std::string file_line;
-    
-    path = hf_dir;
-    path.append("FCIDUMP");
-    in_file.open(path);
+    std::ifstream in_file(fcidump_path);
     std::getline(in_file, file_line);
     size_t n_orb_pos = file_line.find("NORB=");
     size_t n_elec_pos = file_line.find(",NELEC=");
@@ -257,29 +258,25 @@ fcidump_input *parse_fcidump(const std::string &hf_dir) {
     }
     
     fcidump_input *in_struct = new fcidump_input(n_orb);
-    in_struct->eps = eps;
-    in_struct->hf_en = hf_en;
     in_struct->n_elec = n_elec;
     in_struct->hcore = new Matrix<double>(n_orb, n_orb);
     
     std::getline(in_file, file_line);
     size_t orbsym_pos = file_line.find("ORBSYM=");
-    substr = file_line.substr(orbsym_pos + 7, keyword.length() - 1 - orbsym_pos - 7);
+    substr = file_line.substr(orbsym_pos + 7, std::string::npos);
     std::stringstream ss_line(substr);
-//    size_t n_read = 0;
-//    while (ss_line.good()) {
-//        std::getline(ss_line, substr, ',');
-//        if (substr.length() > 0) {
-//            in_struct->symm[n_read] = atoi(substr.c_str());
-//            n_read++;
-//        }
-//    }
-//    if (n_read != in_struct->n_orb_) {
-//        throw std::runtime_error("Number of irrep labels read in after ORBSYM in FCIDUMP file does not equal number of orbitals");
-//    }
-    path = hf_dir;
-    path.append("symm.txt");
-    read_csv(in_struct->symm, path);
+    size_t n_read = 0;
+    while (ss_line.good()) {
+        std::getline(ss_line, substr, ',');
+        if (substr.length() > 0) {
+            in_struct->symm[n_read] = atoi(substr.c_str());
+            n_read++;
+        }
+    }
+    if (n_read != in_struct->n_orb_) {
+        throw std::runtime_error("Number of irrep labels read in after ORBSYM in FCIDUMP file does not equal number of orbitals");
+    }
+    convert_symm(in_struct->symm, n_read, point_group);
     
     std::getline(in_file, file_line); // ISYM
     std::getline(in_file, file_line); // &END
@@ -297,8 +294,7 @@ fcidump_input *parse_fcidump(const std::string &hf_dir) {
         in_file >> orbs[3];
         
         if (orbs[0] == 0 && orbs[1] == 0 && orbs[2] == 0 && orbs[3] == 0) { // ecore
-            in_struct->hf_en -= integral;
-//            break;
+            in_struct->core_en = integral;
         }
         else if (orbs[1] == 0 && orbs[2] == 0 && orbs[3] == 0) { // orbital energy, ignoring for now
             continue;

@@ -18,7 +18,7 @@
 #include <iomanip>
 
 struct MyArgs : public argparse::Args {
-    std::string &hf_path = kwarg("hf_path", "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt");
+    std::string &fcidump_path = kwarg("fcidump_path", "Path to FCIDUMP file that contains the integrals defining the Hamiltonian.");
     uint32_t &max_iter = kwarg("max_iter", "Maximum number of iterations to run the calculation").set_default(1000000);
     uint32_t &target_nonz = kwarg("vec_nonz", "Target number of nonzero vector elements to keep after each iteration");
     std::string &result_dir = kwarg("result_dir", "Directory in which to save output files").set_default<std::string>("./");
@@ -30,7 +30,9 @@ struct MyArgs : public argparse::Args {
     double &init_thresh = kwarg("initiator", "Magnitude of vector element required to make it an initiator").set_default(0);
     std::shared_ptr<std::string> &load_dir = kwarg("load_dir", "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())");
     int &time_reversal = kwarg("time_reversal", "0 if time-reversal symmetry is not to be used, 1 for time-reversal symmetry with an even-spin state, -1 for time-reversal symmetry with an odd-spin state").set_default(0);
-    double &epsilon = kwarg("epsilon", "The imaginary time step (\eps) to use when evolving the vectors. Overrides the parameter listed in sys_params.txt").set_default(0);
+    double &epsilon = kwarg("epsilon", "The imaginary time step (\eps) to use when evolving the vectors.");
+    std::string &point_group = kwarg("point_group", "Specifies the point-group symmetry to assume when reading irrep labels from the FCIDUMP file.").set_default<std::string>("C1");
+    std::shared_ptr<double> &ham_shift = kwarg("ham_shift", "The energy by which the diagonal elements of the Hamiltonian are shifted");
 };
 
 int main(int argc, char * argv[]) {
@@ -81,15 +83,12 @@ int main(int argc, char * argv[]) {
         }
         
         // Read in data files
-        fcidump_input *in_data = parse_fcidump(args.hf_path);
-        double eps = in_data->eps;
-        if (args.epsilon > 0) {
-            eps = args.epsilon;
-        }
+        fcidump_input *in_data = parse_fcidump(args.fcidump_path, args.point_group);
+        double eps = args.epsilon;
         unsigned int n_elec = in_data->n_elec;
         unsigned int n_frz = 0;
         unsigned int n_orb = in_data->n_orb_;
-        double hf_en = in_data->hf_en;
+        size_t det_size = CEILING(2 * n_orb, 8);
         
         unsigned int n_elec_unf = n_elec - n_frz;
         unsigned int tot_orb = n_orb + n_frz / 2;
@@ -97,6 +96,19 @@ int main(int argc, char * argv[]) {
         uint8_t *symm = in_data->symm;
         Matrix<double> *h_core = in_data->hcore;
         SymmERIs *eris = &(in_data->eris);
+        
+        uint8_t tmp_orbs[n_elec_unf];
+        uint8_t hf_det[det_size];
+        gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
+        find_bits(hf_det, tmp_orbs, det_size);
+        double hf_en;
+        if (args.ham_shift != nullptr) {
+            hf_en = *args.ham_shift;
+            hf_en -= in_data->core_en;
+        }
+        else {
+            hf_en = diag_matrel(tmp_orbs, tot_orb, *eris, *h_core, n_frz, n_elec);
+        }
         
         // Rn generator
         auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
@@ -144,7 +156,6 @@ int main(int argc, char * argv[]) {
         std::function<double(uint8_t *)> doub_shortcut = [tot_orb, eris, n_frz](uint8_t *ex_orbs) {
             return doub_matr_el_nosgn(ex_orbs, tot_orb, *eris, n_frz);
         };
-        size_t det_size = CEILING(2 * n_orb, 8);
         
         SymmInfo basis_symm(in_data->symm, n_orb);
         
@@ -173,12 +184,6 @@ int main(int argc, char * argv[]) {
         
         size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2) ? n_elec_unf : n_orb - n_elec_unf / 2;
         HBCompressPiv comp_vecs(spawn_length, n_states);
-        
-        uint8_t hf_det[det_size];
-        gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
-        hf_proc = sol_vec.idx_to_proc(hf_det);
-        
-        uint8_t tmp_orbs[n_elec_unf];
         
         std::string dice_ext(".dice");
         bool dice_input = std::equal(args.trial_path.end() - 5, args.trial_path.end(), dice_ext.begin());
@@ -267,7 +272,7 @@ int main(int argc, char * argv[]) {
         sol_vec.fix_min_del_idx();
         
         // Count # single/double excitations from HF
-        sol_vec.gen_orb_list(hf_det, tmp_orbs);
+        hf_proc = sol_vec.idx_to_proc(hf_det);
         size_t n_hf_doub = doub_ex_symm(hf_det, tmp_orbs, n_elec_unf, n_orb, (uint8_t (*)[4])scratch_orbs, symm);
         size_t n_hf_sing = count_singex(hf_det, tmp_orbs, n_elec_unf, &basis_symm);
         double p_doub = (double) n_hf_doub / (n_hf_sing + n_hf_doub);
@@ -320,7 +325,7 @@ int main(int argc, char * argv[]) {
                 msg.append(args.result_dir);
                 throw std::runtime_error(msg);
             }
-            param_f << "Subspace iteration\nHF path: " << args.hf_path << "\nepsilon (imaginary time step): " << eps << "\nVector nonzero: " << args.target_nonz << "\nInitiator threshold: " << args.init_thresh << "\n";
+            param_f << "Subspace iteration\nFCIDUMP path: " << args.fcidump_path << "\nepsilon (imaginary time step): " << eps << "\nVector nonzero: " << args.target_nonz << "\nInitiator threshold: " << args.init_thresh << "\n";
             param_f << "Path for trial vectors: " << args.trial_path << "\n";
             param_f << "Restart interval: " << args.restart_int << "\n";
             if (args.load_dir != nullptr) {

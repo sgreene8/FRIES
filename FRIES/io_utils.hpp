@@ -56,8 +56,7 @@ struct hh_input {
 struct fcidump_input {
     uint32_t n_elec; ///< Total number of electrons in the system
     uint32_t n_orb_; ///< Number of spatial orbitals in the HF basis
-    double hf_en; ///< HF electronic energy
-    double eps; ///< Suggested imaginary time step to use
+    double core_en; ///< Core energy to add to diagonal elements of H
     uint8_t *symm; ///< Irreps of orbitals in the HF basis
     Matrix<double> *hcore; ///< 1-electron integrals
     SymmERIs eris; ///< 2-electron integrals
@@ -72,7 +71,7 @@ struct fcidump_input {
 };
 
 
-/*! \brief Read in parameters from a Hartree-Fock calculation:
+/*! \brief Read in parameters defining the FCI Hamiltonian:
  * total number of electrons
  * number of (unfrozen) orbitals
  * number of frozen (core) electrons
@@ -87,7 +86,27 @@ struct fcidump_input {
  */
 void parse_hf_input(const std::string &hf_dir, hf_input *in_struct);
 
-fcidump_input *parse_fcidump(const std::string &hf_dir);
+
+/*! \brief Read data from a FCIDUMP file
+ * This function reads in the number of electrons and orbitals, the irrep labels, the core energy, and the 1- and 2-electron integrals
+ *
+ * \param [in] fcidump_path     Path to the FCIDUMP file
+ * \param [in] point_group       Point-group symmetry of the molecule
+ */
+fcidump_input *parse_fcidump(const std::string &fcidump_path, const std::string &point_group);
+
+
+/*! \brief Convert symmetry labels from MOLPRO format to PySCF format
+ * MOLPRO format is used in FCIDUMP files, while PySCF format is used internally in FRIes
+ * This is the inverse of the map defined at https://github.com/pyscf/shciscf/blob/master/pyscf/shciscf/symm_utils.py#L22
+ *
+ * \param [in, out]  irreps     Contains the MOLPRO symmetry labels to be converted.
+ *                      Upon return, contains the PySCF symmetry labels
+ * \param [in]  n_irreps    Number of labels to be converted
+ * \param [in]  point_group     Denotes the point group of the symmetry labels (may be lower than that of
+ *                            the molecule)
+ */
+void convert_symm(uint8_t *irreps, size_t n_irreps, const std::string &point_group);
 
 
 /*! \brief Read in the following parameters for a Hubbard-Holstein calculation

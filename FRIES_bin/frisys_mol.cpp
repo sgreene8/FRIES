@@ -14,7 +14,7 @@
 #include <stdexcept>
 
 struct MyArgs : public argparse::Args {
-    std::string &hf_path = kwarg("hf_path", "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt");
+    std::string &fcidump_path = kwarg("fcidump_path", "Path to FCIDUMP file that contains the integrals defining the Hamiltonian.");
     double &target_norm = kwarg("target", "Target one-norm of solution vector").set_default(0);
     std::string &dist_str = kwarg("distribution", "Hamiltonian factorization to use, either heat-bath Power-Pitzer (HB) or unnormalized heat-bath Power-Pitzer (HB_unnorm)");
     uint32_t &max_iter = kwarg("max_iter", "Maximum number of iterations to run the calculation").set_default(1000000);
@@ -27,6 +27,9 @@ struct MyArgs : public argparse::Args {
     std::shared_ptr<std::string> &ini_path = kwarg("ini_vec", "Prefix for files containing the vector with which to initialize the calculation (files must have names <ini_vec>dets and <ini_vec>vals and be text files)");
     std::shared_ptr<std::string> &trial_path = kwarg("trial_vec", "Prefix for files containing the vector with which to calculate the energy (files must have names <trial_vec>dets and <trial_vec>vals and be text)");
     std::shared_ptr<std::string> &determ_path = kwarg("det_space", "Path to a .txt file containing the determinants used to define the deterministic space to use in a semistochastic calculation.");
+    double &epsilon = kwarg("epsilon", "The imaginary time step (\eps) to use when evolving the walker distribution.");
+    std::string &point_group = kwarg("point_group", "Specifies the point-group symmetry to assume when reading irrep labels from the FCIDUMP file.").set_default<std::string>("C1");
+    std::shared_ptr<double> &ham_shift = kwarg("ham_shift", "The energy by which the diagonal elements of the Hamiltonian are shifted");
 };
 
 int main(int argc, char * argv[]) {
@@ -70,20 +73,32 @@ int main(int argc, char * argv[]) {
         double en_shift = 0;
         
         // Read in data files
-        hf_input in_data;
-        parse_hf_input(args.hf_path, &in_data);
-        double eps = in_data.eps;
-        unsigned int n_elec = in_data.n_elec;
-        unsigned int n_frz = in_data.n_frz;
-        unsigned int n_orb = in_data.n_orb;
-        double hf_en = in_data.hf_en;
+        fcidump_input *in_data = parse_fcidump(args.fcidump_path, args.point_group);
+        double eps = args.epsilon;
+        unsigned int n_elec = in_data->n_elec;
+        unsigned int n_frz = 0;
+        unsigned int n_orb = in_data->n_orb_;
+        size_t det_size = CEILING(2 * n_orb, 8);
         
         unsigned int n_elec_unf = n_elec - n_frz;
         unsigned int tot_orb = n_orb + n_frz / 2;
         
-        uint8_t *symm = in_data.symm;
-        Matrix<double> *h_core = in_data.hcore;
-        FourDArr *eris = in_data.eris;
+        uint8_t *symm = in_data->symm;
+        Matrix<double> *h_core = in_data->hcore;
+        SymmERIs *eris = &(in_data->eris);
+
+        uint8_t tmp_orbs[n_elec_unf];
+        uint8_t hf_det[det_size];
+        gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
+        find_bits(hf_det, tmp_orbs, det_size);
+        double hf_en;
+        if (args.ham_shift != nullptr) {
+            hf_en = *args.ham_shift;
+            hf_en -= in_data->core_en;
+        }
+        else {
+            hf_en = diag_matrel(tmp_orbs, tot_orb, *eris, *h_core, n_frz, n_elec);
+        }
         
         // Rn generator
         auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
@@ -103,9 +118,7 @@ int main(int argc, char * argv[]) {
             return doub_matr_el_nosgn(ex_orbs, tot_orb, *eris, n_frz);
         };
         
-        size_t det_size = CEILING(2 * n_orb, 8);
-        
-        SymmInfo basis_symm(in_data.symm, n_orb);
+        SymmInfo basis_symm(in_data->symm, n_orb);
         
         // Initialize hash function for processors and vector
         std::vector<uint32_t> proc_scrambler(2 * n_orb);
@@ -135,11 +148,8 @@ int main(int argc, char * argv[]) {
         size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2) ? n_elec_unf : n_orb - n_elec_unf / 2;
         HBCompressSys comp_vecs(spawn_length, n_states);
         
-        uint8_t hf_det[det_size];
         gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
         hf_proc = sol_vec.idx_to_proc(hf_det);
-        
-        uint8_t tmp_orbs[n_elec_unf];
         
 # pragma mark Set up trial vector
         size_t n_trial;
@@ -177,8 +187,19 @@ int main(int argc, char * argv[]) {
             trial_hashes[det_idx] = sol_vec.idx_to_hash(trial_vec.indices()[det_idx], tmp_orbs);
         }
         
+        uint8_t *scratch_orbs;
+        size_t scratch_size;
+        if (spawn_length < n_ex) {
+            scratch_orbs = (uint8_t *)malloc(sizeof(uint8_t) * n_ex * 4);
+            scratch_size = 4 * n_ex;
+        }
+        else {
+            scratch_orbs = (uint8_t *)comp_vecs.orb_indices1;
+            scratch_size = 4 * spawn_length;
+        }
+        
         // Calculate H * trial vector, and accumulate results on each processor
-        h_op_offdiag(htrial_vec, symm, tot_orb, *eris, *h_core, (uint8_t *)comp_vecs.orb_indices1, n_frz, n_elec_unf, 1, 1);
+        h_op_offdiag(htrial_vec, symm, tot_orb, *eris, *h_core, scratch_orbs, scratch_size, n_frz, n_elec_unf, 1, 1, 0);
         htrial_vec.set_curr_vec_idx(0);
         h_op_diag(htrial_vec, 0, 0, 1);
         htrial_vec.add_vecs(0, 1);
@@ -190,9 +211,12 @@ int main(int argc, char * argv[]) {
         
         // Count # single/double excitations from HF
         sol_vec.gen_orb_list(hf_det, tmp_orbs);
-        size_t n_hf_doub = doub_ex_symm(hf_det, tmp_orbs, n_elec_unf, n_orb, comp_vecs.orb_indices1, symm);
+        size_t n_hf_doub = doub_ex_symm(hf_det, tmp_orbs, n_elec_unf, n_orb, (uint8_t (*)[4])scratch_orbs, symm);
         size_t n_hf_sing = count_singex(hf_det, tmp_orbs, n_elec_unf, &basis_symm);
         double p_doub = (double) n_hf_doub / (n_hf_sing + n_hf_doub);
+        if (spawn_length < n_ex) {
+            free(scratch_orbs);
+        }
         
         std::string file_path;
         std::ofstream norm_file;
@@ -291,7 +315,7 @@ int main(int argc, char * argv[]) {
             file_path = args.result_dir;
             file_path.append("params.txt");
             std::ofstream param_f(file_path);
-            param_f << "FRI calculation\nHF path: " << args.hf_path << "\nepsilon (imaginary time step): " << eps << "\nTarget norm " << target_norm << "\nInitiator threshold: " << args.init_thresh << "\nMatrix nonzero: " << args.matr_samp << "\nVector nonzero: " << args.target_nonz << "\n";
+            param_f << "FRI calculation\nFCIDUMP path: " << args.fcidump_path << "\nepsilon (imaginary time step): " << eps << "\nTarget norm " << target_norm << "\nInitiator threshold: " << args.init_thresh << "\nMatrix nonzero: " << args.matr_samp << "\nVector nonzero: " << args.target_nonz << "\n";
             if (args.load_dir != nullptr) {
                 param_f << "Restarting calculation from " << args.load_dir << "\n";
             }
