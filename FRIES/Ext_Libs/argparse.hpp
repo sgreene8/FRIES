@@ -104,7 +104,7 @@ namespace argparse {
     template<> inline float get(const std::string &v) { return std::stof(v); }
     template<> inline double get(const std::string &v) { return std::stod(v); }
     template<> inline unsigned char get(const std::string &v) { return get<char>(v); }
-    template<> inline unsigned int get(const std::string &v) { return std::stoul(v); }
+    template<> inline unsigned int get(const std::string &v) { return (unsigned int) std::stoul(v); }
     template<> inline unsigned long get(const std::string &v) { return std::stoul(v); }
 
     template<typename T> inline T get(const std::string &v) { // remaining types

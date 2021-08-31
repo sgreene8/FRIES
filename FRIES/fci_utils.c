@@ -200,6 +200,7 @@ void flip_spins(uint8_t *det_in, uint8_t *det_out, uint8_t n_orb) {
     }
 }
 
+int _mm_popcnt_u32(unsigned int);
 
 uint8_t find_excitation(const uint8_t *str1, const uint8_t *str2, uint8_t *orbs, uint8_t n_bytes) {
     uint8_t n_bits = 0;

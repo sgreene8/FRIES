@@ -57,6 +57,8 @@ unsigned int bits_between(uint8_t *bit_str, uint8_t a, uint8_t b) {
     return n_bits;
 }
 
+int _mm_popcnt_u32(unsigned int);
+
 uint8_t find_bits(const uint8_t *bit_str, uint8_t *bits, uint8_t n_bytes) {
     uint8_t n_bits = 0;
     uint8_t byte_idx;
