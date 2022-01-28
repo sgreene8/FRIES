@@ -22,6 +22,7 @@ struct MyArgs : public argparse::Args {
     uint32_t &max_n_dets = kwarg("max_dets", "Maximum number of determinants on a single MPI process");
     std::string &trial_path = kwarg("trial_vecs", "Prefix for files containing the vectors with which to calculate the energy and initialize the calculation. Files must have names <trial_vecs>dets<xx> and <trial_vecs>vals<xx>, where xx is a 2-digit number ranging from 0 to (num_trial - 1), and be text files");
     uint32_t &n_trial = kwarg("num_trial", "Number of trial vectors to use to calculate dot products with the iterates");
+    std::shared_ptr<std::string> &load_dir = kwarg("load_dir", "Directory from which to load checkpoint files from a previous FRI calculation (in binary format, see documentation for DistVec::save() and DistVec::load())");
     uint32_t &restart_int = kwarg("restart_int", "Number of multiplications by (1 - \eps H) to do in between restarts").set_default(10);
     std::string &mat_output = kwarg("out_format", "A flag controlling the format for outputting the Hamiltonian and overlap matrices. Must be either 'none', in which case these matrices are not written to disk, 'txt', in which case they are outputted in text format, 'npy', in which case they are outputted in numpy format, or 'bin' for binary format").set_default<std::string>("none");
     double &epsilon = kwarg("epsilon", "The imaginary time step (\eps) to use when evolving the vectors.");
@@ -123,14 +124,18 @@ int main(int argc, char * argv[]) {
         // Initialize hash function for processors and vector
         std::vector<uint32_t> proc_scrambler(2 * n_orb);
         
-        if (proc_rank == 0) {
-            for (size_t det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
-                proc_scrambler[det_idx] = mt_obj();
-            }
-            save_proc_hash(args.result_dir, proc_scrambler.data(), 2 * n_orb);
+        if (args.load_dir != nullptr) {
+            load_proc_hash(*args.load_dir, proc_scrambler.data());
         }
-
-        MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+        else {
+            if (proc_rank == 0) {
+                for (size_t det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
+                    proc_scrambler[det_idx] = mt_obj();
+                }
+                save_proc_hash(args.result_dir, proc_scrambler.data(), 2 * n_orb);
+            }
+            MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+        }
         
         std::vector<uint32_t> vec_scrambler(2 * n_orb);
         for (size_t det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
@@ -269,7 +274,7 @@ int main(int argc, char * argv[]) {
         std::string bnpy_path(tmp_path.str());
         tmp_path.str("");
         tmp_path << args.result_dir << "shifts.txt";
-        std::ofstream shift_f(tmp_path.str());
+        std::ofstream shift_f(tmp_path.str(), std::ios::app);
         
         std::vector<double> lapack_scratch((3 + n_trial + 32 * 2) * n_trial - 1);
         Matrix<double> lapack_inout(n_trial, n_trial);
@@ -278,9 +283,7 @@ int main(int argc, char * argv[]) {
         
         int vec_half = 0; // controls whether the current iterates are stored in the first or second half of the values_ matrix
         
-        std::vector<double> en_shifts(n_trial);
-        
-        for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
+        for (uint16_t vec_idx = 0; vec_idx < n_trial && args.load_dir == nullptr; vec_idx++) {
             sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
             double norm = sol_vec.local_norm();
             norm = sum_mpi(norm, proc_rank, n_procs, MPI_COMM_WORLD);
