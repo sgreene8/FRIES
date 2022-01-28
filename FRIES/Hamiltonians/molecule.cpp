@@ -467,7 +467,6 @@ void h_op_offdiag(DistVec<double> &vec, size_t vec_size, uint8_t *symm, unsigned
     }
     
     uint8_t origin_idx = vec.curr_vec_idx();
-    size_t adder_size = vec.adder_size();
 
     uint8_t *flipped_det = (uint8_t *)malloc(sizeof(uint8_t) * n_bytes);
     auto adjust_tr = [&eris, &h_core, flipped_det, n_orbs, n_bytes, spin_parity, symm, n_frozen, n_elec](uint8_t *curr_det, uint8_t *new_det, uint8_t *occ_orbs, double *matr_el) {
@@ -560,12 +559,11 @@ void h_op_offdiag(DistVec<double> &vec, size_t vec_size, uint8_t *symm, unsigned
     uint8_t *curr_det = nullptr;
     uint8_t *occ_orbs = nullptr;
     while (keep_going) {
-        size_t n_added = 0;
         keep_going = 0;
         vec.set_curr_vec_idx(origin_idx);
         double *vals_before_mult = vec.values();
         vec.set_curr_vec_idx(dest_idx);
-        while (n_added < adder_size) {
+        while (true) {
             if (ex_idx >= n_sing) {
                 if (det_idx >= vec_size) {
                     break;
@@ -597,13 +595,14 @@ void h_op_offdiag(DistVec<double> &vec, size_t vec_size, uint8_t *symm, unsigned
             if (spin_parity) {
                 ref_det = adjust_tr(curr_det, new_det, occ_orbs, &matr_el);
             }
-            if (ref_det) {
-                matr_el *= curr_el * h_fac;
-                vec.add(ref_det, matr_el, 1);
-                n_added++;
-            }
             ex_idx++;
             keep_going = 1;
+            if (ref_det) {
+                matr_el *= curr_el * h_fac;
+                if (!vec.add(ref_det, matr_el, 1)) {
+                    break;
+                }
+            }
         }
         keep_going = sum_mpi(keep_going, proc_rank, n_procs);
         vec.perform_add(0);
@@ -613,12 +612,11 @@ void h_op_offdiag(DistVec<double> &vec, size_t vec_size, uint8_t *symm, unsigned
     size_t n_doub = 0;
     det_idx = 0;
     while (keep_going) {
-        size_t n_added = 0;
         keep_going = 0;
         vec.set_curr_vec_idx(origin_idx);
         double *vals_before_mult = vec.values();
         vec.set_curr_vec_idx(dest_idx);
-        while (n_added < adder_size) {
+        while (true) {
             if (ex_idx >= n_doub) {
                 if (det_idx >= vec_size) {
                     break;
@@ -651,13 +649,14 @@ void h_op_offdiag(DistVec<double> &vec, size_t vec_size, uint8_t *symm, unsigned
             if (spin_parity) {
                 ref_det = adjust_tr(curr_det, new_det, occ_orbs, &matr_el);
             }
-            if (ref_det) {
-                matr_el *= curr_el * h_fac;
-                vec.add(ref_det, matr_el, 1);
-                n_added++;
-            }
             ex_idx++;
             keep_going = 1;
+            if (ref_det) {
+                matr_el *= curr_el * h_fac;
+                if (!vec.add(ref_det, matr_el, 1)) {
+                    break;
+                }
+            }
         }
         keep_going = sum_mpi(keep_going, proc_rank, n_procs);
         vec.perform_add(0);
