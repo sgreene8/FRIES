@@ -84,11 +84,6 @@ int main(int argc, char * argv[]) {
         if (args.time_reversal < -1 || args.time_reversal > 1) {
             throw std::runtime_error("time_reversal input argument must be -1, 0, or 1");
         }
-        if (args.restart_int % dot_interval != 0) {
-            std::stringstream msg;
-            msg << "restart_int input argument must be a multiple of " << dot_interval;
-            throw std::runtime_error(msg.str());
-        }
         
         // Read in data files
         fcidump_input *in_data = parse_fcidump(args.fcidump_path, args.point_group);
@@ -123,8 +118,8 @@ int main(int argc, char * argv[]) {
         std::cout << "seed on process " << proc_rank << " is " << seed << std::endl;
         std::mt19937 mt_obj((unsigned int)seed);
         
-        unsigned int spawn_length = matr_samp * 8 / n_procs;
-        size_t adder_size = spawn_length > 1000000 ? 1000000 : spawn_length;
+        unsigned int spawn_length = matr_samp * 4 / n_procs;
+        size_t adder_size = spawn_length > 100000 ? 100000 : spawn_length;
         std::function<double(const uint8_t *)> diag_shortcut;
         int time_reversal = args.time_reversal;
         if (time_reversal) {
@@ -276,6 +271,7 @@ int main(int argc, char * argv[]) {
         
         if (proc_rank == 0) {
             if (mat_fmt == txt_out) {
+                tmp_path.str("");
                 tmp_path << args.result_dir << "h_mat.txt";
                 bmat_file.open(tmp_path.str(), std::ios::app);
                 if (!bmat_file.is_open()) {
@@ -291,6 +287,7 @@ int main(int argc, char * argv[]) {
                 dmat_file << std::setprecision(14);
             }
             else if (mat_fmt == bin_out) {
+                tmp_path.str("");
                 tmp_path << args.result_dir << "h_mat.dat";
                 bmat_file.open(tmp_path.str(), std::ios::app | std::ios::binary);
                 if (!bmat_file.is_open()) {
