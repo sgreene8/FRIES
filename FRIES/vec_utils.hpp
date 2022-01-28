@@ -1040,7 +1040,15 @@ void Adder<el_type>::perform_dot(DistVec<el_type> *parent_vec, Matrix<el_type> &
 
 
 void compress_vecs(DistVec<double> &vectors, size_t start_idx, size_t end_idx, unsigned int compress_size,
-                   std::vector<size_t> &srt_scratch, std::vector<bool> &keep_scratch,
-                   std::vector<bool> &del_arr, std::mt19937 &rn_gen);
+                       std::vector<size_t> &srt_scratch, std::vector<bool> &keep_scratch,
+                       std::vector<bool> &del_arr, std::mt19937 &rn_gen);
+
+void compress_vecs_sys(DistVec<double> &vectors, size_t start_idx, size_t end_idx, unsigned int compress_size,
+                       std::vector<size_t> &srt_scratch, std::vector<bool> &keep_scratch,
+                       std::vector<bool> &del_arr, std::mt19937 &rn_gen);
+
+void compress_vecs_multi(DistVec<double> &vectors, size_t start_idx, size_t end_idx, unsigned int compress_size,
+                         std::vector<size_t> &srt_scratch, std::vector<bool> &keep_scratch,
+                         std::vector<bool> &del_arr, std::mt19937 &rn_gen);
 
 #endif /* vec_utils_h */

@@ -8,6 +8,7 @@
 #include <vector>
 #include <FRIES/ndarr.hpp>
 #include <FRIES/compress_utils.hpp>
+#include <FRIES/vec_utils.hpp>
 
 /*! \brief Abstract class definition for performing a generic compression or sampling operation
  */
@@ -207,6 +208,49 @@ public:
                 if (diff > max) {
                     max = diff;
                 }
+            }
+        }
+        return max;
+    }
+};
+
+class VecMulti : Sampler {
+    Matrix<double> orig_vecs_;
+    std::vector<size_t> srt_vec_;
+    std::vector<bool> keep_vec_;
+    std::vector<bool> del_vec_;
+    std::vector<uint32_t> rns_;
+    DistVec<double> *sampl_vecs_;
+public:
+    VecMulti(uint32_t n_samp) : orig_vecs_(2, 100), srt_vec_(100), keep_vec_(100), del_vec_(100, true), rns_(1), Sampler(200, n_samp) {
+        for (uint8_t vec_idx = 0; vec_idx < 2; vec_idx++) {
+            for (size_t el_idx = 0; el_idx < 100; el_idx++) {
+                orig_vecs_(vec_idx, el_idx) = gen_rn() * 10 - 5;
+            }
+        }
+        int n_procs = 1;
+        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+        sampl_vecs_ = new DistVec<double>(100, 1, 1, 1, n_procs, rns_, rns_);
+        sampl_vecs_->curr_size_ = 100;
+    }
+    
+    void sample() override {
+        Sampler::sample();
+        std::copy(&orig_vecs_(0, 0), &orig_vecs_(3, 0), sampl_vecs_->values());
+        compress_vecs_multi(*sampl_vecs_, 0, 2, 100, srt_vec_, keep_vec_, del_vec_, mt_obj);
+        for (uint8_t vec_idx = 0; vec_idx < 2; vec_idx++) {
+            for (size_t el_idx = 0; el_idx < 100; el_idx++) {
+                accum_[vec_idx * 100 + el_idx] += *(sampl_vecs_->operator()(vec_idx, el_idx));
+            }
+        }
+    }
+    
+    double calc_max_diff() override {
+        double max = 0;
+        for (size_t el_idx = 0; el_idx < 200; el_idx++) {
+            double diff = fabs(accum_[el_idx] / n_times_ - orig_vecs_.data()[el_idx]);
+            if (diff > max) {
+                max = diff;
             }
         }
         return max;

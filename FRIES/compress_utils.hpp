@@ -413,4 +413,20 @@ void sample_alias(unsigned int *aliases, double *alias_probs, size_t n_states,
                   std::mt19937 &mt_obj);
 
 
+/*! \brief Perform multinomial sampling using the alias method
+ *
+ * \param [in] aliases      Alias for each state, calculated using setup_alias()
+ *                          (length \p n_states)
+ * \param [in] alias_probs  Alias probabilities for each state, calculated using
+ *                          setup_alias(); need not be initialized
+ *                          (length \p n_states)
+ * \param [in] n_states     Number of states that can be sampled
+ * \param [out] counts     The number of samples at each index position
+ * \param [in] n_samp       Number of samples to draw multinomially
+ * \param [in] mt_obj   Reference to initialized MT object to use for RN generation
+ */
+void sample_alias(unsigned int *aliases, double *alias_probs, size_t n_states,
+                  uint16_t *counts, unsigned int n_samp, std::mt19937 &mt_obj);
+
+
 #endif /* compress_utils_h */

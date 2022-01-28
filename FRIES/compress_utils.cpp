@@ -13,6 +13,7 @@
 #include <functional>
 #include <iostream>
 #include <sstream>
+#include <limits>
 
 
 int round_binomially(double p, unsigned int n, std::mt19937 &mt_obj) {
@@ -859,6 +860,12 @@ void setup_alias(double *probs, unsigned int *aliases, double *alias_probs,
 void sample_alias(unsigned int *aliases, double *alias_probs, size_t n_states,
                   uint8_t *samples, unsigned int n_samp, size_t samp_int,
                   std::mt19937 &mt_obj) {
+    size_t max = std::numeric_limits<uint8_t>::max();
+    if (n_states > max) {
+        std::stringstream msg;
+        msg << "Number of states that can be sampled (" << n_states << "exceeds " << max << " in sample_alias";
+        throw std::runtime_error(msg.str());
+    }
     uint8_t chosen_idx;
     for (unsigned int samp_idx = 0; samp_idx < n_samp; samp_idx++) {
         chosen_idx = mt_obj() / (1. + UINT32_MAX) * n_states;
@@ -867,6 +874,26 @@ void sample_alias(unsigned int *aliases, double *alias_probs, size_t n_states,
         }
         else {
             samples[samp_idx * samp_int] = aliases[chosen_idx];
+        }
+    }
+}
+
+void sample_alias(unsigned int *aliases, double *alias_probs, size_t n_states,
+                  uint16_t *counts, unsigned int n_samp, std::mt19937 &mt_obj) {
+    size_t max = std::numeric_limits<uint16_t>::max();
+    if (n_states > max) {
+        std::stringstream msg;
+        msg << "Number of states that can be sampled (" << n_states << "exceeds " << max << " in sample_alias";
+        throw std::runtime_error(msg.str());
+    }
+    uint16_t chosen_idx;
+    for (unsigned int samp_idx = 0; samp_idx < n_samp; samp_idx++) {
+        chosen_idx = mt_obj() / (1. + UINT32_MAX) * n_states;
+        if (mt_obj() / (1. + UINT32_MAX) < alias_probs[chosen_idx]) {
+            counts[chosen_idx]++;
+        }
+        else {
+            counts[aliases[chosen_idx]]++;
         }
     }
 }

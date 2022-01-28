@@ -33,7 +33,8 @@ int main(int argc, const char * argv[]) {
 //    SysSerial test(10);
 //    PivSerial test(10);
 //    SysStratified test(10, 4 * n_procs - 1);
-    ParBudgetPiv test(5);
+//    ParBudgetPiv test(5);
+    VecMulti test(200);
     
     for (unsigned int iter = 0; iter < n_iter; iter++) {
         test.sample();
