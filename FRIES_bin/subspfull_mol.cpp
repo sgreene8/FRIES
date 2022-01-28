@@ -15,7 +15,7 @@
 #include <algorithm>
 
 struct MyArgs : public argparse::Args {
-    std::string &hf_path = kwarg("hf_path", "Path to the directory that contains the HF output files eris.txt, hcore.txt, symm.txt, hf_en.txt, and sys_params.txt");
+    std::string &fcidump_path = kwarg("fcidump_path", "Path to FCIDUMP file that contains the integrals defining the Hamiltonian.");
     uint32_t &max_iter = kwarg("max_iter", "Maximum number of iterations to run the calculation").set_default(1000000);
     uint32_t &target_nonz = kwarg("vec_nonz", "Target number of nonzero vector elements to keep after each iteration");
     std::string &result_dir = kwarg("result_dir", "Directory in which to save output files").set_default<std::string>("./");
@@ -104,20 +104,32 @@ int main(int argc, char * argv[]) {
 //        unsigned int shift_interval = 10;
         
         // Read in data files
-        hf_input in_data;
-        parse_hf_input(args.hf_path, &in_data);
-        double eps = in_data.eps;
-        unsigned int n_elec = in_data.n_elec;
-        unsigned int n_frz = in_data.n_frz;
-        unsigned int n_orb = in_data.n_orb;
-        double hf_en = in_data.hf_en;
+        fcidump_input *in_data = parse_fcidump(args.fcidump_path, args.point_group);
+        double eps = args.epsilon;
+        unsigned int n_elec = in_data->n_elec;
+        unsigned int n_frz = 0;
+        unsigned int n_orb = in_data->n_orb_;
+        size_t det_size = CEILING(2 * n_orb, 8);
         
         unsigned int n_elec_unf = n_elec - n_frz;
         unsigned int tot_orb = n_orb + n_frz / 2;
         
-        uint8_t *symm = in_data.symm;
-        Matrix<double> *h_core = in_data.hcore;
-        FourDArr *eris = in_data.eris;
+        uint8_t *symm = in_data->symm;
+        Matrix<double> *h_core = in_data->hcore;
+        SymmERIs *eris = &(in_data->eris);
+        
+        uint8_t tmp_orbs[n_elec_unf];
+        uint8_t hf_det[det_size];
+        gen_hf_bitstring(n_orb, n_elec - n_frz, hf_det);
+        find_bits(hf_det, tmp_orbs, det_size);
+        double hf_en;
+        if (args.ham_shift != nullptr) {
+            hf_en = *args.ham_shift;
+            hf_en -= in_data->core_en;
+        }
+        else {
+            hf_en = diag_matrel(tmp_orbs, tot_orb, *eris, *h_core, n_frz, n_elec);
+        }
         
         // Parameters
         unsigned int shift_interval = 1;
