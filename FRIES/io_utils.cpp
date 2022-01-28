@@ -630,7 +630,7 @@ size_t load_last_line(const std::string &path, double *vals) {
     std::ifstream in_f(path);
     size_t n_read = 0;
     if (in_f.is_open()) {
-        in_f.seekg(-1, std::ios_base::end);
+        in_f.seekg(-2, std::ios_base::end);
 
         bool keepLooping = true;
         while(keepLooping) {
@@ -650,5 +650,6 @@ size_t load_last_line(const std::string &path, double *vals) {
         }
         n_read = read_csv_line(in_f, vals);
     }
+    in_f.close();
     return n_read;
 }

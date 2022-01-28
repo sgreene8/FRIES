@@ -202,6 +202,19 @@ int main(int argc, char * argv[]) {
             }
         }
         
+        std::vector<double> norm_factors(n_trial, 1);
+        
+        if (args.load_dir != nullptr) {
+            sol_vec.load(*args.load_dir, n_trial);
+
+            tmp_path.str("");
+            tmp_path << *args.load_dir << "shifts.txt";
+            size_t n_shifts = load_last_line(tmp_path.str(), norm_factors.data());
+            if (n_shifts != n_trial) {
+                throw std::runtime_error("Error reading energy shift from last line of S.txt");
+            }
+        }
+        
         std::string file_path;
         std::ofstream bmat_file;
         std::ofstream dmat_file;

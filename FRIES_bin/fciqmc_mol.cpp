@@ -217,32 +217,9 @@ int main(int argc, char * argv[]) {
             
             file_path = *args.load_dir;
             file_path.append("S.txt");
-            std::ifstream shift_in(file_path);
-            if(shift_in.is_open()) {
-
-                // load energy shift (seehttps://stackoverflow.com/questions/11876290/c-fastest-way-to-read-only-last-line-of-text-file)
-                shift_in.seekg(-1, std::ios_base::end);
-
-                bool keepLooping = true;
-                while(keepLooping) {
-                    char ch;
-                    shift_in.get(ch);
-
-                    if((int)shift_in.tellg() <= 1) {
-                        shift_in.seekg(0);
-                        keepLooping = false;
-                    }
-                    else if(ch == '\n') {
-                        keepLooping = false;
-                    }
-                    else {
-                        shift_in.seekg(-2, std::ios_base::cur);
-                    }
-                }
-                
-                shift_in >> en_shift;
-
-                shift_in.close();
+            size_t n_shifts = load_last_line(file_path, &en_shift);
+            if (n_shifts != 1) {
+                throw std::runtime_error("Error reading energy shift from last line of S.txt");
             }
         }
         else if (args.ini_path != nullptr) {
