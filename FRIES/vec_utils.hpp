@@ -704,12 +704,17 @@ public:
      *
      * The vector indices from each MPI process are stored in the file
      * [path]dets[MPI rank].dat, and the values at [path]vals[MPI rank].dat
+     * Only the values from \p start_idx to \p start_idx + \p n_vecs - 1 are saved
      *
      * \param [in] path         Location where the files are to be stored
+     * \param [in] start_idx    Index of the first vector to write to disk
+     * \param [in] n_vecs       Number of vectors to write to disk
      */
-    void save(const std::string &path)  {
+    void save(const std::string &path, uint8_t start_idx, uint8_t n_vecs)  {
         int my_rank = 0;
+        int n_procs = 1;
         MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+        MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
         
         size_t el_size = sizeof(el_type);
         
@@ -722,10 +727,26 @@ public:
         buffer.str("");
         buffer << path << "vals" << my_rank << ".dat";
         file_p.open(buffer.str(), std::ios::binary);
-        for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
-            file_p.write((const char *)values_[vec_idx], el_size * curr_size_);
+        for (uint8_t vec_idx = 0; vec_idx < n_vecs; vec_idx++) {
+            file_p.write((const char *)values_[start_idx + vec_idx], el_size * curr_size_);
         }
         file_p.close();
+        
+        int dense_sizes[n_procs];
+        MPI_Gather(&n_dense_, 1, MPI_INT, dense_sizes, 1, MPI_INT, 0, MPI_COMM_WORLD);
+        if (my_rank == 0) {
+            buffer.str("");
+            buffer << path << "dense.txt";
+            file_p.open(buffer.str());
+            for (int proc_idx = 0; proc_idx < n_procs - 1; proc_idx++) {
+                file_p << dense_sizes[proc_idx] << ",";
+            }
+            file_p << dense_sizes[n_procs - 1] << '\n';
+        }
+    }
+    
+    void save(const std::string &path) {
+        save(path, 0, values_.rows());
     }
 
     /*! \brief Load a vector from disk in binary format
@@ -734,9 +755,15 @@ public:
      * [path]dets[MPI rank].dat, and the values from [path]vals[MPI rank].dat
      *
      * \param [in] path         Location from which to read the files
+     * \param [in] n_vecs     Number of vectors to load
      * \return Size of the dense subspace
      */
-    size_t load(const std::string &path) {
+    size_t load(const std::string &path, uint8_t n_vecs) {
+        if (curr_vec_idx_ + n_vecs > values_.rows()) {
+            std::stringstream msg;
+            msg << "Number of vectors requested in load function (" << (int) n_vecs << ") will put you over the capacity of this DistVec object (" << (int) values_.rows() << "), given the value of instance variable curr_vec_idx_ (" << (int) curr_vec_idx_ << ")";
+            throw std::runtime_error(msg.str());
+        }
         int my_rank = 0;
         int n_procs = 1;
         MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
@@ -779,19 +806,21 @@ public:
             msg << "Could not open saved binary vector file at path " << buffer.str();
             throw std::runtime_error(msg.str());
         }
-        for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
-            file_p.read((char *)values_[vec_idx], el_size * n_dets);
+        for (uint8_t vec_idx = 0; vec_idx < n_vecs; vec_idx++) {
+            file_p.read((char *)values_[curr_vec_idx_ + vec_idx], el_size * n_dets);
         }
         file_p.close();
         
         n_nonz_ = 0;
         uint8_t tmp_orbs[occ_orbs_.cols()];
-        double tmp_vals[values_.rows()];
+        double tmp_vals[n_vecs];
         for (size_t det_idx = 0; det_idx < n_dets; det_idx++) {
-            int is_nonz = 0;
-            for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
-                if (fabs(values_(curr_vec_idx_, det_idx)) > 1e-9 || det_idx < n_dense_) {
-                    is_nonz = 1;
+            bool is_nonz = det_idx < n_dense_ || det_idx < min_del_idx_;
+            if (!is_nonz) {
+                for (uint8_t vec_idx = 0; vec_idx < n_vecs; vec_idx++) {
+                    if (fabs(values_(curr_vec_idx_ + vec_idx, det_idx)) > 1e-9) {
+                        is_nonz = true;
+                    }
                 }
             }
             if (is_nonz) {
@@ -800,18 +829,22 @@ public:
                 ssize_t *idx_ptr = vec_hash_.read(new_idx, hash_val, true);
                 *idx_ptr = n_nonz_;
                 memmove(indices_[n_nonz_], new_idx, n_bytes);
-                for (size_t val_idx = 0; val_idx < values_.rows(); val_idx++) {
-                    tmp_vals[val_idx] = values_(val_idx, det_idx);
+                for (size_t val_idx = 0; val_idx < n_vecs; val_idx++) {
+                    tmp_vals[val_idx] = values_(curr_vec_idx_ + val_idx, det_idx);
                 }
                 initialize_at_pos(n_nonz_, tmp_orbs);
-                for (uint8_t vec_idx = 0; vec_idx < values_.rows(); vec_idx++) {
-                    values_(vec_idx, n_nonz_) = tmp_vals[vec_idx];
+                for (uint8_t vec_idx = 0; vec_idx < n_vecs; vec_idx++) {
+                    values_(curr_vec_idx_ + vec_idx, n_nonz_) = tmp_vals[vec_idx];
                 }
                 n_nonz_++;
             }
         }
         curr_size_ = n_nonz_;
         return n_dense_;
+    }
+    
+    size_t load(const std::string &path) {
+        return load(path, values_.rows());
     }
     
     /*! \brief Load all of the vector indices defining the dense subspace from disk, and initialize the corresponding vector elements to 0

@@ -618,7 +618,7 @@ int main(int argc, char * argv[]) {
             }
             nini_f << '\n';
             if ((iteration + 1) % save_interval == 0) {
-                sol_vec.save(args.result_dir);
+                sol_vec.save(args.result_dir, vec_half * n_trial, n_trial);
                 nini_f.flush();
             }
         }
@@ -629,6 +629,7 @@ int main(int argc, char * argv[]) {
             norm_f.close();
             nini_f.close();
         }
+        sol_vec.save(args.result_dir, vec_half * n_trial, n_trial);
         MPI_Finalize();
     } catch (std::exception &ex) {
         std::cerr << "\nException : " << ex.what() << "\n\nPlease send a description of this error, a copy of the command-line arguments used, and the random number generator seeds printed for each process to the developers through our GitHub repository: https://github.com/sgreene8/FRIES/ \n\n";

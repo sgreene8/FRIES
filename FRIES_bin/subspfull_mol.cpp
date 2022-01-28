@@ -480,11 +480,17 @@ int main(int argc, char * argv[]) {
                     }
                 }
             }
+            
+            // Save vector snapshot to disk
+            if ((iteration + 1) % save_interval == 0) {
+                sol_vec.save(args.result_dir, vec_half * n_trial, n_trial);
+            }
         }
         if (proc_rank == 0) {
             bmat_file.close();
             dmat_file.close();
         }
+        sol_vec.save(args.result_dir, vec_half * n_trial, n_trial);
         
         MPI_Finalize();
     } catch (std::exception &ex) {
