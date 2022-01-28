@@ -1,0 +1,54 @@
+/*! \page running Executing FRIES Programs
+
+\section run_overview Overview
+
+The FRIES_bin directory contains source code for several different methods within the FCI-FRI/FCIQMC framework as applied to different types of systems.
+
+\section run_input Input Files
+
+\subsection run_input_molec Molecular Systems
+
+Executables that perform calculations on molecular systems (fciqmc_mol.c, frimulti_mol.c, frisys_mol.c) use the output from a Hartree-Fock calculation to calculate Hamiltonian matrix elements. The ` hf_path` input argument specifies the path to the directory that contains these files. The HF orbitals must be ordered the same in the **eris.txt**, **hcore.txt**, and **symm.txt** files. These files must be named and formatted as follows:
+
+- **eris.txt**: Contains the two-electron integrals \f$ \langle i j || a b \rangle \f$, where \f$ i \f$, \f$ j \f$, \f$ a \f$, and \f$ b \f$ denote orbitals. The \f$ M^4 \f$ integrals are stored in .csv format ordered by the \f$ i \f$, \f$ j \f$, \f$ a \f$, and \f$ b \f$ indices, where \f$ b \f$ is the least significant index and \f$ i \f$ is the most significant.
+
+- **hcore.txt**: Contains the one-electron integrals \f$ \langle i | \hat{h} | a \rangle \f$, stored in .csv format analogously to the two-electron integrals
+
+- **symm.txt**: Contains the irrep of each orbital in the HF basis, one on each line, encoded as described <a href="https://sunqm.github.io/pyscf/symm.html#symm" target="_blank">here</a>.
+
+- **sys_params.txt**: Contains parameters describing the system. See examples for formatting
+  - `n_elec`: The total number of electrons in the system
+  - `n_frozen`: Number of core electrons to freeze in the calculation. The orbitals with the lowest indices, as determined by the ordering in the above files, will be frozen.
+  - `eps`: The value of \f$ \varepsilon \f$ (the imaginary time step) to use to evolve the solution vector during the calculation
+  - `hf_energy`: The HF electronic energy of the system, in Hartrees (optional, but useful for accelerating convergence)
+
+\subsection run_input_lattice Lattice Systems
+
+Code for running calculations on the Hubbard model (fciqmc_hh.c and frisys_hh.c) use the parameters in the file at the path specified by the `params_path` input argument. See the examples for an example format of this file. The parameters are as follows:
+
+- `n_elec`: The total number of electrons in the system
+- `lat_len`: The number of lattice sites along one dimension
+- `n_dim`: The number of dimensions in the lattice
+- `eps`: The value of \f$ \varepsilon \f$ (the imaginary time step) to use to evolve the solution vector during the calculation
+- `U`: The on-site repulsion energy, in units of \f$ t \f$ (the kinetic energy hoping term)
+- `hf_energy`: The HF electronic energy of the system, in Hartrees (optional, but useful for accelerating convergence)
+
+\section run_output Output Files
+
+All executables produce the following files in the directory specified by the `result_dir` input parameter:
+
+- `projnum.txt`: A list of the values \f$ \langle \phi_\text{T} | \hat{H} | \psi^{(i)} \rangle \f$ calculated at each iteration in the trajectory, where \f$ \phi_\text{T} \f$ is the trial wave function
+- `projden.txt`: A list of the values \f$ \langle \phi_\text{T} | \psi^{(i)} \rangle \f$ calculated at each iteration
+- `S.txt`: The value of the energy shift after every 10 iterations in the trajectory
+- `params.txt`: A summary of the input parameters for this calculation
+
+Executables for FCIQMC calculations produce these additional output files:
+
+- `N.txt`: The number of walkers after each iteration
+- `nnonz.txt`: The number of nonzero vector elements after each iteration
+
+Executables for FCI-FRI calculations produce one additional output file:
+
+- `norm.txt`: The vector one-norm calculated after each iteration
+
+*/
