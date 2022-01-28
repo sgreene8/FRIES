@@ -245,6 +245,20 @@ int main(int argc, char * argv[]) {
             std::copy(sol_vec(trial_idx, 0), sol_vec(trial_idx, trial_size), trial_vals[trial_idx]);
         }
         
+        std::vector<double> norm_factors(n_trial, 1);
+        
+        if (args.load_dir != nullptr) {
+            sol_vec.set_curr_vec_idx(0);
+            sol_vec.load(*args.load_dir, n_trial);
+
+            tmp_path.str("");
+            tmp_path << *args.load_dir << "shifts.txt";
+            size_t n_shifts = load_last_line(tmp_path.str(), norm_factors.data());
+            if (n_shifts != n_trial) {
+                throw std::runtime_error("Error reading energy shift from last line of S.txt");
+            }
+        }
+        
         size_t n_states = n_elec_unf > (n_orb - n_elec_unf / 2) ? n_elec_unf : n_orb - n_elec_unf / 2;
         HBCompressPiv comp_vecs(spawn_length, n_states);
         size_t n_ex = n_elec_unf * n_elec_unf * (n_orb - n_elec_unf / 2) * (n_orb - n_elec_unf / 2);
@@ -341,7 +355,7 @@ int main(int argc, char * argv[]) {
         std::string hnpy_path(tmp_path.str());
         tmp_path.str("");
         tmp_path << args.result_dir << "shifts.txt";
-        std::ofstream shift_f(tmp_path.str());
+        std::ofstream shift_f(tmp_path.str(), std::ios::app);
         tmp_path.str("");
         tmp_path << args.result_dir << "norms.txt";
         std::ofstream norm_f(tmp_path.str());
@@ -356,9 +370,7 @@ int main(int argc, char * argv[]) {
         
         int vec_half = 0; // controls whether the current iterates are stored in the first or second half of the values_ matrix
         
-        std::vector<double> en_shifts(n_trial);
-        
-        for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
+        for (uint16_t vec_idx = 0; vec_idx < n_trial && args.load_dir == nullptr; vec_idx++) {
             sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
             double norm = sol_vec.local_norm();
             norm = sum_mpi(norm, proc_rank, n_procs, MPI_COMM_WORLD);

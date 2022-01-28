@@ -273,6 +273,19 @@ int main(int argc, char * argv[]) {
         
         sol_vec.fix_min_del_idx();
         
+        std::vector<double> norm_factors(n_trial, 1);
+        
+        if (args.load_dir != nullptr) {
+            sol_vec.load(*args.load_dir, n_trial);
+
+            tmp_path.str("");
+            tmp_path << *args.load_dir << "shifts.txt";
+            size_t n_shifts = load_last_line(tmp_path.str(), norm_factors.data());
+            if (n_shifts != n_trial) {
+                throw std::runtime_error("Error reading energy shift from last line of S.txt");
+            }
+        }
+        
         // Count # single/double excitations from HF
         hf_proc = sol_vec.idx_to_proc(hf_det);
         size_t n_hf_doub = doub_ex_symm(hf_det, tmp_orbs, n_elec_unf, n_orb, (uint8_t (*)[4])scratch_orbs, symm);
@@ -358,7 +371,7 @@ int main(int argc, char * argv[]) {
         std::string hnpy_path(tmp_path.str());
         tmp_path.str("");
         tmp_path << args.result_dir << "shifts.txt";
-        std::ofstream shift_f(tmp_path.str());
+        std::ofstream shift_f(tmp_path.str(), std::ios::app);
         tmp_path.str("");
         tmp_path << args.result_dir << "norms.txt";
         std::ofstream norm_f(tmp_path.str());
