@@ -497,7 +497,9 @@ size_t load_vec_dice(const std::string &path, Matrix<uint8_t> &dets, double *val
         }
     }
     if (states_found != (state + 1)) {
-        return 0;
+        std::stringstream msg;
+        msg << "Could not find vector for state " << state << " in file " << path;
+        throw std::runtime_error(msg.str());
     }
     size_t dice_idx = 0;
     size_t local_idx = 0;
@@ -513,16 +515,14 @@ size_t load_vec_dice(const std::string &path, Matrix<uint8_t> &dets, double *val
             if (!ss_line.good()) {
                 break;
             }
-            if (line_idx != dice_idx) {
-                std::stringstream msg;
-                msg << "Misaligned indices when reading Dice file: read " << line_idx << ", expected " << dice_idx << '\n';
-                throw std::runtime_error(msg.str());
+            if (local_idx >= dets.rows()) {
+                throw std::runtime_error("Insufficient memory allocated for reading trial vectors. Please increase the max_dets input parameter.");
             }
             uint8_t *curr_det = dets[local_idx];
             std::fill(curr_det, curr_det + dets.cols(), 0);
             ss_line >> vals[local_idx];
             if (fabs(vals[local_idx]) < 1e-6) {
-                break;
+                continue;
             }
             size_t curr_pos = ss_line.tellg();
             std::string line_str = ss_line.str();
