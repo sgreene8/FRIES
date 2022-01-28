@@ -166,12 +166,16 @@ int main(int argc, char * argv[]) {
             trial_vecs.emplace_back(glob_n_dets, &shared_adder, n_orb * 2, n_elec_unf, proc_scrambler, vec_scrambler);
             
             for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
-                trial_vecs[trial_idx].add((*load_dets)[det_idx], load_vals[det_idx], 1);
+                if (!trial_vecs[trial_idx].add((*load_dets)[det_idx], load_vals[det_idx], 1)) {
+                    throw std::runtime_error("Insufficient memory allocated in adder");
+                }
             }
             trial_vecs[trial_idx].perform_add(0);
             sol_vec.set_curr_vec_idx(trial_idx);
             for (size_t det_idx = 0; det_idx < loc_n_dets; det_idx++) {
-                sol_vec.add((*load_dets)[det_idx], load_vals[det_idx], 1);
+                if (!sol_vec.add((*load_dets)[det_idx], load_vals[det_idx], 1)) {
+                    throw std::runtime_error("Insufficient memory allocated in adder");
+                }
             }
             sol_vec.perform_add(0);
             tmp_path.str("");

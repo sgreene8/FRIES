@@ -275,7 +275,7 @@ int main(int argc, char * argv[]) {
         
         // Count # single/double excitations from HF
         hf_proc = sol_vec.idx_to_proc(hf_det);
-        size_t n_hf_doub = doub_ex_symm(hf_det, tmp_orbs, n_elec_unf, n_orb, (uint8_t (*)[4])comp_vecs.orb_indices1, symm);
+        size_t n_hf_doub = doub_ex_symm(hf_det, tmp_orbs, n_elec_unf, n_orb, (uint8_t (*)[4])scratch_orbs, symm);
         size_t n_hf_sing = count_singex(hf_det, tmp_orbs, n_elec_unf, &basis_symm);
         double p_doub = (double) n_hf_doub / (n_hf_sing + n_hf_doub);
         
