@@ -383,17 +383,16 @@ int main(int argc, char * argv[]) {
             
             if (iteration == 0) {
                 std::copy(norms.begin(), norms.end(), last_norms.begin());
-                    std::fill(en_shifts.begin(), en_shifts.end(), 1);
             }
             if ((iteration + 1) % shift_interval == 0) {
                 for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
-                    adjust_shift2(&en_shifts[vec_idx], norms[vec_idx], &last_norms[vec_idx], shift_damping);
+                    adjust_shift2(&norm_factors[vec_idx], norms[vec_idx], &last_norms[vec_idx], shift_damping);
                 }
                 if (proc_rank == 0) {
                     for (uint16_t vec_idx = 0; vec_idx < n_trial - 1; vec_idx++) {
-                        shift_f << en_shifts[vec_idx] << ',';
+                        shift_f << norm_factors[vec_idx] << ',';
                     }
-                    shift_f << en_shifts[n_trial - 1] << '\n';
+                    shift_f << norm_factors[n_trial - 1] << '\n';
                     shift_f.flush();
                 }
             }
@@ -407,7 +406,7 @@ int main(int argc, char * argv[]) {
             for (uint16_t vec_idx = 0; vec_idx < n_trial; vec_idx++) {
                 sol_vec.set_curr_vec_idx(vec_half * n_trial + vec_idx);
                 for (size_t el_idx = 0; el_idx < sol_vec.curr_size(); el_idx++) {
-                    *sol_vec[el_idx] /= en_shifts[vec_idx];
+                    *sol_vec[el_idx] /= norm_factors[vec_idx];
                 }
             }
             

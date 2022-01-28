@@ -38,7 +38,7 @@ int main(int argc, char * argv[]) {
         MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
         
         double target_norm = args.target_norm;
-        uint32_t max_n_dets = args.max_n_dets;
+        size_t max_n_dets = args.max_n_dets;
         
         // Parameters
         double shift_damping = 0.05;
@@ -70,7 +70,6 @@ int main(int argc, char * argv[]) {
         auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
         std::cout << "seed on process " << proc_rank << " is " << seed << std::endl;
         std::mt19937 mt_obj((unsigned int)seed);
-        size_t det_idx;
         
         // Initialize hash function for processors and vector
         std::vector<uint32_t> proc_scrambler(2 * n_orb);
@@ -82,20 +81,20 @@ int main(int argc, char * argv[]) {
         }
         else {
             if (proc_rank == 0) {
-                for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
-                    proc_scrambler[det_idx] = mt_obj();
+                for (size_t orb_idx = 0; orb_idx < 2 * n_orb; orb_idx++) {
+                    proc_scrambler[orb_idx] = mt_obj();
                 }
                 save_proc_hash(args.result_dir, proc_scrambler.data(), 2 * n_orb);
             }
             MPI_Bcast(proc_scrambler.data(), 2 * n_orb, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
         }
         std::vector<uint32_t> vec_scrambler(2 * n_orb);
-        for (det_idx = 0; det_idx < 2 * n_orb; det_idx++) {
-            vec_scrambler[det_idx] = mt_obj();
+        for (size_t orb_idx = 0; orb_idx < 2 * n_orb; orb_idx++) {
+            vec_scrambler[orb_idx] = mt_obj();
         }
         
         // Solution vector
-        unsigned int spawn_length = n_elec * 4 * max_n_dets / n_procs;
+        size_t spawn_length = n_elec * 4 * max_n_dets / n_procs;
         if (spawn_length > 200000) {
             spawn_length = 200000;
         }
@@ -185,7 +184,7 @@ int main(int argc, char * argv[]) {
         unsigned int iterat;
         Matrix<uint8_t> &neighb_orbs = sol_vec.neighb();
         for (iterat = 0; iterat < args.max_iter; iterat++) {
-            det_idx = 0;
+            size_t det_idx = 0;
             int num_added = 1;
             size_t vec_size = sol_vec.curr_size();
             size_t adder_size = sol_vec.adder_size() - n_elec * 4;
@@ -258,7 +257,7 @@ int main(int argc, char * argv[]) {
                 sol_vec.set_curr_vec_idx(1);
             }
             sol_vec.set_curr_vec_idx(0);
-            for (det_idx = 0; det_idx < vec_size; det_idx++) {
+            for (size_t det_idx = 0; det_idx < vec_size; det_idx++) {
                 double *curr_el = sol_vec[det_idx];
                 // Death/cloning step
                 if (*curr_el != 0) {
@@ -309,7 +308,7 @@ int main(int argc, char * argv[]) {
             }
             MPI_Allgather(MPI_IN_PLACE, 0, MPI_DOUBLE, loc_norms, 1, MPI_DOUBLE, MPI_COMM_WORLD);
             sys_comp(sol_vec.values(), sol_vec.curr_size(), loc_norms, n_samp, keep_exact, rn_sys);
-            for (det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
+            for (size_t det_idx = 0; det_idx < sol_vec.curr_size(); det_idx++) {
                 if (keep_exact[det_idx] && !(proc_rank == 0 && det_idx == 0)) {
                     sol_vec.del_at_pos(det_idx);
                     keep_exact[det_idx] = 0;
