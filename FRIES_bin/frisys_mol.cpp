@@ -168,8 +168,12 @@ int main(int argc, char * argv[]) {
         DistVec<double> htrial_vec(tot_trial * n_ex / n_procs, tot_trial * n_ex / n_procs, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, 2, proc_scrambler, vec_scrambler);
         if (args.trial_path != nullptr) { // load trial vector from file
             for (size_t det_idx = 0; det_idx < n_trial; det_idx++) {
-                trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
-                htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
+                if (!trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1)) {
+                    throw std::runtime_error("Insufficient memory allocated in adder");
+                }
+                if (!htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1)) {
+                    throw std::runtime_error("Insufficient memory allocated in adder");
+                }
             }
         }
         else { // Otherwise, use HF as trial vector
@@ -428,7 +432,7 @@ int main(int argc, char * argv[]) {
                 size_t samp_idx = 0;
                 while (num_added > 0) {
                     num_added = 0;
-                    while (samp_idx < comp_len && num_added < adder_size) {
+                    while (samp_idx < comp_len) {
                         size_t det_idx = comp_vecs.det_indices2[samp_idx];
                         double curr_val = vals_before_mult[det_idx];
                         uint8_t ini_flag = fabs(curr_val) >= args.init_thresh;
@@ -452,9 +456,11 @@ int main(int argc, char * argv[]) {
                             uint8_t *sing_orbs = comp_vecs.orb_indices1[samp_idx];
                             sing_det(new_det, sing_orbs);
                         }
-                        sol_vec.add(new_det, add_el, ini_flag);
                         num_added++;
                         samp_idx++;
+                        if (!sol_vec.add(new_det, add_el, ini_flag)) {
+                            break;
+                        }
                     }
                     sol_vec.perform_add(0);
                     sol_vec.set_curr_vec_idx(0);

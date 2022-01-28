@@ -169,8 +169,12 @@ int main(int argc, char * argv[]) {
         DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, 2, proc_scrambler, vec_scrambler);
         if (args.trial_path != nullptr) { // load trial vector from file
             for (det_idx = 0; det_idx < n_trial; det_idx++) {
-                trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
-                htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
+                while (!trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1)) {
+                    trial_vec.perform_add(0);
+                }
+                while (!htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1)) {
+                    htrial_vec.perform_add(0);
+                }
             }
         }
         else { // Otherwise, use HF as trial vector
@@ -259,7 +263,9 @@ int main(int argc, char * argv[]) {
                 if (abs(load_vals[det_idx]) > max_vals) {
                     max_vals = abs(load_vals[det_idx]);
                 }
-                sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
+                while (!sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1)) {
+                    sol_vec.perform_add(0);
+                }
             }
         }
         else {
@@ -409,7 +415,9 @@ int main(int argc, char * argv[]) {
                     if (spawn_walker != 0) {
                         memcpy(new_det, curr_det, det_size);
                         spawn_walker *= -doub_det_parity(new_det, doub_orbs[walker_idx]) * walk_sign;
-                        sol_vec.add(new_det, spawn_walker, ini_flag);
+                        if (!sol_vec.add(new_det, spawn_walker, ini_flag)) {
+                            throw std::runtime_error("Insufficient memory allocated in adder");
+                        }
                     }
                 }
                 
@@ -428,7 +436,9 @@ int main(int argc, char * argv[]) {
                     if (spawn_walker != 0) {
                         memcpy(new_det, curr_det, det_size);
                         spawn_walker *= -sing_det_parity(new_det, sing_orbs[walker_idx]) * walk_sign;
-                        sol_vec.add(new_det, spawn_walker, ini_flag);
+                        if (!sol_vec.add(new_det, spawn_walker, ini_flag)) {
+                            throw std::runtime_error("Insufficient memory allocated in adder");
+                        }
                     }
                 }
                 

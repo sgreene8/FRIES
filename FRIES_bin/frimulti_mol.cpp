@@ -148,8 +148,12 @@ int main(int argc, char * argv[]) {
         DistVec<double> htrial_vec(n_trial * n_ex / n_procs, n_trial * n_ex / n_procs, n_orb * 2, n_elec_unf, n_procs, diag_shortcut, 2, proc_scrambler, vec_scrambler);
         if (args.trial_path != nullptr) { // load trial vector from file
             for (det_idx = 0; det_idx < n_trial; det_idx++) {
-                trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
-                htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
+                if (!trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1)) {
+                    throw std::runtime_error("Insufficient memory allocated in adder");
+                }
+                if (!htrial_vec.add(load_dets[det_idx], load_vals[det_idx], 1)) {
+                    throw std::runtime_error("Insufficient memory allocated in adder");
+                }
             }
         }
         else { // Otherwise, use HF as trial vector
@@ -371,7 +375,9 @@ int main(int argc, char * argv[]) {
                     if (fabs(matr_el) > 1e-9) {
                         memcpy(new_det, curr_det, det_size);
                         matr_el *= -eps / spawn_probs[walker_idx] / p_doub / n_walk * (*curr_el) * doub_det_parity(new_det, doub_orbs[walker_idx]) / colsamp_wt;
-                        sol_vec.add(new_det, matr_el, ini_flag);
+                        if (!sol_vec.add(new_det, matr_el, ini_flag)) {
+                            throw std::runtime_error("Insufficient memory allocated in adder.");
+                        }
                     }
                 }
                 
@@ -382,7 +388,9 @@ int main(int argc, char * argv[]) {
                     if (fabs(matr_el) > 1e-9) {
                         memcpy(new_det, curr_det, det_size);
                         matr_el *= -eps / spawn_probs[walker_idx] / (1 - p_doub) / n_walk * (*curr_el) * sing_det_parity(new_det, sing_orbs[walker_idx]) / colsamp_wt;
-                        sol_vec.add(new_det, matr_el, ini_flag);
+                        if (!sol_vec.add(new_det, matr_el, ini_flag)) {
+                            throw std::runtime_error("Insufficient memory allocated in adder.");
+                        }
                     }
                 }
                 

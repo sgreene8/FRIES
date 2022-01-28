@@ -80,10 +80,10 @@ public:
      * \param [in] idx_bits     Number of bits used to encode the index
      * \param [in] val      Value of the added element
      * \param [in] ini_flag     Either 1 or 0, indicates initiator status of the added element
-     * \return The index of the added element in the buffer
+     * \return True if buffer is not yet full, false if it is
      */
-    size_t add(uint8_t *idx, uint8_t idx_bits, el_type val, int proc_idx, uint8_t ini_flag);
-    size_t add(uint8_t *idx, uint8_t idx_bits, el_type *vals, size_t n_vals, int proc_idx, uint8_t ini_flag);
+    bool add(uint8_t *idx, uint8_t idx_bits, el_type val, int proc_idx, uint8_t ini_flag);
+    bool add(uint8_t *idx, uint8_t idx_bits, el_type *vals, size_t n_vals, int proc_idx, uint8_t ini_flag);
     
     size_t size() const {
         return send_vals_.cols();
@@ -104,30 +104,6 @@ private:
     std::vector<int> idx_disp_; ///< Displacements for MPI send/receive operations for indices
     std::vector<int> val_disp_; ///< Displacements for MPI send/receive operations for values
     uint8_t n_bytes_; ///< Number of bytes used to encode each index in the send and receive buffers
-    
-/*! \brief Increase the size of the buffer for temporarily storing added elements
- */
-    void enlarge_() {
-        std::cout << "Increasing storage capacity in adder to " << send_vals_.cols() * 2 << " elements per process\n";
-        size_t n_proc = send_idx_.rows();
-        size_t new_idx_cols = send_idx_.cols() * 2;
-        size_t new_val_cols = send_vals_.cols() * 2;
-        
-        int idx_counts[n_proc];
-        for (int proc_idx = 0; proc_idx < n_proc; proc_idx++) {
-            idx_counts[proc_idx] = send_cts_[proc_idx] * n_bytes_;
-        }
-        
-        send_idx_.enlarge_cols(new_idx_cols, idx_counts);
-        send_vals_.enlarge_cols(new_val_cols, send_cts_.data());
-        recv_idx_.reshape(n_proc, new_idx_cols);
-        recv_vals_.reshape(n_proc, new_val_cols);
-        
-        for (int proc_idx = 0; proc_idx < n_proc; proc_idx++) {
-            idx_disp_[proc_idx] = proc_idx * (int)new_idx_cols;
-            val_disp_[proc_idx] = proc_idx * (int)new_val_cols;
-        }
-    }
 };
 
 /*!
@@ -437,18 +413,20 @@ public:
      * \param [in] idx          The index of the element in the vector
      * \param [in] val          The value of the added element
      * \param [in] ini_flag     Either 1 or 0. If 0, will only be added to a determinant that is already occupied
+     * \return True if buffer is not yet full, false otherwise
      */
-    void add(uint8_t *idx, el_type val, uint8_t ini_flag) {
+    bool add(uint8_t *idx, el_type val, uint8_t ini_flag) {
         if (val != 0) {
-            adder_->add(idx, n_bits_, val, idx_to_proc(idx), ini_flag);
+            return adder_->add(idx, n_bits_, val, idx_to_proc(idx), ini_flag);
         }
+        return true;
     }
     
-    void add(uint8_t *idx, el_type *vals, size_t n_vals, uint8_t ini_flag) {
-        adder_->add(idx, n_bits_, vals, n_vals, idx_to_proc(idx), ini_flag);
+    bool add(uint8_t *idx, el_type *vals, size_t n_vals, uint8_t ini_flag) {
+        return adder_->add(idx, n_bits_, vals, n_vals, idx_to_proc(idx), ini_flag);
     }
     
-    size_t add(uint8_t *idx, uint8_t *orbs, el_type val, uint8_t ini_flag) {
+    bool add(uint8_t *idx, uint8_t *orbs, el_type val, uint8_t ini_flag) {
         return adder_->add(idx, n_bits_, val, idx_to_proc(idx, orbs), ini_flag);
     }
 
@@ -943,10 +921,10 @@ public:
 
 
 template <class el_type>
-size_t Adder<el_type>::add(uint8_t *idx, uint8_t idx_bits, el_type val, int proc_idx, uint8_t ini_flag) {
+bool Adder<el_type>::add(uint8_t *idx, uint8_t idx_bits, el_type val, int proc_idx, uint8_t ini_flag) {
     int *count = &send_cts_[proc_idx];
-    if (*count == send_vals_.cols()) {
-        enlarge_();
+    if (*count >= send_vals_.cols()) {
+        throw std::runtime_error("Too many elements added to Adder - must call perform_add() more frequently.");
     }
     uint8_t *cpy_idx = &send_idx_[proc_idx][*count * n_bytes_];
     cpy_idx[n_bytes_ - 1] = 0; // To prevent buffer overflow in hash function after elements are added
@@ -955,13 +933,12 @@ size_t Adder<el_type>::add(uint8_t *idx, uint8_t idx_bits, el_type val, int proc
         set_bit(cpy_idx, idx_bits);
     }
     send_vals_(proc_idx, *count) = val;
-    size_t ret_val = *count;
     (*count)++;
-    return ret_val;
+    return (*count) < send_vals_.cols();
 }
 
 template <class el_type>
-size_t Adder<el_type>::add(uint8_t *idx, uint8_t idx_bits, el_type *vals, size_t n_vals, int proc_idx, uint8_t ini_flag) {
+bool Adder<el_type>::add(uint8_t *idx, uint8_t idx_bits, el_type *vals, size_t n_vals, int proc_idx, uint8_t ini_flag) {
     int *count = &send_cts_[proc_idx];
     if (*count * n_vals >= send_vals_.cols()) {
         throw std::runtime_error("Too many elements added to Adder in the process of taking a dot product - must call perform_dot() more frequently.");
@@ -973,9 +950,8 @@ size_t Adder<el_type>::add(uint8_t *idx, uint8_t idx_bits, el_type *vals, size_t
         set_bit(cpy_idx, idx_bits);
     }
     std::copy(vals, vals + n_vals, &send_vals_(proc_idx, *count * n_vals));
-    size_t ret_val = *count;
     (*count)++;
-    return ret_val;
+    return (*count) < send_vals_.cols();
 }
 
 template <class el_type>

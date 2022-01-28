@@ -236,7 +236,7 @@ int main(int argc, char * argv[]) {
                 size_t samp_idx = 0;
                 while (num_added > 0) {
                     num_added = 0;
-                    while (samp_idx < comp_len && num_added < adder_size) {
+                    while (samp_idx < comp_len) {
                         size_t prev_idx = comp_idx[samp_idx][0];
                         size_t det_idx = det_indices[prev_idx];
                         double curr_val = vals_before_mult[det_idx];
@@ -285,11 +285,13 @@ int main(int argc, char * argv[]) {
                             set_bit(new_det, dest_orb);
                             matr_el *= -1; // hub_t
                         }
-                        if (fabs(matr_el) > 1e-9) {
-                            sol_vec.add(new_det, matr_el, ini_flag);
-                            num_added++;
-                        }
                         samp_idx++;
+                        if (fabs(matr_el) > 1e-9) {
+                            num_added++;
+                            if (!sol_vec.add(new_det, matr_el, ini_flag)) {
+                                break;
+                            }
+                        }
                     }
                     sol_vec.perform_add(0);
                     num_added = sum_mpi(num_added, proc_rank, n_procs);

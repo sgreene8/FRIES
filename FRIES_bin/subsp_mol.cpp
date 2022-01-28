@@ -225,7 +225,9 @@ int main(int argc, char * argv[]) {
                 else {
                     ref_det = new_det;
                 }
-                sol_vec.add(ref_det, load_vals[det_idx], 1);
+                if (!sol_vec.add(ref_det, load_vals[det_idx], 1)) {
+                    throw std::runtime_error("Insufficient memory allocated in adder");
+                }
             }
             sol_vec.set_curr_vec_idx(trial_idx);
             sol_vec.perform_add(0);
@@ -535,7 +537,7 @@ int main(int argc, char * argv[]) {
                     while (num_added > 0) {
                         num_added = 0;
                         uint8_t flip_det[det_size];
-                        while (samp_idx < comp_len && num_added < adder_size) {
+                        while (samp_idx < comp_len) {
                             size_t det_idx = comp_vecs.det_indices2[samp_idx];
                             double curr_val = vals_before_mult[det_idx];
                             uint8_t ini_flag = fabs(curr_val) >= init_thresh;
@@ -571,9 +573,11 @@ int main(int argc, char * argv[]) {
                             else {
                                 ref_det = new_det;
                             }
-                            sol_vec.add(ref_det, add_el, ini_flag);
                             num_added++;
                             samp_idx++;
+                            if (!sol_vec.add(ref_det, add_el, ini_flag)) {
+                                break;
+                            }
                         }
                         sol_vec.perform_add(curr_idx);
                         sol_vec.set_curr_vec_idx(curr_idx);

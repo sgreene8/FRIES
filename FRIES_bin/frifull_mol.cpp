@@ -135,7 +135,9 @@ int main(int argc, char * argv[]) {
         DistVec<double> trial_vec(tot_trial, tot_trial, n_orb * 2, n_elec_unf, n_procs, proc_scrambler, vec_scrambler);
         if (args.trial_path != nullptr) { // load trial vector from file
             for (det_idx = 0; det_idx < n_trial; det_idx++) {
-                trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
+                if (!trial_vec.add(load_dets[det_idx], load_vals[det_idx], 1)) {
+                    throw std::runtime_error("Insufficient memory allocated in adder");
+                }
             }
         }
         else { // Otherwise, use HF as trial vector
@@ -199,7 +201,9 @@ int main(int argc, char * argv[]) {
             size_t n_dets = load_vec_txt(*args.ini_path, load_dets, load_vals);
             
             for (det_idx = 0; det_idx < n_dets; det_idx++) {
-                sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1);
+                if (!sol_vec.add(load_dets[det_idx], load_vals[det_idx], 1)) {
+                    throw std::runtime_error("Insufficient memory allocated in adder");
+                }
             }
             n_dets++; // just to be safe
             bzero(load_vals, n_dets * sizeof(double));
