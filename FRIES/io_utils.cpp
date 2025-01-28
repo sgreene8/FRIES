@@ -243,16 +243,19 @@ fcidump_input *parse_fcidump(const std::string &fcidump_path, const std::string 
     std::ifstream in_file(fcidump_path);
     std::getline(in_file, file_line);
     size_t n_orb_pos = file_line.find("NORB=");
-    size_t n_elec_pos = file_line.find(",NELEC=");
-    std::string substr = file_line.substr(n_orb_pos + 5, n_elec_pos - (n_orb_pos + 5));
+    size_t n_orb_end = file_line.find(",", n_orb_pos);
+    std::string substr = file_line.substr(n_orb_pos + 5, n_orb_end - (n_orb_pos + 5));
     uint32_t n_orb;
     n_orb = std::stoi(substr);
     
-    size_t ms_pos = file_line.find(",MS2=");
-    substr = file_line.substr(n_elec_pos + 7, ms_pos - (n_elec_pos + 7));
+    size_t n_elec_pos = file_line.find("NELEC=");
+    size_t n_elec_end = file_line.find(",", n_elec_pos);
+    substr = file_line.substr(n_elec_pos + 6, n_elec_end - (n_elec_pos + 6));
     uint32_t n_elec = std::stoi(substr);
     
-    substr = file_line.substr(ms_pos + 5, 1);
+    size_t ms_pos = file_line.find("MS2=");
+    size_t ms_pos_end = file_line.find(",", ms_pos);
+    substr = file_line.substr(ms_pos + 4, ms_pos_end - (ms_pos + 4));
     if (std::stoi(substr) != 0) {
         throw std::runtime_error("MS2 is not zero in FCIDUMP file.");
     }
@@ -269,8 +272,13 @@ fcidump_input *parse_fcidump(const std::string &fcidump_path, const std::string 
     while (ss_line.good()) {
         std::getline(ss_line, substr, ',');
         if (substr.length() > 0) {
-            in_struct->symm[n_read] = atoi(substr.c_str());
-            n_read++;
+            try {
+                in_struct->symm[n_read] = std::stoi(substr.c_str());
+                n_read++;
+            }
+            catch (std::invalid_argument &e) {
+                ;
+            }
         }
     }
     if (n_read != in_struct->n_orb_) {
