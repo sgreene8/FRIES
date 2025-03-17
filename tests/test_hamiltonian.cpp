@@ -25,7 +25,7 @@ TEST_CASE("Test diagonal matrix element evaluation", "[molec_diag]") {
     double hf_en = in_data.hf_en;
 
     Matrix<double> *h_core = in_data.hcore;
-    FourDArr *eris = in_data.eris;
+    FourDArr<double> *eris = in_data.eris;
     
     std::vector<uint32_t> vec_scrambler(2 * n_orb);
     
@@ -391,7 +391,7 @@ TEST_CASE("Test evaluation of sampling weights for the new heat-bath distributio
     unsigned int n_elec = 4;
     size_t i, j, a, b;
     
-    FourDArr eris(n_orb, n_orb, n_orb, n_orb);
+    FourDArr<double> eris(n_orb, n_orb, n_orb, n_orb);
     
     for (i = 0; i < n_orb; i++) {
         for (j = 0; j < n_orb; j++) {
@@ -462,7 +462,7 @@ TEST_CASE("Complete test of compression of un-normalized HB-PP factorization", "
     size_t det_size = CEILING(2 * n_orb, 8);
     size_t i, j, a, b;
     
-    FourDArr eris(tot_orb, tot_orb, tot_orb, tot_orb);
+    FourDArr<double> eris(tot_orb, tot_orb, tot_orb, tot_orb);
     
     for (i = 0; i < tot_orb; i++) {
         for (j = 0; j < tot_orb; j++) {
@@ -530,7 +530,7 @@ TEST_CASE("Complete test of compression of un-normalized HB-PP factorization wit
     size_t det_size = CEILING(2 * n_orb, 8);
     size_t i, j, a, b;
     
-    FourDArr eris(tot_orb, tot_orb, tot_orb, tot_orb);
+    FourDArr<double> eris(tot_orb, tot_orb, tot_orb, tot_orb);
     
     for (i = 0; i < tot_orb; i++) {
         for (j = 0; j < tot_orb; j++) {

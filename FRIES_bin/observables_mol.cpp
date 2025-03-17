@@ -56,7 +56,7 @@ int main(int argc, char * argv[]) {
         
         uint8_t *symm = in_data.symm;
         Matrix<double> *h_core = in_data.hcore;
-        FourDArr *eris = in_data.eris;
+        FourDArr<double> *eris = in_data.eris;
         
         // Rn generator
         auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();

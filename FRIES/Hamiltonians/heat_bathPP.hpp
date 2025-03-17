@@ -50,7 +50,7 @@ struct hb_info {
  * \return hb_info struct initialized with the HB-PP parameters
  */
 hb_info *set_up(unsigned int tot_orb, unsigned int n_orb,
-                const FourDArr &eris);
+                const FourDArr<double> &eris);
 hb_info *set_up(uint32_t tot_orb, uint32_t n_orb, const SymmERIs &eris);
 
 

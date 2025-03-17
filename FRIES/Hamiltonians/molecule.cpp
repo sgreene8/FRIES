@@ -6,7 +6,7 @@
 
 
 double doub_matr_el_nosgn(uint8_t *chosen_orbs, unsigned int n_orbs,
-                          const FourDArr &eris, unsigned int n_frozen) {
+                          const FourDArr<double> &eris, unsigned int n_frozen) {
     uint8_t sp0, sp1, sp2, sp3;
     unsigned int adj_n_orb = n_orbs - n_frozen / 2;
     sp0 = chosen_orbs[0];
@@ -43,7 +43,7 @@ double doub_matr_el_nosgn(uint8_t *chosen_orbs, unsigned int n_orbs,
 
 
 double sing_matr_el_nosgn(uint8_t *chosen_orbs, uint8_t *occ_orbs,
-                          unsigned int n_orbs, const FourDArr &eris,
+                          unsigned int n_orbs, const FourDArr<double> &eris,
                           const Matrix<double> &h_core, unsigned int n_frozen,
                           unsigned int n_elec) {
     unsigned int half_frz = n_frozen / 2;
@@ -253,7 +253,7 @@ void one_elec_op(DistVec<double> &vec, unsigned int n_orbs, uint8_t des_op, uint
 
 
 void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
-                  const FourDArr &eris, const Matrix<double> &h_core,
+                  const FourDArr<double> &eris, const Matrix<double> &h_core,
                   uint8_t *orbs_scratch, unsigned int n_frozen,
                   unsigned int n_elec, uint8_t dest_idx, double h_fac) {
     h_op_offdiag(vec, symm, n_orbs, eris, h_core, orbs_scratch,  n_frozen, n_elec, dest_idx, h_fac, 0);
@@ -261,7 +261,7 @@ void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
 
 
 void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
-                  const FourDArr &eris, const Matrix<double> &h_core,
+                  const FourDArr<double> &eris, const Matrix<double> &h_core,
                   uint8_t *orbs_scratch, unsigned int n_frozen,
                   unsigned int n_elec, uint8_t dest_idx, double h_fac, int spin_parity) {
     int n_procs = 1;
@@ -893,7 +893,7 @@ size_t count_doub_nosymm(unsigned int num_elec, unsigned int num_orb) {
 
 
 size_t gen_hf_ex(uint8_t *hf_det, uint8_t *hf_occ, unsigned int num_elec,
-                 unsigned int n_orb, uint8_t *orb_symm, const FourDArr &eris,
+                 unsigned int n_orb, uint8_t *orb_symm, const FourDArr<double> &eris,
                  unsigned int n_frozen, Matrix<uint8_t> &ex_dets, double *ex_mel) {
     unsigned int num_unf_orb = n_orb - n_frozen / 2;
     size_t max_n_doub = count_doub_nosymm(num_elec, num_unf_orb);
@@ -933,7 +933,7 @@ size_t count_singex(uint8_t *det, const uint8_t *occ_orbs, uint32_t num_elec,
 }
 
 double diag_matrel(const uint8_t *occ_orbs, unsigned int n_orbs,
-                   const FourDArr &eris, const Matrix<double> &h_core,
+                   const FourDArr<double> &eris, const Matrix<double> &h_core,
                    unsigned int n_frozen, unsigned int n_elec) {
     unsigned int j, k, elec_1, elec_2;
     double matr_sum = 0;

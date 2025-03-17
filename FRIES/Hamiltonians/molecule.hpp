@@ -41,7 +41,7 @@ typedef enum {
  * \return calculated matrix element
  */
 double doub_matr_el_nosgn(uint8_t *chosen_orbs, unsigned int n_orbs,
-                          const FourDArr &eris, unsigned int n_frozen);
+                          const FourDArr<double> &eris, unsigned int n_frozen);
 
 double doub_matr_el_nosgn(uint8_t *chosen_orbs, unsigned int n_orbs,
                           const SymmERIs &eris, unsigned int n_frozen);
@@ -66,7 +66,7 @@ double doub_matr_el_nosgn(uint8_t *chosen_orbs, unsigned int n_orbs,
  * \return calculated matrix element
  */
 double sing_matr_el_nosgn(uint8_t *chosen_orbs, uint8_t *occ_orbs,
-                          unsigned int n_orbs, const FourDArr &eris,
+                          unsigned int n_orbs, const FourDArr<double> &eris,
                           const Matrix<double> &h_core, unsigned int n_frozen,
                           unsigned int n_elec);
 
@@ -148,11 +148,11 @@ void h_op_offdiag(DistVec<double> &vec, size_t vec_size, uint8_t *symm, unsigned
                   uint8_t *orbs_scratch, size_t scratch_size, unsigned int n_frozen,
                   unsigned int n_elec, uint8_t dest_idx, double h_fac, int spin_parity);
 void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
-                  const FourDArr &eris, const Matrix<double> &h_core,
+                  const FourDArr<double> &eris, const Matrix<double> &h_core,
                   uint8_t *orbs_scratch, unsigned int n_frozen,
                   unsigned int n_elec, uint8_t dest_idx, double h_fac, int spin_parity);
 void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
-                  const FourDArr &eris, const Matrix<double> &h_core,
+                  const FourDArr<double> &eris, const Matrix<double> &h_core,
                   uint8_t *orbs_scratch, unsigned int n_frozen,
                   unsigned int n_elec, uint8_t dest_idx, double h_fac);
 void h_op_offdiag(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
@@ -197,7 +197,7 @@ void calc_h_dot(DistVec<double> &vec, uint8_t *symm, unsigned int n_orbs,
  * \return total number of nonzero elements
  */
 size_t gen_hf_ex(uint8_t *hf_det, uint8_t *hf_occ, unsigned int num_elec,
-                 unsigned int n_orb, uint8_t *orb_symm, const FourDArr &eris,
+                 unsigned int n_orb, uint8_t *orb_symm, const FourDArr<double> &eris,
                  unsigned int n_frozen, Matrix<uint8_t> &ex_dets, double *ex_mel);
 
 
@@ -227,7 +227,7 @@ size_t count_doub_nosymm(unsigned int num_elec, unsigned int num_orb);
  * \return calculated matrix element
  */
 double diag_matrel(const uint8_t *occ_orbs, unsigned int n_orbs,
-                   const FourDArr &eris, const Matrix<double> &h_core,
+                   const FourDArr<double> &eris, const Matrix<double> &h_core,
                    unsigned int n_frozen, unsigned int n_elec);
 double diag_matrel(const uint8_t *occ_orbs, unsigned int n_orbs,
                    const SymmERIs &eris, const Matrix<double> &h_core,

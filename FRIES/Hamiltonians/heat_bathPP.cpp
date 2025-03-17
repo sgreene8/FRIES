@@ -13,7 +13,7 @@
 #include <FRIES/math_utils.h>
 
 hb_info *set_up(unsigned int tot_orb, unsigned int n_orb,
-                const FourDArr &eris) {
+                const FourDArr<double> &eris) {
     hb_info *hb_obj = (hb_info *)malloc(sizeof(hb_info));
     hb_obj->n_orb = n_orb;
     unsigned int half_frz = tot_orb - n_orb;

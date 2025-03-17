@@ -30,7 +30,7 @@ struct hf_input {
     unsigned int n_elec; ///< Total number of electrons (including frozen) in the system
     unsigned int n_frz; ///< Suggested number of core electrons to freeze
     unsigned int n_orb; ///< Number of spatial orbitals in the HF basis
-    FourDArr *eris; ///< Pointer to 4-D array of 2-electron integrals
+    FourDArr<double> *eris; ///< Pointer to 4-D array of 2-electron integrals
     Matrix<double> *hcore; ///< Pointer to matrix of 1-electron integrals
     double hf_en; ///< HF electronic energy
     double eps; ///< Suggested imaginary time step to use

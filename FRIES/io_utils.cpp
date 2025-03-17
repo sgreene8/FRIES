@@ -177,7 +177,7 @@ void parse_hf_input(const std::string &hf_dir, hf_input *in_struct) {
     
     path = hf_dir;
     path.append("eris.txt");
-    in_struct->eris = new FourDArr(tot_orb, tot_orb, tot_orb, tot_orb);
+    in_struct->eris = new FourDArr<double>(tot_orb, tot_orb, tot_orb, tot_orb);
     n_read = read_csv(in_struct->eris->data(), path);
     if (n_read < tot_orb * tot_orb * tot_orb * tot_orb) {
         std::stringstream msg;
